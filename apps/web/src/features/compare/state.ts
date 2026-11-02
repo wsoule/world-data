@@ -44,6 +44,11 @@ export interface CompareSearch {
   cov?: number;
   /** Map / ranking focus metric */
   f?: number;
+  /**
+   * Overlay axis flips by metric id: true draws a lower-is-better metric so
+   * the best value sits right / up. Unset means the default (ranks flipped).
+   */
+  fl?: Record<string, boolean>;
 }
 
 const NORMS: Normalization[] = ['percentile', 'zscore', 'minmax'];
@@ -123,6 +128,7 @@ export function validateCompareSearch(
         ? Math.min(1, Math.max(0, Number(raw.cov)))
         : undefined,
     f: optNum(raw.f),
+    fl: record(raw.fl, (x) => (typeof x === 'boolean' ? x : undefined)),
   };
 }
 

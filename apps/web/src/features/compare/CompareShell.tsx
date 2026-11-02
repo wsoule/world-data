@@ -140,8 +140,10 @@ export function CompareShell() {
       update((s) => {
         const w = { ...(s.w ?? {}) };
         const d = { ...(s.d ?? {}) };
+        const fl = { ...(s.fl ?? {}) };
         delete w[String(id)];
         delete d[String(id)];
+        delete fl[String(id)];
         return {
           m: s.m.filter((x) => x !== id),
           x: s.x === id ? undefined : s.x,
@@ -151,6 +153,7 @@ export function CompareShell() {
           f: s.f === id ? undefined : s.f,
           w,
           d,
+          fl: Object.keys(fl).length > 0 ? fl : undefined,
         };
       }),
     [update]
@@ -333,6 +336,7 @@ function Basket({
                 w: undefined,
                 d: undefined,
                 f: undefined,
+                fl: undefined,
                 log: undefined,
               })
             }

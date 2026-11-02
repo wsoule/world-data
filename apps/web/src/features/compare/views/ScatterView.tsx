@@ -1,5 +1,5 @@
 import { ChartScatter, X } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 
 import { isRankMetric, polarityFor } from '../polarity';
 import { groupLabel } from '../presets';
@@ -173,11 +173,11 @@ function Overlay(props: CompareViewProps) {
     [search, yMetric, dirY]
   );
 
-  // Axis flips are a viewing preference (not part of the shared URL). Rank
-  // metrics start flipped so #1 sits at the right / top.
-  const [flips, setFlips] = useState<Record<number, boolean>>({});
-  const flipX = dirX === -1 && (flips[xMetric.id] ?? x.isRank);
-  const flipY = dirY === -1 && (flips[yMetric.id] ?? y.isRank);
+  // Axis flips live in the URL (`fl`) so shared links keep them. Rank metrics
+  // start flipped so #1 sits at the right / top.
+  const flips = search.fl ?? {};
+  const flipX = dirX === -1 && (flips[String(xMetric.id)] ?? x.isRank);
+  const flipY = dirY === -1 && (flips[String(yMetric.id)] ?? y.isRank);
 
   const log = search.log ?? [];
   const logX = log.includes('x');
@@ -234,7 +234,7 @@ function Overlay(props: CompareViewProps) {
   const toggleFlip = (axis: 'x' | 'y') => {
     const id = axis === 'x' ? xMetric.id : yMetric.id;
     const cur = axis === 'x' ? flipX : flipY;
-    setFlips((f) => ({ ...f, [id]: !cur }));
+    update((s) => ({ fl: { ...(s.fl ?? {}), [String(id)]: !cur } }));
   };
   const addAndSet = (key: 'r' | 'c', id: number) =>
     update((s) => ({ m: s.m.includes(id) ? s.m : [...s.m, id], [key]: id }));
