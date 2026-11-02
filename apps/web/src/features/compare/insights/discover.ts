@@ -1,5 +1,8 @@
 import { correlationPValue } from '@world-data/stats';
 
+import { isRankMetric } from '../polarity';
+import type { Metric } from '~/data/types';
+
 /** One column to compare against the target: values aligned to the dataset's entities, NaN = missing. */
 export interface DiscoverCandidate {
   id: number;
@@ -149,4 +152,26 @@ export function discoverRelated(
     .sort((a, b) => (a.r !== b.r ? a.r - b.r : b.n - a.n))
     .slice(0, limit);
   return { positive, negative, scanned, eligible, hidden, targetCoverage };
+}
+
+/**
+ * Headings for the two lists. Pearson r works on raw numbers, so "rises with Best Education
+ * Rank" would mean "rises as the rank number grows", i.e. as education gets worse. For a
+ * rank-style target the headings say which end is better instead.
+ */
+export function listTitles(
+  target: Metric,
+  dir: 1 | -1
+): { positive: string; negative: string } {
+  if (!isRankMetric(target))
+    return {
+      positive: `Rises with ${target.label}`,
+      negative: `Falls as ${target.label} rises`,
+    };
+  const up = dir === -1 ? 'worse' : 'better';
+  const down = dir === -1 ? 'better' : 'worse';
+  return {
+    positive: `Higher where ${target.label} is ${up}`,
+    negative: `Higher where ${target.label} is ${down}`,
+  };
 }

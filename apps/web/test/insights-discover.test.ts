@@ -4,7 +4,10 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import type { Metric, ValuesFile } from '../src/data/types';
-import { discoverRelated } from '../src/features/compare/insights/discover';
+import {
+  discoverRelated,
+  listTitles,
+} from '../src/features/compare/insights/discover';
 
 const N = NaN;
 
@@ -151,4 +154,37 @@ describe('discoverRelated on real data', () => {
       expect(elapsed).toBeLessThan(300);
     });
   }
+});
+
+describe('listTitles', () => {
+  const base: Metric = {
+    id: 1,
+    key: 'm1',
+    label: 'Median Household Income',
+    fmt: 'moneyWithCurrency',
+    unit: null,
+    kind: 'num',
+    pol: 1,
+    year: null,
+    years: [],
+    n: 50,
+    topics: [],
+    cats: [],
+    updated: null,
+  };
+
+  test('reads raw direction for an ordinary metric', () => {
+    expect(listTitles(base, 1)).toEqual({
+      positive: 'Rises with Median Household Income',
+      negative: 'Falls as Median Household Income rises',
+    });
+  });
+
+  test('says which end is better for a rank, where a higher number is worse', () => {
+    const rank = { ...base, label: 'Best Education Rank', fmt: 'ranking' };
+    expect(listTitles(rank, -1)).toEqual({
+      positive: 'Higher where Best Education Rank is worse',
+      negative: 'Higher where Best Education Rank is better',
+    });
+  });
 });

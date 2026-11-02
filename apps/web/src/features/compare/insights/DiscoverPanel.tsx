@@ -2,10 +2,11 @@ import { Link } from '@tanstack/react-router';
 import { ChartScatter, Check, Plus, Telescope } from 'lucide-react';
 import { useState } from 'react';
 
+import { isRankMetric } from '../polarity';
 import type { CompareViewProps } from '../state';
 import { type CorrelationColorScale, correlationColorScale } from './corrColor';
 import { formatP, formatR } from './correlation';
-import { discoverRelated, type RelatedMetric } from './discover';
+import { discoverRelated, listTitles, type RelatedMetric } from './discover';
 import { placeNoun, similarLabels } from './shared';
 import { useKeyed } from './useBasket';
 import { PolarityIcon } from '~/components/MetricPicker';
@@ -23,7 +24,8 @@ const COPY_R = 0.97;
  * overlap rule). The scan is timed and the timing shown, since it must stay interactive.
  */
 export function DiscoverPanel(props: CompareViewProps) {
-  const { dataset, metrics, search, entityIdx, update, addMetric } = props;
+  const { dataset, metrics, search, entityIdx, update, addMetric, direction } =
+    props;
   const [picked, setPicked] = useState<number | null>(null);
   const theme = useTheme();
   const target = metrics.find((m) => m.id === picked) ?? metrics[0];
@@ -60,6 +62,7 @@ export function DiscoverPanel(props: CompareViewProps) {
     }));
 
   const listProps = { colorScale, inBasket, onAdd: addMetric, onPlot: plot };
+  const titles = listTitles(target, direction(target.id));
 
   return (
     <Card
@@ -99,20 +102,29 @@ export function DiscoverPanel(props: CompareViewProps) {
           {target.label} to compare.
         </p>
       ) : (
-        <div className="grid gap-x-8 gap-y-6 md:grid-cols-2">
-          <RelatedList
-            {...props}
-            {...listProps}
-            title={`Rises with ${target.label}`}
-            items={scan.positive}
-          />
-          <RelatedList
-            {...props}
-            {...listProps}
-            title={`Falls as ${target.label} rises`}
-            items={scan.negative}
-          />
-        </div>
+        <>
+          {isRankMetric(target) ? (
+            <p className="text-muted -mt-2 mb-4 text-xs">
+              {target.label} is a rank, so a higher number means a{' '}
+              {direction(target.id) === -1 ? 'worse' : 'better'} position.
+              Metrics marked “rank” read the same way.
+            </p>
+          ) : null}
+          <div className="grid gap-x-8 gap-y-6 md:grid-cols-2">
+            <RelatedList
+              {...props}
+              {...listProps}
+              title={titles.positive}
+              items={scan.positive}
+            />
+            <RelatedList
+              {...props}
+              {...listProps}
+              title={titles.negative}
+              items={scan.negative}
+            />
+          </div>
+        </>
       )}
       <p className="text-muted mt-4 text-[11px] leading-relaxed">
         A metric is compared when it shares values with the selected one for at
@@ -210,6 +222,14 @@ function RelatedRow({
         <div className="line-clamp-2 text-sm leading-snug font-medium">
           {label}{' '}
           <PolarityIcon pol={metric.pol} className="inline align-[-2px]" />
+          {isRankMetric(metric) ? (
+            <span
+              className="border-app text-muted ml-1 rounded border px-1 align-[1px] text-[10px] font-normal whitespace-nowrap"
+              title="A rank: 1 is the top, so a higher number is a worse position"
+            >
+              rank
+            </span>
+          ) : null}
         </div>
         <div
           className="text-muted truncate text-xs"
