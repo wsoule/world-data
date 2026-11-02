@@ -294,6 +294,17 @@ describe('profile sections', () => {
   test('metricsWithData counts rankable values per place', () => {
     expect(Array.from(metricsWithData(data))).toEqual([7, 6, 6, 6, 7]);
   });
+
+  test('metricsWithData counts base metrics too, like the profile list', () => {
+    const withBase = fixture(names, [
+      [
+        metric(-1, 'Population', 0, ['population'], { base: true }),
+        [5, 4, 3, 2, 1],
+      ],
+      [income, [90, Number.NaN, 70, 10, 30]],
+    ]);
+    expect(Array.from(metricsWithData(withBase))).toEqual([2, 1, 2, 2, 2]);
+  });
 });
 
 describe('similarity basis', () => {

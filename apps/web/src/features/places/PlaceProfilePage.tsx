@@ -6,7 +6,6 @@ import { CategoryChart } from './CategoryChart';
 import {
   datasetFacts,
   growthMetricId,
-  metricCountsFor,
   placeNoun,
   similarityBasisFor,
 } from './datasetFacts';
@@ -141,7 +140,7 @@ function Profile({ dataset, index }: { dataset: Dataset; index: number }) {
       <ProfileHeader
         dataset={dataset}
         index={index}
-        metricCount={metricCountsFor(dataset)[index]}
+        metricCount={rows.length}
         workbenchMetrics={
           workbenchMetrics.length > 0 ? workbenchMetrics : [-1, -2]
         }
@@ -154,11 +153,12 @@ function Profile({ dataset, index }: { dataset: Dataset; index: number }) {
               Strengths and weak spots
             </h2>
             <p className="text-muted text-sm">
-              Percentile on {plural(qualifying.length, 'metric')} that rank{' '}
-              {coverageNote}, given whether higher or lower is better.
+              {qualifying.length > 0
+                ? `Percentile on ${plural(qualifying.length, 'metric')} that rank ${coverageNote}, given whether higher or lower is better.`
+                : `Based on metrics that rank ${coverageNote} and have a better and a worse end.`}
             </p>
           </div>
-          {facts.sizeDriven.size > 0 ? (
+          {sizeCount > 0 ? (
             <label
               className="text-muted inline-flex cursor-pointer items-center gap-2 text-xs"
               title="Totals such as “# of burglaries” or murders mostly reflect how many people live in a place: they rise with population (Spearman ρ ≥ 0.75, or ≥ 0.5 when the per-resident figure no longer does)."
@@ -170,26 +170,31 @@ function Profile({ dataset, index }: { dataset: Dataset; index: number }) {
                 className="accent-accent-600"
               />
               Leave out totals that track population
-              {sizeCount > 0 ? (
-                <span className="tabular opacity-70">({sizeCount})</span>
-              ) : null}
+              <span className="tabular opacity-70">({sizeCount})</span>
             </label>
           ) : null}
         </div>
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <StrengthList
-            dataset={dataset}
-            rows={strengths.best}
-            tone="good"
-            theme={theme}
-          />
-          <StrengthList
-            dataset={dataset}
-            rows={strengths.worst}
-            tone="bad"
-            theme={theme}
-          />
-        </div>
+        {qualifying.length > 0 ? (
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <StrengthList
+              dataset={dataset}
+              rows={strengths.best}
+              tone="good"
+              theme={theme}
+            />
+            <StrengthList
+              dataset={dataset}
+              rows={strengths.worst}
+              tone="bad"
+              theme={theme}
+            />
+          </div>
+        ) : (
+          <p className="card text-muted px-4 py-6 text-center text-sm">
+            Not enough widely ranked metrics to name strengths and weak spots.
+            Every value this place has is listed under Every metric below.
+          </p>
+        )}
       </section>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_24rem]">
@@ -261,6 +266,7 @@ function ProfileHeader({
 }: {
   dataset: Dataset;
   index: number;
+  /** Metrics with a value for this place, as listed under Every metric */
   metricCount: number;
   workbenchMetrics: number[];
 }) {
@@ -300,7 +306,7 @@ function ProfileHeader({
               {dataset.type.singular}
               {where.length > 0 ? ` in ${where.join(', ')}` : ''}
               {' · '}
-              data on {plural(metricCount, 'metric')}
+              ranked on {plural(metricCount, 'metric')}
             </p>
           </div>
         </div>

@@ -713,11 +713,13 @@ export function similarPlaces(
     .slice(0, limit);
 }
 
-/** Per-place count of rankable, non-synthetic metrics with a value. */
+/**
+ * Per-place count of rankable metrics with a value, population and the other base metrics
+ * included: the same count as the profile's "Every metric" list and its quick answers.
+ */
 export function metricsWithData(data: ProfileData): Int32Array {
   const counts = new Int32Array(data.entities.length);
   for (const m of rankableMetrics(data)) {
-    if (m.base === true) continue;
     const col = data.numeric(m.id);
     for (let i = 0; i < col.length; i++) if (!Number.isNaN(col[i])) counts[i]++;
   }
