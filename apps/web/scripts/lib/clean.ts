@@ -54,6 +54,16 @@ export function toText(v: unknown): string | null {
   return s.length > 280 ? `${s.slice(0, 277)}…` : s;
 }
 
+/**
+ * Collapses a capitalised word the source typed twice in a row ("Annual
+ * Annual Income" → "Annual Income"). Lower-case repeats are kept, since
+ * they are deliberate ("Gorilla gorilla gorilla", "Gorilla beringei
+ * beringei").
+ */
+export function collapseRepeatedWords(s: string): string {
+  return s.replace(/\b([A-Z][a-z]+)(?:\s+\1)+\b/g, '$1');
+}
+
 /** Trims floating-point noise (0.1 + 0.2) without changing integers. */
 export function round(n: number): number {
   return Number.isInteger(n) ? n : Number(n.toPrecision(10));

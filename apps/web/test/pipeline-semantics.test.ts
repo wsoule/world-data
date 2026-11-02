@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
+import { collapseRepeatedWords } from '../scripts/lib/clean';
 import { copiedCountFields, looksLikeRanks } from '../scripts/lib/columns';
 import { guessPolarity, keyText } from '../scripts/lib/reference';
 
@@ -55,6 +56,21 @@ describe('copiedCountFields', () => {
   test('keeps counts that only coincide on whole numbers', () => {
     const rows = [1, 2, 3, 4, 5].map((n) => ({ Rate_2024: n, Count_2024: n }));
     expect(copiedCountFields(columns, rows).size).toBe(0);
+  });
+});
+
+describe('collapseRepeatedWords', () => {
+  test('collapses a capitalised word typed twice', () => {
+    expect(collapseRepeatedWords('Annual Annual Income')).toBe('Annual Income');
+  });
+
+  test('keeps lower-case and mixed-case repeats', () => {
+    expect(
+      collapseRepeatedWords('Western Lowland Gorilla (Gorilla gorilla gorilla)')
+    ).toBe('Western Lowland Gorilla (Gorilla gorilla gorilla)');
+    expect(collapseRepeatedWords('Gorilla beringei beringei')).toBe(
+      'Gorilla beringei beringei'
+    );
   });
 });
 

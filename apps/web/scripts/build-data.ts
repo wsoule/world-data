@@ -31,7 +31,14 @@ import type {
   ValuesFile,
 } from '../src/data/types';
 import { parseInlineData, parseIslands } from './lib/astro';
-import { dedupeBy, round, slugify, toNumber, toText } from './lib/clean';
+import {
+  collapseRepeatedWords,
+  dedupeBy,
+  round,
+  slugify,
+  toNumber,
+  toText,
+} from './lib/clean';
 import { copiedCountFields, looksLikeRanks } from './lib/columns';
 import {
   baseAttributes,
@@ -449,7 +456,9 @@ function ingestPage(
       };
       T.metrics.set(c.id, m);
     }
-    const header = toText(c.header) ?? toText(c.label) ?? m.key;
+    const header = collapseRepeatedWords(
+      toText(c.header) ?? toText(c.label) ?? m.key
+    );
     m.headers.set(header, (m.headers.get(header) ?? 0) + 1);
     if (
       c.lastUpdated != null &&
