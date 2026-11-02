@@ -4,6 +4,7 @@ import { ValueCountsChart } from './charts/ValueCountsChart';
 import {
   isChartableCategory,
   rawColumn,
+  tableYear,
   type ValueCount,
   valueCounts,
 } from './model';
@@ -40,7 +41,12 @@ export function CategoricalTopic({
         const m = dataset.metric(id);
         if (m == null || m.kind !== 'cat' || m.meta === true) continue;
         const counts = valueCounts(
-          rawColumn(topic, id, m.year, dataset.entities.length)
+          rawColumn(
+            topic,
+            id,
+            tableYear(topic, m, undefined),
+            dataset.entities.length
+          )
         );
         if (isChartableCategory(counts)) out.push({ metric: m, counts });
       }
@@ -80,7 +86,6 @@ export function CategoricalTopic({
         topic={topic}
         tables={tables}
         focusId={null}
-        year={null}
         selected={selected}
         onSelect={onSelect}
       />

@@ -11,10 +11,12 @@ import {
   directionOf,
   displayTables,
   focusableMetrics,
+  hasUndated,
   numericColumn,
   rankEntries,
   resolveYear,
   seriesYears,
+  yearParam,
 } from './model';
 import { MoversCard } from './MoversCard';
 import { TopicHeader } from './TopicHeader';
@@ -39,6 +41,7 @@ import {
   type TopicTable,
 } from '~/data/types';
 import { formatValue, tickFormatter } from '~/lib/format';
+import type { TopicSearch } from '~/routes/topics.$type.$slug';
 
 const route = getRouteApi('/topics/$type/$slug');
 
@@ -56,7 +59,7 @@ function TopicView({ type, slug }: { type: EntityType; slug: string }) {
   // render uses the defaults and ?m / ?year apply right after hydration.
   const hydrated = useHydrated();
   const urlSearch = route.useSearch();
-  const search = hydrated ? urlSearch : {};
+  const search: TopicSearch = hydrated ? urlSearch : {};
   const navigate = route.useNavigate();
 
   const tables = useMemo(
@@ -69,6 +72,15 @@ function TopicView({ type, slug }: { type: EntityType; slug: string }) {
   );
   const focus =
     focusables.find((m) => m.id === search.m) ?? focusables[0] ?? null;
+  const years = useMemo(
+    () => (focus == null ? [] : seriesYears(topic, focus.id)),
+    [topic, focus]
+  );
+  const undated = focus != null && hasUndated(topic, focus.id);
+  const defaultYear =
+    focus == null ? null : resolveYear(years, undefined, focus.year, undated);
+  const year =
+    focus == null ? null : resolveYear(years, search.year, focus.year, undated);
   const [selected, setSelected] = useState<number | null>(null);
 
   const setFocus = useCallback(
@@ -80,14 +92,15 @@ function TopicView({ type, slug }: { type: EntityType; slug: string }) {
       }),
     [navigate]
   );
+  // The metric's default year (or undated series) stays out of the URL.
   const setYear = useCallback(
-    (year: number) =>
+    (choice: number | null) =>
       void navigate({
-        search: (prev) => ({ ...prev, year }),
+        search: (prev) => ({ ...prev, year: yearParam(choice, defaultYear) }),
         replace: true,
         resetScroll: false,
       }),
-    [navigate]
+    [navigate, defaultYear]
   );
   // Clicking the same place again clears the selection.
   const toggleSelected = useCallback(
@@ -114,7 +127,9 @@ function TopicView({ type, slug }: { type: EntityType; slug: string }) {
           tables={tables}
           focusables={focusables}
           focus={focus}
-          requestedYear={search.year}
+          years={years}
+          year={year}
+          undated={undated}
           selected={selected}
           onSelect={toggleSelected}
           onClearSelected={() => setSelected(null)}
@@ -140,12 +155,17 @@ interface NumericTopicProps {
   tables: TopicTable[];
   focusables: Metric[];
   focus: Metric;
-  requestedYear: number | undefined;
+  /** Dated years of the focus metric, oldest first */
+  years: number[];
+  /** Year shown, or null for the undated series */
+  year: number | null;
+  /** The focus metric has an undated series (offered as "Latest") */
+  undated: boolean;
   selected: number | null;
   onSelect: (i: number) => void;
   onClearSelected: () => void;
   onFocus: (id: number) => void;
-  onYear: (year: number) => void;
+  onYear: (year: number | null) => void;
 }
 
 /** How the map's colours read for a metric's polarity (matches the Choropleth schemes). */
@@ -173,7 +193,9 @@ function NumericTopic({
   tables,
   focusables,
   focus,
-  requestedYear,
+  years,
+  year,
+  undated,
   selected,
   onSelect,
   onClearSelected,
@@ -181,8 +203,6 @@ function NumericTopic({
   onYear,
 }: NumericTopicProps) {
   const narrow = useNarrow();
-  const years = useMemo(() => seriesYears(topic, focus.id), [topic, focus]);
-  const year = resolveYear(years, requestedYear, focus.year);
   const values = useMemo(
     () => numericColumn(topic, focus.id, year, dataset.entities.length),
     [topic, focus, year, dataset]
@@ -209,7 +229,9 @@ function NumericTopic({
     () => (selected != null ? [dataset.entities[selected].id] : []),
     [selected, dataset]
   );
-  const yearLabel = year != null ? String(year) : null;
+  // The undated series reads as "latest" next to dated ones, and needs no label when alone.
+  const yearLabel =
+    year != null ? String(year) : years.length > 0 ? 'latest' : null;
 
   // Second row: distribution (not for ranks, which are uniform by construction), then the
   // trend when there are 3+ years, or the biggest movers when there are just two (always
@@ -258,7 +280,8 @@ function NumericTopic({
         dataset={dataset}
         focus={focus}
         years={years}
-        year={year}
+        // The undated series has no previous year: show the change into the latest dated one.
+        year={year ?? years[years.length - 1]}
         selected={selected}
         onSelect={onSelect}
       />
@@ -273,6 +296,7 @@ function NumericTopic({
         focus={focus}
         years={years}
         year={year}
+        undated={undated}
         coverage={ranked.length}
         selected={selected}
         selectedRank={selectedEntry}
@@ -283,7 +307,8 @@ function NumericTopic({
 
       {ranked.length === 0 ? (
         <EmptyState title="No values for this metric">
-          Pick another metric{years.length > 1 ? ' or year' : ''} above.
+          Pick another metric
+          {years.length + (undated ? 1 : 0) > 1 ? ' or year' : ''} above.
         </EmptyState>
       ) : (
         <>

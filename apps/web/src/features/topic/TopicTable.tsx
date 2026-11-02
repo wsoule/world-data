@@ -23,6 +23,7 @@ import {
   placeNoun,
   rankColumn,
   rawColumn,
+  seriesYears,
   splitList,
   tableYear,
 } from './model';
@@ -75,6 +76,8 @@ interface MetricColumn {
   coverage: number;
   /** Long free text gets a wider, wrapping column */
   long: boolean;
+  /** Shows the undated series while the metric also has dated ones */
+  latest: boolean;
 }
 
 /**
@@ -94,7 +97,8 @@ export function TopicTables({
   topic: TopicFile;
   tables: readonly SourceTable[];
   focusId: number | null;
-  year: number | null;
+  /** Year the page shows (null = the undated series); omit to show each column's default */
+  year?: number | null;
   selected: number | null;
   onSelect: (entityIndex: number) => void;
 }) {
@@ -183,7 +187,7 @@ function DataTable({
   topic: TopicFile;
   table: SourceTable;
   focusId: number | null;
-  year: number | null;
+  year: number | null | undefined;
   selected: number | null;
   onSelect: (entityIndex: number) => void;
 }) {
@@ -220,6 +224,7 @@ function DataTable({
             : null,
         coverage,
         long: longest > 60,
+        latest: y == null && seriesYears(topic, id).length > 0,
       });
     }
     return out;
@@ -560,7 +565,11 @@ function HeaderCell({
             {column.ranks != null ? (
               <PolarityIcon pol={column.metric.pol} />
             ) : null}
-            {column.year != null ? <span>{column.year}</span> : null}
+            {column.year != null ? (
+              <span>{column.year}</span>
+            ) : column.latest ? (
+              <span>Latest</span>
+            ) : null}
             <span>
               {column.coverage < total
                 ? `${formatInt(column.coverage)}/${formatInt(total)}`

@@ -2,7 +2,7 @@ import { Link } from '@tanstack/react-router';
 import { BarChart3, Map as MapIcon, Trophy, X } from 'lucide-react';
 import { useId } from 'react';
 
-import { placeNoun } from './model';
+import { LATEST, placeNoun } from './model';
 import { Flag } from '~/components/Flag';
 import { PolarityIcon } from '~/components/MetricPicker';
 import { cx } from '~/components/ui';
@@ -12,6 +12,10 @@ import { formatInt, formatValue } from '~/lib/format';
 
 /** At most this many focus metrics render as pills; more switch to a grouped dropdown. */
 const PILL_LIMIT = 4;
+
+/** Tooltip of the "Latest" year choice (the source's column without a year). */
+const LATEST_TITLE =
+  "The source's current figures, without a year; often covers more places";
 
 const pill = (on: boolean) =>
   cx(
@@ -34,6 +38,7 @@ export function FocusBar({
   focus,
   years,
   year,
+  undated,
   coverage,
   selected,
   selectedRank,
@@ -45,17 +50,26 @@ export function FocusBar({
   tables: readonly TopicTable[];
   metrics: readonly Metric[];
   focus: Metric;
+  /** Dated years of the focus metric, oldest first */
   years: readonly number[];
+  /** Year shown, or null for the undated series */
   year: number | null;
+  /** The focus metric has an undated series, offered as "Latest" */
+  undated: boolean;
   coverage: number;
   selected: number | null;
   selectedRank: { rank: number; value: number } | null;
   onFocus: (id: number) => void;
-  onYear: (year: number) => void;
+  /** A year, or null for the undated series */
+  onYear: (year: number | null) => void;
   onClearSelected: () => void;
 }) {
   const metricId = useId();
   const yearId = useId();
+  // Year choices, oldest first; null is the undated series, listed last as "Latest".
+  const choices: (number | null)[] =
+    undated && years.length > 0 ? [...years, null] : [...years];
+  const yearText = year != null ? ` in ${year}` : '';
   const type = dataset.type.id;
   const total = dataset.type.entities;
   const noun = placeNoun(dataset.type.id, total);
@@ -137,44 +151,52 @@ export function FocusBar({
             )}
           </div>
 
-          {years.length > 1 ? (
+          {choices.length > 1 ? (
             <div className="flex items-center gap-2">
               <label
-                htmlFor={years.length > 6 ? yearId : undefined}
+                htmlFor={choices.length > 6 ? yearId : undefined}
                 id={`${yearId}-label`}
                 className="text-muted text-xs font-medium"
               >
                 Year
               </label>
-              {years.length <= 6 ? (
+              {choices.length <= 6 ? (
                 <div
                   role="radiogroup"
                   aria-labelledby={`${yearId}-label`}
-                  className="border-app bg-surface-2 inline-flex rounded-lg border p-0.5"
+                  className="border-app bg-surface-2 inline-flex flex-wrap rounded-lg border p-0.5"
                 >
-                  {years.map((y) => (
+                  {choices.map((y) => (
                     <button
-                      key={y}
+                      key={y ?? LATEST}
                       type="button"
                       role="radio"
                       aria-checked={y === year}
                       onClick={() => onYear(y)}
+                      title={y == null ? LATEST_TITLE : undefined}
                       className={cx(pill(y === year), 'tabular px-2')}
                     >
-                      {y}
+                      {y ?? 'Latest'}
                     </button>
                   ))}
                 </div>
               ) : (
                 <select
                   id={yearId}
-                  value={String(year ?? '')}
-                  onChange={(e) => onYear(Number(e.target.value))}
+                  value={year == null ? LATEST : String(year)}
+                  onChange={(e) =>
+                    onYear(
+                      e.target.value === LATEST ? null : Number(e.target.value)
+                    )
+                  }
                   className="border-app bg-surface tabular rounded-lg border px-2 py-1.5 text-sm font-medium"
                 >
-                  {[...years].reverse().map((y) => (
-                    <option key={y} value={String(y)}>
-                      {y}
+                  {[...choices].reverse().map((y) => (
+                    <option
+                      key={y ?? LATEST}
+                      value={y == null ? LATEST : String(y)}
+                    >
+                      {y ?? 'Latest'}
                     </option>
                   ))}
                 </select>
@@ -188,7 +210,7 @@ export function FocusBar({
 
           <span
             className="text-muted tabular text-xs"
-            title={`${formatInt(coverage)} of ${formatInt(total)} ${noun} have a value for this metric${year != null ? ` in ${year}` : ''}`}
+            title={`${formatInt(coverage)} of ${formatInt(total)} ${noun} have a value for this metric${yearText}`}
           >
             {formatInt(coverage)} of {formatInt(total)} {noun}
           </span>

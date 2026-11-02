@@ -41,19 +41,48 @@ export function seriesYears(topic: TopicFile, metricId: number): number[] {
   return years.sort((a, b) => a - b);
 }
 
+/** True when a topic has an undated series (the source's "current" column) for a metric. */
+export function hasUndated(topic: TopicFile, metricId: number): boolean {
+  return topic.series[String(metricId)]?.[UNDATED] != null;
+}
+
+/** URL value of the year selector's "Latest" choice: the undated series. */
+export const LATEST = 'latest';
+
+/** A year asked for in the URL: a year, or LATEST for the undated series. */
+export type YearRequest = number | typeof LATEST;
+
 /**
- * The year to show for a metric: the requested year when the topic has it, else the metric's
- * default year, else the latest year. Returns null for undated metrics.
+ * The year to show for a metric, or null for its undated series. Order: the requested year when
+ * the topic has it (or the undated series when LATEST is requested and exists), else the metric's
+ * default year, else the undated series when there is one, else the latest year. The undated
+ * series beats the latest year because it is the source's current column, usually covers far
+ * more places, and is what the metric's default values and the page summary use.
  */
 export function resolveYear(
   years: readonly number[],
-  requested: number | undefined,
-  fallback: number | null
+  requested: YearRequest | undefined,
+  fallback: number | null,
+  undated = false
 ): number | null {
-  if (years.length === 0) return null;
-  if (requested != null && years.includes(requested)) return requested;
+  if (requested === LATEST && undated) return null;
+  if (typeof requested === 'number' && years.includes(requested))
+    return requested;
   if (fallback != null && years.includes(fallback)) return fallback;
+  if (undated || years.length === 0) return null;
   return years[years.length - 1];
+}
+
+/**
+ * URL value for a year choice (null = the undated series): undefined when it is the metric's
+ * default, so default views keep clean URLs.
+ */
+export function yearParam(
+  choice: number | null,
+  defaultYear: number | null
+): YearRequest | undefined {
+  if (choice === defaultYear) return undefined;
+  return choice ?? LATEST;
 }
 
 /** The `[entityIndexes, values]` pair for a metric at a year (or its undated series). */
@@ -107,16 +136,20 @@ export function rawColumn(
 
 /**
  * Year shown for a metric inside a table: the page's selected year when this metric has it (so
- * a table of sibling series moves together), otherwise the metric's own default or latest year.
+ * a table of sibling series moves together), otherwise the metric's own default. `selected` is
+ * null when the page shows the undated series (siblings that have one show theirs too) and
+ * undefined when the page has no year of its own (an all-categorical topic).
  */
 export function tableYear(
   topic: TopicFile,
   metric: Pick<Metric, 'id' | 'year'>,
-  selectedYear: number | null
+  selected: number | null | undefined
 ): number | null {
   const years = seriesYears(topic, metric.id);
-  if (selectedYear != null && years.includes(selectedYear)) return selectedYear;
-  return resolveYear(years, undefined, metric.year);
+  const undated = hasUndated(topic, metric.id);
+  if (selected === null && undated) return null;
+  if (selected != null && years.includes(selected)) return selected;
+  return resolveYear(years, undefined, metric.year, undated);
 }
 
 /**

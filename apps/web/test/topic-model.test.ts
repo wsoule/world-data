@@ -7,7 +7,9 @@ import {
   directionOf,
   displayTables,
   focusableMetrics,
+  hasUndated,
   isSkewed,
+  LATEST,
   logTicks,
   median,
   numericColumn,
@@ -22,6 +24,7 @@ import {
   trendPicks,
   trendPoints,
   valueCounts,
+  yearParam,
 } from '../src/features/topic/model';
 
 const topic: TopicFile = {
@@ -72,6 +75,18 @@ const topic: TopicFile = {
         ['A | B', 'B', 'C | B | A'],
       ],
     },
+    // Dated years plus an undated "current" column that covers more places.
+    '5': {
+      '2022': [[0], [1]],
+      '2023': [
+        [0, 1],
+        [2, 3],
+      ],
+      _: [
+        [0, 1, 2, 3],
+        [4, 5, 6, 7],
+      ],
+    },
   },
 };
 
@@ -110,10 +125,47 @@ describe('years', () => {
     expect(resolveYear([], 2022, 2023)).toBeNull();
   });
 
+  test('defaults to the undated series when the metric has no default year', () => {
+    const years = seriesYears(topic, 5);
+    expect(years).toEqual([2022, 2023]);
+    expect(hasUndated(topic, 5)).toBe(true);
+    expect(hasUndated(topic, 1)).toBe(false);
+    // Undated default: the "_" column, not the latest (sparser) year.
+    expect(resolveYear(years, undefined, null, true)).toBeNull();
+    // A dated year still wins when asked for, or when it is the default.
+    expect(resolveYear(years, 2022, null, true)).toBe(2022);
+    expect(resolveYear(years, undefined, 2023, true)).toBe(2023);
+    // "Latest" picks the undated column even when the default is dated.
+    expect(resolveYear(years, LATEST, 2023, true)).toBeNull();
+    // ...and is ignored without one.
+    expect(resolveYear([2022, 2023, 2024], LATEST, null)).toBe(2024);
+    expect(numericColumn(topic, 5, null, 4)).toEqual(
+      new Float64Array([4, 5, 6, 7])
+    );
+  });
+
+  test('writes only non-default years to the URL', () => {
+    expect(yearParam(null, null)).toBeUndefined();
+    expect(yearParam(2022, null)).toBe(2022);
+    expect(yearParam(null, 2023)).toBe(LATEST);
+    expect(yearParam(2023, 2023)).toBeUndefined();
+  });
+
   test('tables follow the selected year only where a metric has it', () => {
     expect(tableYear(topic, metric(3, 'num'), 2023)).toBe(2023);
     expect(tableYear(topic, metric(3, 'num'), 2024)).toBe(2023);
     expect(tableYear(topic, metric(1, 'num', { year: 2023 }), null)).toBe(2023);
+    expect(tableYear(topic, metric(1, 'num'), undefined)).toBe(2024);
+  });
+
+  test('tables follow an undated page year where a metric has one', () => {
+    expect(tableYear(topic, metric(5, 'num', { year: 2023 }), null)).toBeNull();
+    // Without a page year each column shows its own default.
+    expect(tableYear(topic, metric(5, 'num', { year: 2023 }), undefined)).toBe(
+      2023
+    );
+    expect(tableYear(topic, metric(5, 'num'), undefined)).toBeNull();
+    expect(tableYear(topic, metric(5, 'num'), 2022)).toBe(2022);
   });
 });
 
