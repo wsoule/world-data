@@ -36,12 +36,16 @@ export const CATEGORY_LABELS = {
 const LOWER = /\b(crime|crimes|criminal|murder|homicide|violent|violence|theft|robbery|burglary|assault|rape|kidnap|terror|death|deaths|dead|died|mortality|fatal|fatality|fatalities|killed|suicide|overdose|poverty|poor|unemploy\w*|debt|deficit|inflation|pollution|polluted|emission|emissions|co2|carbon|smog|pm2\.?5|obes\w*|smok\w*|tobacco|alcoholism|drunk\w*|drug|opioid|disease|cancer|diabetes|hiv|aids|malaria|tuberculosis|infection|stress|depress\w*|anxiety|corruption|corrupt|inequality|gini|risk|danger\w*|dangerous|worst|unsafe|incarcerat\w*|prison|prisoners|inmates|eviction|homeless\w*|cost of living|rent burden|tax burden|commute|traffic|congestion|accident|accidents|crash|crashes|injur\w*|abuse|fraud|scam|hate|bankrupt\w*|foreclosure|uninsured|stillbirth|underweight|stunting|malnutrition|hunger|starvation|undernourish\w*|illiteracy|dropout|fragile|fragility|misery)\b/i
 const HIGHER = /\b(gdp|income|wage|wages|salary|salaries|earnings|wealth|wealthiest|richest|happiness|happiest|happy|life expectancy|literacy|literate|education|educated|graduation|attainment|hdi|human development|freedom|free|democracy|peace|peaceful|safety|safest|safe|quality|best|innovation|competitiveness|prosperity|well-being|wellbeing|purchasing power|press freedom|internet speed|broadband|access|insured|vaccination|vaccinated|employment rate|labor force|productivity|patents|healthiest|cleanest|greenest|renewable|forest|biodiversity|tolerance|trust|satisfaction|longevity|iq|pisa|test scores)\b/i
 
+// Phrases that invert the meaning of the word they precede ("never smoked", "less than high school").
+const NEGATOR = /\b(less than|without|lack of|lacking|no access|never|non[- ]?smok\w*)\b|-free\b/i
+
 export function guessPolarity(label, key, fmt, topics) {
-  if (fmt === 'ranking') return -1
+  if (fmt === 'ranking' || /\brank(ing)?\b/i.test(label)) return -1
   const text = `${label} ${String(key).replace(/([a-z])([A-Z])/g, '$1 $2')}`
   const t = topics.join(' ').replace(/-/g, ' ')
-  if (LOWER.test(text)) return -1
-  if (HIGHER.test(text)) return 1
+  const negated = NEGATOR.test(label)
+  if (LOWER.test(text)) return negated ? 1 : -1
+  if (HIGHER.test(text)) return negated ? -1 : 1
   if (LOWER.test(t) && !HIGHER.test(t)) return -1
   if (HIGHER.test(t) && !LOWER.test(t)) return 1
   return 0
