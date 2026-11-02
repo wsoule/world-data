@@ -339,11 +339,29 @@ function outputFormat(fmt: string | null): string | null {
   }
 }
 
+/**
+ * Money columns whose key says the figures are in millions or billions
+ * ("…_InMillionUSD", "…_EstimatedWorthInBillions") are stored in dollars, so
+ * the United States' gross national expenditure reads $26.7T, not $26.72M.
+ */
+function moneyScale(m: Pick<MetricAcc, 'key' | 'fmt'>): number {
+  if (m.fmt?.startsWith('money') !== true) return 1;
+  if (/InBillion/i.test(m.key)) return 1e9;
+  if (/InMillion/i.test(m.key)) return 1e6;
+  return 1;
+}
+
+/** scaleByFormat plus the key-implied money scale; null when unconvertible. */
+function scaleValue(m: MetricAcc, n: number): number | null {
+  const v = scaleByFormat(m.fmt, n);
+  return v == null ? null : v * moneyScale(m);
+}
+
 /** Normalizes one cell, updating the metric's numeric/text tallies; null drops it. */
 function cellValue(m: MetricAcc, raw: unknown): Cell | null {
   if (raw == null || raw === '') return null;
   const parsed = TEXT_FORMATS.has(m.fmt) ? undefined : toNumber(raw);
-  const n = typeof parsed === 'number' ? scaleByFormat(m.fmt, parsed) : parsed;
+  const n = typeof parsed === 'number' ? scaleValue(m, parsed) : parsed;
   if (typeof n === 'number') {
     m.numeric++;
     return round(n);
@@ -354,7 +372,7 @@ function cellValue(m: MetricAcc, raw: unknown): Cell | null {
   const asNum = toNumber(text);
   const scaled =
     typeof asNum === 'number' && !TEXT_FORMATS.has(m.fmt)
-      ? scaleByFormat(m.fmt, asNum)
+      ? scaleValue(m, asNum)
       : null;
   if (scaled != null) {
     m.numeric++;
@@ -539,7 +557,23 @@ const SCALE_UNITS: Record<string, { factor: number; base: string | null }> = {
   bn: { factor: 1e9, base: null },
   kt: { factor: 1e3, base: 't' },
   mt: { factor: 1e6, base: 't' },
+  bkwh: { factor: 1e9, base: 'kWh' },
 };
+
+/**
+ * Scale words some keys carry when the column has no unit
+ * ("IronOreProduction_MillionTons", "…AnnualVisitorsInMillions…").
+ */
+function unitFromKey(key: string): string | null {
+  if (/MillionTons/i.test(key)) return 'Mt';
+  if (/InMillions?(Of)?(LBs|Pounds)/i.test(key)) return 'million lbs';
+  if (/InMillions?(_|$)/i.test(key)) return 'million';
+  if (/InBillions?(_|$)/i.test(key)) return 'billion';
+  return null;
+}
+
+/** Physical units that make a money format wrong ("Lithium Resources" in t). */
+const PHYSICAL_UNIT = /^(t|kt|mt|kg|lbs?|bbl|oz|tonnes?|tons?)$/i;
 
 /**
  * Source units do not always match the stored scale: "Lithium Reserves (Mt)"
@@ -551,7 +585,9 @@ function normalizeUnit(unit: string | null, maxAbs: number): string | null {
   if (unit == null || unit.trim() === '') return null;
   const u = unit.trim();
   if (u === 'MT') return 't';
-  const scale = SCALE_UNITS[u.toLowerCase()];
+  // A capital "M" means millions; a lower-case "m" is metres.
+  const scale =
+    u === 'M' ? { factor: 1e6, base: null } : SCALE_UNITS[u.toLowerCase()];
   if (scale == null) return u;
   return maxAbs >= scale.factor ? scale.base : u;
 }
@@ -637,8 +673,9 @@ const BUILD_YEAR = new Date().getUTCFullYear();
  * - the latest year covering at least half as many places as the best year
  *   wins, so a barely-started year does not;
  * - if that year is more than five years older than the newest data, the
- *   newest year covering at least 30% (and 5 places) wins instead, so a
- *   decades-old series does not;
+ *   newest year covering at least 15% of the best year (and 5 places) wins
+ *   instead, so a decades-old series does not: Potato Production opens on
+ *   2025's 13 surveyed states, not 2018's 49;
  * - an undated column covering 1.5× as many places beats the dated choice.
  */
 function defaultYear(m: MetricAcc, kind: MetricKind): number | null {
@@ -661,7 +698,7 @@ function defaultYear(m: MetricAcc, kind: MetricKind): number | null {
   const newest = years.at(-1);
   if (pick != null && newest != null && newest - pick > 5) {
     pick =
-      newestFirst.find((y) => coverageOf(y) >= Math.max(5, max * 0.3)) ?? pick;
+      newestFirst.find((y) => coverageOf(y) >= Math.max(5, max * 0.15)) ?? pick;
   }
   if (
     m.years.has('_') &&
@@ -688,6 +725,17 @@ const STOPWORDS = new Set([
   'number',
   'average',
   'avg',
+  // Place nouns appear in every "…-by-state" slug, so they are not evidence
+  // that a page is about the metric.
+  'state',
+  'states',
+  'country',
+  'countries',
+  'city',
+  'cities',
+  'county',
+  'counties',
+  'world',
 ]);
 
 /** Lower-case word stems (trailing "s" dropped) used to match labels with topic slugs. */
@@ -713,26 +761,103 @@ const BY_PAGE = /-(by-(state|country|city|county)|in-the-world)$/;
  */
 function topicFit(label: string, key: string, slug: string): number {
   const want = stems(`${label} ${key}`);
-  const have = stems(slug);
+  const have = [...stems(slug)];
+  // Words of five or more letters also match by prefix (prison ~ prisoner).
+  const matches = (w: string): boolean =>
+    have.some(
+      (h) =>
+        h === w ||
+        (Math.min(h.length, w.length) >= 5 &&
+          (h.startsWith(w) || w.startsWith(h)))
+    );
   let hit = 0;
-  for (const w of want) if (have.has(w)) hit++;
+  for (const w of want) if (matches(w)) hit++;
   const match = want.size === 0 ? 0 : hit / want.size;
+  // With no word in common, a "…-by-state" page only breaks ties: it must not
+  // outrank a page that shares even one word with the metric.
+  if (match === 0)
+    return (BY_PAGE.test(slug) ? 0.05 : 0) - (LISTICLE.test(slug) ? 0.3 : 0);
   return (
     match + (BY_PAGE.test(slug) ? 0.3 : 0) - (LISTICLE.test(slug) ? 0.3 : 0)
   );
 }
 
-/** Suffix that tells apart two metrics sharing a label ("(°F)", "(mi²)", "($)"). */
-function disambiguator(m: Metric, key: string): string {
+/** Suffix naming a metric's unit or format ("(°F)", "(mi²)", "($)"), if any. */
+function unitSuffix(m: Metric): string | null {
   if (m.unit != null) return `(${m.unit})`;
   if (m.fmt === 'degC') return '(°C)';
   if (m.fmt === 'degF') return '(°F)';
+  if (m.fmt === 'moneyWithCurrencyEuros') return '(€)';
   if (m.fmt?.startsWith('money') === true) return '($)';
   if (m.fmt === 'perc' || m.fmt === 'percAlt') return '(%)';
-  const labelWords = stems(m.label);
-  const extra = [...stems(key)].filter((w) => !labelWords.has(w)).slice(0, 3);
-  return extra.length > 0 ? `(${extra.join(' ')})` : `(#${m.id})`;
+  return null;
 }
+
+/** Words of a metric key missing from its label ("…LakeSurfaceArea(acres)" → Bass, Fishing, Best, acres). */
+function keyWords(m: Metric): string[] {
+  const labelWords = stems(m.label);
+  return m.key
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/([A-Za-z])(\d)|(\d)([A-Za-z])/g, '$1$3 $2$4')
+    .split(/[^A-Za-z0-9]+/)
+    .filter((w) => {
+      const lw = w.toLowerCase();
+      return (
+        lw.length >= 2 &&
+        !STOPWORDS.has(lw) &&
+        !labelWords.has(lw.replace(/s$/, ''))
+      );
+    });
+}
+
+/**
+ * Suffixes that tell apart metrics sharing a label inside one topic. Each
+ * metric gets its unit when no other member shares it, else the words of its
+ * key the other members lack ("(acres)" vs "(mi2)"), else nothing; ids break
+ * any tie that remains.
+ */
+function disambiguate(group: readonly Metric[]): string[] {
+  const units = group.map(unitSuffix);
+  const words = group.map(keyWords);
+  const common = words.reduce(
+    (acc, ws) => acc.filter((w) => ws.includes(w)),
+    words[0] ?? []
+  );
+  const suffixes = group.map((m, i) => {
+    const unit = units[i];
+    if (unit != null && units.filter((u) => u === unit).length === 1)
+      return unit;
+    const own = (words[i] ?? []).filter((w) => !common.includes(w));
+    return own.length > 0 ? `(${own.slice(0, 3).join(' ')})` : (unit ?? '');
+  });
+  return suffixes.map((x, i) =>
+    suffixes.filter((y) => y === x).length === 1
+      ? x
+      : `${x} (#${group[i]?.id ?? ''})`.trim()
+  );
+}
+
+/**
+ * Hand corrections for source columns whose header or format is wrong:
+ * 20363 is keyed "…PctOfMammalSpeciesAtRisk" but titled as the fish column,
+ * 23920 is keyed "…_5to6Years" but titled "Ages 4-5", 23931 holds dollars
+ * under a cents header, 15277 holds percentages under a dollar format and
+ * 19747 holds euros with no format.
+ */
+const METRIC_FIXES: Record<
+  string,
+  { label?: string; unit?: string; fmt?: string }
+> = {
+  'country:19747': { fmt: 'moneyWithCurrencyEuros' },
+  'state:15277': {
+    label: 'Avg Median Down Payment for House (%)',
+    fmt: 'percAlt',
+  },
+  'state:15864': { label: 'Gas Tax (¢/gallon)' },
+  'state:20363': { label: '% of Mammal Species at Risk' },
+  'state:23920': { label: 'CSR: Ages 5-6' },
+  'state:23931': { label: 'Gas Tax ($/gallon)', unit: '$/gallon' },
+};
 
 /** Writes every output file for one entity type and returns its manifest entry. */
 async function writeType(
@@ -817,25 +942,37 @@ async function writeType(
     const cats = new Set<string>();
     for (const s of topics)
       for (const c of categories.get(`${T.id}:${s}`) ?? []) cats.add(c);
+    const maxAbs = Math.max(
+      0,
+      ...pairs.map((p) => (typeof p[1] === 'number' ? Math.abs(p[1]) : 0))
+    );
+    const fix = METRIC_FIXES[`${T.id}:${m.id}`];
+    const unit =
+      fix?.unit ??
+      (kind === 'num'
+        ? normalizeUnit(
+            m.unit != null && m.unit.trim() !== ''
+              ? m.unit
+              : moneyScale(m) === 1
+                ? unitFromKey(m.key)
+                : null,
+            maxAbs
+          )
+        : m.unit === ''
+          ? null
+          : m.unit);
+    const fmt = fix?.fmt ?? outputFormat(m.fmt);
     const entry: Metric = {
       id: m.id,
       key: m.key,
-      label,
-      fmt: outputFormat(m.fmt),
-      unit:
-        kind === 'num'
-          ? normalizeUnit(
-              m.unit,
-              Math.max(
-                0,
-                ...pairs.map((p) =>
-                  typeof p[1] === 'number' ? Math.abs(p[1]) : 0
-                )
-              )
-            )
-          : m.unit === ''
-            ? null
-            : m.unit,
+      label: fix?.label ?? label,
+      fmt:
+        fmt?.startsWith('money') === true &&
+        unit != null &&
+        PHYSICAL_UNIT.test(unit)
+          ? 'abbreviateNumber'
+          : fmt,
+      unit,
       kind,
       pol: kind === 'num' ? guessPolarity(label, m.key, m.fmt, topics) : 0,
       year,
@@ -909,10 +1046,12 @@ async function writeType(
     }
     for (const group of groups.values()) {
       if (group.length < 2) continue;
-      for (const m of group) {
-        m.label = `${m.label} ${disambiguator(m, m.key)}`;
+      const suffixes = disambiguate(group);
+      group.forEach((m, i) => {
+        const suffix = suffixes[i] ?? '';
+        if (suffix !== '') m.label = `${m.label} ${suffix}`;
         renamed.add(m.id);
-      }
+      });
     }
   }
   metricsOut.sort((a, b) => a.id - b.id);

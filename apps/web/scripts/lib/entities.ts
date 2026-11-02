@@ -8,6 +8,16 @@ import { STATE_REGIONS } from './reference';
 
 export type Row = Record<string, unknown>;
 
+/**
+ * Coordinates for world cities whose source rows carry `latitude: null`, so
+ * they still appear on the dot maps.
+ */
+const COORDINATE_FIXES: Record<string, readonly [number, number]> = {
+  'mexico/mexico-city': [19.4326, -99.1332],
+  'mexico/tuxtla-gutierrez': [16.7528, -93.1152],
+  'mexico/chilpancingo-de-los-bravo': [17.5515, -99.5006],
+};
+
 /** A place as first seen in a row, before population/attributes are merged. */
 export interface RowEntity {
   id: string;
@@ -134,14 +144,15 @@ export function entityOf(type: EntityType, row: Row): RowEntity | null {
       const slug = str(row.slug);
       const name = str(row.worldCity) ?? str(row.city);
       if (slug == null || name == null) return null;
+      const fix = COORDINATE_FIXES[slug];
       return {
         id: slug,
         name,
         flag: lower(str(row.cca2) ?? str(row.flagCode)),
         group: str(row.country),
         sub: str(row.state),
-        lat: toNumberOrNull(row.latitude ?? row.lat),
-        lng: toNumberOrNull(row.longitude ?? row.lng),
+        lat: toNumberOrNull(row.latitude ?? row.lat) ?? fix?.[0] ?? null,
+        lng: toNumberOrNull(row.longitude ?? row.lng) ?? fix?.[1] ?? null,
       };
     }
     case 'county': {

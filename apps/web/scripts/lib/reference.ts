@@ -101,11 +101,11 @@ const NEGATOR =
  */
 // Columns with no better/worse reading regardless of the words above.
 const NEUTRAL =
-  /\b(min(imum)?|max(imum)?|legal|voting|drinking|driving)\s+age\b|\bage requirement\b|\bspeed limits?\b|^year\b|\byear (of|joined|admitted|founded|established|adopted|implemented|assessed|measured|granted)\b|\b(join|founding|independence) year\b/i;
+  /\b(min(imum)?|max(imum)?|legal|voting|drinking|driving)\s+age\b|\bage requirement\b|\bspeed limits?\b|^year\b|\byear (of|joined|admitted|founded|established|adopted|implemented|assessed|measured|granted)\b|\b(join|founding|independence) year\b|\bnumber of seasons\b|^poverty (wage|guidelines?|thresholds?)\b/i;
 
 // Money or effort spent: less is better for the person paying it.
 const COST =
-  /\bcosts?\b|\bprices?\b|\bfees?\b|\bspent on (groceries|food|rent|housing|transport|utilities|child ?care)\b|\bexpensive\b|\bbelow basic\b|\b(livable|living) wage\b|\bpoverty wage\b/i;
+  /\bcosts?\b|\bprices?\b|\bfees?\b|\bspent on (groceries|food|rent|housing|transport|utilities|child ?care)\b|\bexpensive\b|\bbelow basic\b|\b(livable|living) wage\b/i;
 // Scores that fold cost into "how good is access", where higher is better.
 const ACCESS = /\bafford|\bavailability\b/i;
 

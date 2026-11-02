@@ -16,8 +16,18 @@ export function toNumber(v: unknown): number | null | undefined {
   if (typeof v !== 'string') return null;
   const s = v.trim();
   if (s === '' || JUNK.test(s)) return null;
-  const cleaned = s.replace(/[$€£,%\s]/g, '').replace(/^\+/, '');
-  if (/^-?\d+(\.\d+)?(e[-+]?\d+)?$/i.test(cleaned)) return Number(cleaned);
+  // Currency signs, percent signs, a leading plus and the spaces around them
+  // are decoration. Commas are only removed when they group thousands, so a
+  // list such as "50, 60" (Hz) or "1958, 1962" stays text instead of
+  // collapsing into 5060 or 19581962.
+  const bare = s
+    .replace(/^([-+]?)\s*[$€£]\s*/, '$1')
+    .replace(/\s*%$/, '')
+    .replace(/^\+/, '');
+  if (/^-?\d{1,3}(,\d{3})+(\.\d+)?$/.test(bare)) {
+    return Number(bare.replaceAll(',', ''));
+  }
+  if (/^-?\d+(\.\d+)?(e[-+]?\d+)?$/i.test(bare)) return Number(bare);
   return undefined;
 }
 

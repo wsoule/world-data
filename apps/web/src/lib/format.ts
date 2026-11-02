@@ -70,8 +70,16 @@ function signedMoney(v: number, format: (abs: number) => string): string {
   return v < 0 ? `-${format(-v)}` : format(v);
 }
 
-/** Units that state a scale ("in millions", "kt"): numbers in them are never abbreviated again. */
-const SCALE_UNIT = /^(thousands?|millions?|billions?|mn|bn|kt|mt)$/i;
+/**
+ * Units that state a scale ("in millions", "kt", "million lbs"): numbers in
+ * them are never abbreviated again. A capital "M" means millions; "m" is metres.
+ */
+const SCALE_UNIT = /^(thousands?|millions?|billions?|mn|bn|kt|mt)\b/i;
+const isScaleUnit = (unit: string): boolean =>
+  unit === 'M' || SCALE_UNIT.test(unit);
+
+/** Units a price is quoted per ("$12/m²"); a bare one follows money as "/unit". */
+const PER_UNIT = /^(m²|ft²|sq\.? ?ft|acres?|ct|carats?|lbs?|kg|gallons?)$/i;
 
 /** Units that repeat what the format already prints (°C for degC, $ for money, % for percents). */
 function duplicatesFormat(unit: string, fmt: string | null): boolean {
@@ -104,6 +112,12 @@ function withUnit(
     return out;
   if (/^\d+(\.\d+)?\s*[-–]\s*\d+/.test(u)) return out;
   if (u === '%') return `${out}%`;
+  if (fmt?.startsWith('money') === true) {
+    // "$/gallon" or "usd/ct" after a price that already shows "$".
+    const per = /^(?:\$|usd|us\$)\s*\/\s*(.+)$/i.exec(u);
+    if (per?.[1] != null) return `${out}/${per[1]}`;
+    if (PER_UNIT.test(u)) return `${out}/${u}`;
+  }
   if (u.startsWith('$') && fmt?.startsWith('money') !== true) {
     const rest = u.slice(1).trim();
     return `$${out}${rest === '' ? '' : ` ${rest}`}`;
@@ -121,7 +135,7 @@ export function formatValue(
   if (typeof v === 'string')
     return v.replaceAll(' | ', ', ').replace(/\s*\|\s*$/, '');
   const fmt = metric?.fmt ?? null;
-  const scaled = metric?.unit != null && SCALE_UNIT.test(metric.unit.trim());
+  const scaled = metric?.unit != null && isScaleUnit(metric.unit.trim());
   const compactOk = opts.compact === true && !scaled;
   let out: string;
   switch (fmt) {

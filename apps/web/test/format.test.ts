@@ -111,4 +111,23 @@ describe('formatValue edge cases from data review', () => {
   test('whole counts have no stray decimals', () => {
     expect(formatValue(metric(null), 590)).toBe('590');
   });
+
+  test('prices quoted per unit read as "$x/unit"', () => {
+    expect(formatValue(metric('moneyWithCurrency3', '$/gallon'), 0.7092)).toBe(
+      '$0.709/gallon'
+    );
+    expect(formatValue(metric('moneyWithCurrency', 'usd/ct'), 343.88)).toBe(
+      '$344/ct'
+    );
+    expect(formatValue(metric('moneyWithCurrencyDollars', 'm²'), 5723.1)).toBe(
+      '$5,723/m²'
+    );
+  });
+
+  test('a capital M is a scale and is not abbreviated twice', () => {
+    expect(formatValue(metric('abbreviateNumber', 'M'), 26.6)).toBe('26.6 M');
+    expect(
+      formatValue(metric('abbreviateNumber', 'M'), 12000, { compact: true })
+    ).toBe('12,000 M');
+  });
 });
