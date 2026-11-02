@@ -1,0 +1,45 @@
+# Serves the prerendered site (dist/client, copied to /srv) in the Docker
+# image built from the root Dockerfile. TLS is terminated in front of Caddy
+# (Railway's edge), so Caddy speaks plain HTTP on $PORT.
+
+{
+	admin off
+	auto_https off
+	persist_config off
+}
+
+:{$PORT:8080} {
+	root * /srv
+
+	# Canonical URLs have no trailing slash: /topics/x/ -> /topics/x.
+	@trailing path_regexp trailing ^(.+)/$
+	redir @trailing {re.trailing.1}{?query} 308
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		# Pages revalidate on every visit; set only where nothing below did.
+		?Cache-Control "public, max-age=0, must-revalidate"
+	}
+	# Hashed bundles never change.
+	header /assets/* Cache-Control "public, max-age=31536000, immutable"
+	# Dataset files keep their names across deploys, so cache them briefly.
+	header /data/* Cache-Control "public, max-age=300"
+	header /site.webmanifest Content-Type application/manifest+json
+
+	# /topics/x is served from /topics/x/index.html without a redirect.
+	try_files {path} {path}/index.html
+	encode zstd gzip
+	file_server {
+		precompressed gzip
+	}
+
+	# Unknown paths get the "Page not found" shell with a 404 status.
+	handle_errors 404 {
+		header Cache-Control "no-cache"
+		rewrite * /404.html
+		file_server {
+			precompressed gzip
+		}
+	}
+}

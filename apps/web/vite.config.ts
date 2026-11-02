@@ -5,13 +5,10 @@ import { fileURLToPath, URL } from 'node:url';
 import { defineConfig } from 'vite';
 
 import { prerenderPages } from './scripts/prerender-pages';
-import { DEFAULT_SITE_URL } from './src/site-url';
+import { resolveSiteUrl } from './src/site-url';
 
 const dataDir = fileURLToPath(new URL('./public/data', import.meta.url));
-const siteUrl = (process.env.VITE_SITE_URL ?? DEFAULT_SITE_URL).replace(
-  /\/+$/,
-  ''
-);
+const siteUrl = resolveSiteUrl(process.env.VITE_SITE_URL);
 
 export default defineConfig(({ command }) => ({
   plugins: [

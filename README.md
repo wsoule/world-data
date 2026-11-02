@@ -76,12 +76,35 @@ source site's prose.
 ## Deploy
 
 `moonx web:build` prerenders every topic, place, category and type page (about
-8,200 HTML files) plus `sitemap.xml` into `apps/web/dist/client`. The
+8,000 HTML files) plus `sitemap.xml` into `apps/web/dist/client`. The
 browser-only `/compare`, `/vs` and `/search` are prerendered as client-rendered
 shells, so no rewrites are needed. Deploy that folder to any static host that
 serves `404.html` for unknown paths (Netlify, Cloudflare Pages, Vercel and
 GitHub Pages all do). Set `VITE_SITE_URL` to the public origin at build time so
 canonical URLs and the sitemap point at it.
+
+### Docker and Railway
+
+The root `Dockerfile` builds the site in a Node stage and serves it with Caddy
+(`apps/web/Caddyfile`): precompressed gzip, a 404 status with `404.html` for
+unknown paths, one-year caching for hashed assets, and a 308 from trailing-slash
+URLs to their canonical form. It listens on `$PORT` (default 8080).
+
+```bash
+docker build -t rankodex . && docker run -p 8080:8080 rankodex
+```
+
+Railway builds a root `Dockerfile` without further configuration:
+
+1. New project, then Deploy from GitHub repo, and pick this repository and
+   branch.
+2. In the service's Settings, under Networking, generate a domain (or add
+   `rankodex.com` as a custom domain), and set the healthcheck path to `/`.
+3. If the site is not served from `https://rankodex.com`, add a `VITE_SITE_URL`
+   service variable with the public origin and redeploy; the Dockerfile passes
+   it to the build.
+
+With the CLI, the same is `railway init`, `railway up` and `railway domain`.
 
 ## License
 

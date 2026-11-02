@@ -1,12 +1,10 @@
 // Brand and canonical-URL settings shared by the app, route head tags and the
 // build-time page list. Change the name here and the domain in site-url.ts.
 
-import { DEFAULT_SITE_URL } from './site-url';
+import { resolveSiteUrl } from './site-url';
 
 /** Public origin used for canonical URLs, Open Graph tags and the sitemap. */
-export const SITE_URL: string = (
-  import.meta.env.VITE_SITE_URL ?? DEFAULT_SITE_URL
-).replace(/\/+$/, '');
+export const SITE_URL: string = resolveSiteUrl(import.meta.env.VITE_SITE_URL);
 
 export const SITE = {
   name: 'Rankodex',
