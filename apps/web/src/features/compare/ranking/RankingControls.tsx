@@ -33,11 +33,6 @@ const NORMS: { value: Normalization; label: string; hint: string }[] = [
     label: 'Min–max',
     hint: 'Linear 0–100 between the worst and best value. Keeps gaps, so one extreme squeezes everyone else.',
   },
-  {
-    value: 'rank',
-    label: 'Rank',
-    hint: 'Evenly spaced by rank order (1st = 100, last = 0). Only order matters, never the size of gaps.',
-  },
 ];
 
 const COLLAPSED_ROWS = 8;

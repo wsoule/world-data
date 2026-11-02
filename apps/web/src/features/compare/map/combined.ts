@@ -14,14 +14,12 @@ export const COMBINED_FOCUS = 0;
 /** Normalisation methods in the order the map offers them. */
 export const NORMALIZATIONS: readonly Normalization[] = [
   'percentile',
-  'rank',
   'minmax',
   'zscore',
 ];
 
 export const NORMALIZATION_LABELS: Record<Normalization, string> = {
   percentile: 'Percentile (0–100)',
-  rank: 'Rank-based (0–100)',
   minmax: 'Min–max (0–100)',
   zscore: 'Standard score (z)',
 };

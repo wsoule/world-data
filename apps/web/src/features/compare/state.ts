@@ -46,7 +46,7 @@ export interface CompareSearch {
   f?: number;
 }
 
-const NORMS: Normalization[] = ['percentile', 'zscore', 'minmax', 'rank'];
+const NORMS: Normalization[] = ['percentile', 'zscore', 'minmax'];
 
 const numArray = (v: unknown): number[] =>
   Array.isArray(v)
@@ -111,9 +111,13 @@ export function validateCompareSearch(
     ),
     hl: strArray(raw.hl),
     g: strArray(raw.g),
-    norm: NORMS.includes(raw.norm as Normalization)
-      ? (raw.norm as Normalization)
-      : undefined,
+    // 'rank' was an alias of percentile; old links still resolve.
+    norm:
+      raw.norm === 'rank'
+        ? 'percentile'
+        : NORMS.includes(raw.norm as Normalization)
+          ? (raw.norm as Normalization)
+          : undefined,
     cov:
       optNum(raw.cov) !== undefined
         ? Math.min(1, Math.max(0, Number(raw.cov)))

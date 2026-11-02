@@ -44,7 +44,7 @@ describe('rescore', () => {
         [1, 2.5, 0, 0.5, 3, 1][k]
       )
     );
-    const methods: Normalization[] = ['percentile', 'zscore', 'minmax', 'rank'];
+    const methods: Normalization[] = ['percentile', 'zscore', 'minmax'];
     for (const method of methods) {
       for (const cov of [0, 0.5, 0.9]) {
         const c = composite(inputs, n, method, cov);
@@ -196,6 +196,6 @@ describe('formatScore', () => {
     expect(formatScore(82.345, 'percentile')).toBe('82.3');
     expect(formatScore(1.234, 'zscore')).toBe('+1.23');
     expect(formatScore(-0.5, 'zscore')).toBe('−0.50');
-    expect(formatScore(NaN, 'rank')).toBe('—');
+    expect(formatScore(NaN, 'minmax')).toBe('—');
   });
 });

@@ -361,7 +361,7 @@ export function describeCorrelation(c: Correlation): string {
 
 // --- Composite scores ----------------------------------------------------------
 
-export type Normalization = 'percentile' | 'zscore' | 'minmax' | 'rank';
+export type Normalization = 'percentile' | 'zscore' | 'minmax';
 
 export interface CompositeInput {
   values: Vec;
@@ -400,14 +400,6 @@ export function composite(
       const p = percentile(v, inp.direction);
       for (let i = 0; i < p.length; i++) p[i] *= 100;
       return p;
-    }
-    if (method === 'rank') {
-      const r = rank(v, inp.direction);
-      const n = count(v);
-      const out = new Float64Array(v.length).fill(NaN);
-      for (let i = 0; i < v.length; i++)
-        if (finite(r[i])) out[i] = n > 1 ? (100 * (n - r[i])) / (n - 1) : 100;
-      return out;
     }
     if (method === 'zscore') {
       const z = zscore(v);
