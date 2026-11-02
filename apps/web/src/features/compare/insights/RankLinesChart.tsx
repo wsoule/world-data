@@ -8,9 +8,8 @@ import { tooltip } from '@tanstack/charts/tooltip';
 import { Pin, PinOff } from 'lucide-react';
 import { useMemo } from 'react';
 
-import type { CompareSearch } from '../state';
 import { type RankModel, rankTicks, spreadLabels } from './rankLines';
-import { isNeutral, placeNoun } from './shared';
+import { placeNoun } from './shared';
 import type { BasketColumns } from './useBasket';
 import { PolarityIcon } from '~/components/MetricPicker';
 import { cx } from '~/components/ui';
@@ -63,7 +62,6 @@ export function RankLinesChart({
   scale,
   dataset,
   onToggle,
-  search,
 }: {
   basket: BasketColumns;
   model: RankModel;
@@ -71,7 +69,6 @@ export function RankLinesChart({
   scale: 'rank' | 'pct';
   dataset: Dataset;
   onToggle: (id: string) => void;
-  search: CompareSearch;
 }) {
   const theme = useTheme();
   const colors = chartColors(theme);
@@ -258,6 +255,16 @@ export function RankLinesChart({
     `calc(${M.left}px + (100% - ${M.left + M.right}px) * ${k > 1 ? i / (k - 1) : 0})`;
   const columnWidth = `min(170px, calc((100% - ${M.left + M.right}px) / ${Math.max(1, k - 1)} - 6px))`;
   const best = emphasized.find((p) => !p.highlighted);
+  // Rank 1 is the best on metrics with a direction, and simply the highest on neutral ones.
+  const anyNeutral = basket.neutral.some((n) => n);
+  const axisNote =
+    scale === 'rank'
+      ? anyNeutral
+        ? 'Rank · 1 = best (or highest)'
+        : 'Rank · 1 = best'
+      : anyNeutral
+        ? 'Percentile · 100 = best (or highest)'
+        : 'Percentile · 100 = best';
 
   return (
     <div>
@@ -265,7 +272,7 @@ export function RankLinesChart({
         <div className="relative" style={{ minWidth }}>
           <div className="relative h-[4.5rem]" aria-hidden>
             <span className="text-muted absolute top-0 left-0 text-[10px] font-medium tracking-wide uppercase">
-              {scale === 'rank' ? 'Rank · 1 = best' : 'Percentile · 100 = best'}
+              {axisNote}
             </span>
             {basket.metrics.map((m, i) => (
               <div
@@ -282,7 +289,7 @@ export function RankLinesChart({
                   {m.label}
                 </span>
                 <PolarityIcon
-                  pol={isNeutral(search, m) ? 0 : basket.directions[i]}
+                  pol={basket.neutral[i] ? 0 : basket.directions[i]}
                   className="mb-px shrink-0"
                 />
               </div>
@@ -295,7 +302,7 @@ export function RankLinesChart({
               ariaLabel={`Rank lines: each ${noun.one}'s ${scale === 'rank' ? 'rank' : 'percentile'} across ${k} metrics`}
               ariaDescription={
                 best != null
-                  ? `${best.name} has the best average rank. Use the arrow keys to move between points and Enter to toggle a highlight.`
+                  ? `${best.name} has the best average percentile. Use the arrow keys to move between points and Enter to toggle a highlight.`
                   : undefined
               }
               onSelect={(p) => {

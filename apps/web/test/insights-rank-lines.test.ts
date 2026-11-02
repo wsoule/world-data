@@ -30,6 +30,30 @@ describe('buildRankModel', () => {
     expect(model.order.at(-1)).toBe(0);
   });
 
+  test('leaves metrics with no better side out of the average', () => {
+    // Column 0 is like population (neutral), column 1 like income.
+    const m = buildRankModel(
+      [
+        [100, 1, 50],
+        [1, 3, 2],
+      ],
+      [1, 1],
+      { include: [false, true] }
+    );
+    expect(m.averaged).toBe(1);
+    // Ranked and drawn on both, but ordered by income alone.
+    expect([...m.ranks[0]]).toEqual([1, 3, 2]);
+    expect(m.order).toEqual([1, 2, 0]);
+    expect(m.average[0]).toBe(0);
+  });
+
+  test('has no order when no metric has a better side', () => {
+    const m = buildRankModel([[3, 1, 2]], [1], { include: [false] });
+    expect(m.averaged).toBe(0);
+    expect(m.order).toEqual([]);
+    expect(Number.isNaN(m.average[0])).toBe(true);
+  });
+
   test('skips places below the coverage floor', () => {
     const strict = buildRankModel(
       [

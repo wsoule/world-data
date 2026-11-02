@@ -8,22 +8,32 @@ export interface RankModel {
   pcts: Float64Array[];
   /** Places with data, per metric */
   counts: number[];
-  /** Mean percentile (0–100) over the metrics a place has; NaN below the coverage floor */
+  /**
+   * Mean percentile (0–100) over the averaged metrics a place has; NaN below the coverage floor
+   * or when no metric is averaged
+   */
   average: Float64Array;
   /** Places with an average, best first */
   order: number[];
+  /** Metrics that count towards the average (those with a better side) */
+  averaged: number;
 }
 
 /**
  * Rank every place on each metric (competition ranking, direction-aware) and summarise each place
- * by its mean percentile. Places covering fewer than `minCoverage` metrics (default: half the
- * basket) get no average, so a place with a single great value cannot top the summary.
+ * by its mean percentile. Only metrics marked in `include` (default: all) are averaged: a metric
+ * with no better side is still ranked and drawn high to low, but being large is not "better".
+ * Places covering fewer than `minCoverage` averaged metrics (default: half of them) get no
+ * average, so a place with a single great value cannot top the summary.
  */
 export function buildRankModel(
   columns: readonly ArrayLike<number>[],
   directions: readonly (1 | -1)[],
-  minCoverage = Math.ceil(columns.length / 2)
+  options: { include?: readonly boolean[]; minCoverage?: number } = {}
 ): RankModel {
+  const include = columns.map((_, k) => options.include?.[k] ?? true);
+  const averaged = include.filter((x) => x).length;
+  const minCoverage = options.minCoverage ?? Math.ceil(averaged / 2);
   const places = columns[0]?.length ?? 0;
   const ranks = columns.map((c, k) => competitionRank(c, directions[k]));
   const pcts = columns.map((c, k) => {
@@ -41,8 +51,9 @@ export function buildRankModel(
   for (let p = 0; p < places; p++) {
     let sum = 0;
     let covered = 0;
-    for (const col of pcts) {
-      const v = col[p];
+    for (let k = 0; k < pcts.length; k++) {
+      if (!include[k]) continue;
+      const v = pcts[k][p];
       if (Number.isNaN(v)) continue;
       sum += v;
       covered++;
@@ -53,7 +64,7 @@ export function buildRankModel(
     }
   }
   order.sort((a, b) => average[b] - average[a]);
-  return { ranks, pcts, counts, average, order };
+  return { ranks, pcts, counts, average, order, averaged };
 }
 
 export interface VisiblePlaces {

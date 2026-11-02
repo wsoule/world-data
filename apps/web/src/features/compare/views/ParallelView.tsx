@@ -31,13 +31,17 @@ const MAX_ALL = 60;
  * the rest are faint context. Clicking a line toggles its highlight.
  */
 export function ParallelView(props: CompareViewProps) {
-  const { dataset, search, update, metrics } = props;
+  const { dataset, update, metrics } = props;
   const [scale, setScale] = useState<RankScale>('rank');
   const [showAll, setShowAll] = useState(false);
   const basket = useBasket(props);
   const highlighted = useHighlightPositions(props, basket);
+  // Metrics with no better side are drawn but left out of the average that picks the "top 5".
   const model = useMemo(
-    () => buildRankModel(basket.columns, basket.directions),
+    () =>
+      buildRankModel(basket.columns, basket.directions, {
+        include: basket.neutral.map((n) => !n),
+      }),
     [basket]
   );
   const placeCount = basket.rows.length;
@@ -78,6 +82,14 @@ export function ParallelView(props: CompareViewProps) {
     );
   }
 
+  const neutralLabels = basket.metrics
+    .filter((_, k) => basket.neutral[k])
+    .map((m) => m.label);
+  const subtitle =
+    model.averaged === 0
+      ? `None of these metrics has a better or worse side, so no ${noun.one} is singled out as best. Click any line to highlight it.`
+      : `Bold: highlighted ${noun.many} and the top 5 by average percentile${neutralLabels.length > 0 ? ` (leaving out ${neutralLabels.join(', ')}, which ${neutralLabels.length === 1 ? 'has' : 'have'} no better side)` : ''}. Click any line to highlight it.`;
+
   const toggle = (id: string) =>
     update((s) => {
       const hl = s.hl ?? [];
@@ -88,7 +100,7 @@ export function ParallelView(props: CompareViewProps) {
   return (
     <Card
       title={`Where each ${noun.one} ranks on every metric`}
-      subtitle={`Bold: highlighted ${noun.many} and the top 5 by average rank. Click any line to highlight it.`}
+      subtitle={subtitle}
       actions={
         <Segmented
           ariaLabel="Vertical scale"
@@ -106,7 +118,6 @@ export function ParallelView(props: CompareViewProps) {
         scale={scale}
         dataset={dataset}
         onToggle={toggle}
-        search={search}
       />
       {placeCount > MAX_ALL ? (
         <div className="text-muted mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
