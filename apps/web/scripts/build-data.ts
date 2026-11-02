@@ -25,12 +25,14 @@ import type {
   Manifest,
   Metric,
   MetricKind,
+  Polarity,
   TopicFile,
   TopicSummary,
   ValuesFile,
 } from '../src/data/types';
 import { parseInlineData, parseIslands } from './lib/astro';
 import { dedupeBy, round, slugify, toNumber, toText } from './lib/clean';
+import { looksLikeRanks } from './lib/columns';
 import {
   baseAttributes,
   type BaseAttributes,
@@ -841,14 +843,20 @@ function disambiguate(group: readonly Metric[]): string[] {
  * Hand corrections for source columns whose header or format is wrong:
  * 20363 is keyed "…PctOfMammalSpeciesAtRisk" but titled as the fish column,
  * 23920 is keyed "…_5to6Years" but titled "Ages 4-5", 23931 holds dollars
- * under a cents header, 15277 holds percentages under a dollar format and
- * 19747 holds euros with no format.
+ * under a cents header, 15277 holds percentages under a dollar format,
+ * 19747 holds euros with no format, and 23862 holds World Energy Trilemma
+ * scores (Denmark 83.2 is the best) under a "Rank" header and rank format.
  */
 const METRIC_FIXES: Record<
   string,
-  { label?: string; unit?: string; fmt?: string }
+  { label?: string; unit?: string; fmt?: string; pol?: Polarity }
 > = {
   'country:19747': { fmt: 'moneyWithCurrencyEuros' },
+  'country:23862': {
+    label: 'Energy Sustainability Score',
+    fmt: 'floatNumberTenths',
+    pol: 1,
+  },
   'state:15277': {
     label: 'Avg Median Down Payment for House (%)',
     fmt: 'percAlt',
@@ -961,7 +969,16 @@ async function writeType(
         : m.unit === ''
           ? null
           : m.unit);
-    const fmt = fix?.fmt ?? outputFormat(m.fmt);
+    const ranks =
+      kind === 'num' &&
+      fix?.fmt == null &&
+      looksLikeRanks(
+        label,
+        m.fmt,
+        pairs.flatMap((p) => (typeof p[1] === 'number' ? [p[1]] : []))
+      );
+    const sourceFmt = ranks ? 'ranking' : m.fmt;
+    const fmt = fix?.fmt ?? outputFormat(sourceFmt);
     const entry: Metric = {
       id: m.id,
       key: m.key,
@@ -974,7 +991,10 @@ async function writeType(
           : fmt,
       unit,
       kind,
-      pol: kind === 'num' ? guessPolarity(label, m.key, m.fmt, topics) : 0,
+      pol:
+        kind !== 'num'
+          ? 0
+          : (fix?.pol ?? guessPolarity(label, m.key, sourceFmt, topics)),
       year,
       years: [...m.years.keys()]
         .filter((y): y is number => y !== '_')
