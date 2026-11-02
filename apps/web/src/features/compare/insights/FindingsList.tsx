@@ -257,13 +257,18 @@ function renderFinding(f: Finding, props: FindingsListProps): Rendered {
       const others = f.places.slice(1);
       const ids = f.places.map((t) => entityAt(t.place).id);
       const where = f.kind === 'leaders' ? 'top' : 'bottom';
+      // Neutral metrics (population, area…) never count; say so when some were left out.
+      const skipped = basket.neutral.some((n) => n);
       return {
         icon: f.kind === 'leaders' ? Trophy : TriangleAlert,
         tone: f.kind === 'leaders' ? 'good' : 'bad',
         title: (
           <>
             {placeName(lead.place)} is in the {where} 10% on {lead.count} of{' '}
-            {f.metricCount} metrics.
+            {skipped
+              ? `the ${f.metricCount} metrics with a better side`
+              : `${f.metricCount} metrics`}
+            .
           </>
         ),
         detail: (

@@ -83,6 +83,7 @@ function CorrelationsSection(props: CompareViewProps) {
         metrics: basket.metrics.map((m, k) => ({
           id: m.id,
           direction: basket.directions[k],
+          neutral: basket.neutral[k],
           values: basket.columns[k],
         })),
         pairs,

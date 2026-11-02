@@ -11,6 +11,7 @@ import {
   type Finding,
   largestResidual,
   tallyExtremes,
+  tenthSize,
 } from '../src/features/compare/insights/findings';
 
 // 30 synthetic places. `income` and `degrees` rise together, `crime` falls as income rises,
@@ -133,7 +134,68 @@ describe('buildFindings', () => {
   });
 });
 
+describe('neutral metrics', () => {
+  // Place 29 is the largest (population) and richest; place 0 the smallest and poorest.
+  const size = Float64Array.from(idx, (i) => 1000 + i * 100);
+  const withNeutral = [
+    { id: 9, direction: 1 as const, neutral: true, values: size },
+    { id: 10, direction: 1 as const, neutral: true, values: size },
+    metrics[0],
+  ];
+  const fs = buildFindings({
+    metrics: withNeutral,
+    pairs: correlationPairs(
+      withNeutral.map((m) => m.values),
+      withNeutral.map((m) => m.id)
+    ),
+    method: 'pearson',
+  });
+
+  test('never make a place a leader or laggard', () => {
+    // Only one metric has a better side, so there is nothing to tally.
+    expect(ofKind(fs, 'leaders')).toEqual([]);
+    expect(ofKind(fs, 'laggards')).toEqual([]);
+  });
+
+  test('still feed correlations', () => {
+    expect(ofKind(fs, 'together').some((f) => f.pair.a === 9)).toBe(true);
+  });
+
+  test('do not count towards the metric total', () => {
+    const mixed = [{ ...withNeutral[0] }, ...metrics.slice(0, 3)];
+    const out = buildFindings({
+      metrics: mixed,
+      pairs: correlationPairs(
+        mixed.map((m) => m.values),
+        mixed.map((m) => m.id)
+      ),
+      method: 'pearson',
+    });
+    const leaders = ofKind(out, 'leaders')[0];
+    expect(leaders.metricCount).toBe(3);
+    expect(leaders.places[0].metricIds).not.toContain(9);
+  });
+});
+
 describe('tallyExtremes', () => {
+  test('the top and bottom tenth are strict: 5 of 51, never the 6th', () => {
+    expect(tenthSize(51)).toBe(5);
+    expect(tenthSize(50)).toBe(5);
+    expect(tenthSize(9)).toBe(1);
+    const values = Float64Array.from({ length: 51 }, (_, i) => i);
+    const { top, bottom } = tallyExtremes([
+      { id: 1, direction: 1, values },
+      { id: 2, direction: 1, values },
+    ]);
+    // Places 46–50 are the five best, 0–4 the five worst.
+    expect(top.map((t) => t.place).sort((a, b) => a - b)).toEqual([
+      46, 47, 48, 49, 50,
+    ]);
+    expect(bottom.map((t) => t.place).sort((a, b) => a - b)).toEqual([
+      0, 1, 2, 3, 4,
+    ]);
+  });
+
   test('lower-is-better metrics count low values as top', () => {
     const { top, bottom } = tallyExtremes([
       { id: 1, direction: -1, values: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] },

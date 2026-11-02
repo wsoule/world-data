@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 import type { CompareViewProps } from '../state';
 import { pickRows } from './correlation';
+import { isNeutral } from './shared';
 import type { Metric } from '~/data/types';
 
 /**
@@ -28,6 +29,11 @@ export interface BasketColumns {
   /** One column per basket metric, aligned to `rows` */
   columns: Float64Array[];
   directions: (1 | -1)[];
+  /**
+   * True for metrics with no better or worse side that the user has not given one. Their
+   * `directions` entry is 1 (rank high to low), but they must not count as good or bad.
+   */
+  neutral: boolean[];
   /** Entity index of each compared place */
   rows: number[];
   /** Entity index -> position in `rows` */
@@ -36,14 +42,16 @@ export interface BasketColumns {
 
 /** Extract the basket's values for the compared places once per (basket, filter, directions). */
 export function useBasket(props: CompareViewProps): BasketColumns {
-  const { dataset, metrics, entityIdx, direction } = props;
+  const { dataset, metrics, entityIdx, direction, search } = props;
   const directions = metrics.map((m) => direction(m.id));
+  const neutral = metrics.map((m) => isNeutral(search, m));
   const key = [
     dataset.type.id,
     metrics.map((m) => m.id).join(','),
     directions.join(','),
+    neutral.map((n) => (n ? 1 : 0)).join(''),
     entityIdx.length,
-    (props.search.g ?? []).join('|'),
+    (search.g ?? []).join('|'),
   ].join(';');
   return useKeyed(key, () => {
     const position = new Map<number, number>();
@@ -54,6 +62,7 @@ export function useBasket(props: CompareViewProps): BasketColumns {
       ids: metrics.map((m) => m.id),
       columns: metrics.map((m) => pickRows(dataset.numeric(m.id), entityIdx)),
       directions,
+      neutral,
       rows: entityIdx,
       position,
     };

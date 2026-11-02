@@ -1,4 +1,8 @@
-import { linearRegression, percentile } from '@world-data/stats';
+import {
+  competitionRank,
+  linearRegression,
+  percentile,
+} from '@world-data/stats';
 
 import { type CorrelationMethod, type PairStats, pick } from './correlation';
 
@@ -7,6 +11,11 @@ export interface FindingMetric {
   id: number;
   /** 1 = higher is better, -1 = lower is better */
   direction: 1 | -1;
+  /**
+   * The metric has no better or worse side (population, area…) and the user has not picked one.
+   * Neutral metrics still feed correlations and outliers, but never leaders or laggards.
+   */
+  neutral?: boolean;
   values: ArrayLike<number>;
 }
 
@@ -137,25 +146,28 @@ export function buildFindings(input: FindingsInput): Finding[] {
       })
     );
 
-  // Leaders and laggards across the basket.
-  if (metrics.length >= 2) {
-    const { top, bottom } = tallyExtremes(metrics);
-    const minCount = Math.max(2, Math.ceil(metrics.length / 3));
+  // Leaders and laggards across the metrics that have a better side: being large or small on a
+  // neutral metric is neither good nor bad.
+  const directional = metrics.filter((m) => m.neutral !== true);
+  if (directional.length >= 2) {
+    const k = directional.length;
+    const { top, bottom } = tallyExtremes(directional);
+    const minCount = Math.max(2, Math.ceil(k / 3));
     const leaders = top.filter((t) => t.count >= minCount).slice(0, 4);
     const laggards = bottom.filter((t) => t.count >= minCount).slice(0, 4);
     if (leaders.length > 0)
       out.push({
         kind: 'leaders',
         places: leaders,
-        metricCount: metrics.length,
-        score: 0.5 + 0.4 * (leaders[0].count / metrics.length),
+        metricCount: k,
+        score: 0.5 + 0.4 * (leaders[0].count / k),
       });
     if (laggards.length > 0)
       out.push({
         kind: 'laggards',
         places: laggards,
-        metricCount: metrics.length,
-        score: 0.45 + 0.4 * (laggards[0].count / metrics.length),
+        metricCount: k,
+        score: 0.45 + 0.4 * (laggards[0].count / k),
       });
   }
 
@@ -200,9 +212,19 @@ export function buildFindings(input: FindingsInput): Finding[] {
 }
 
 /**
- * For every place, count the metrics on which it is in the best (top) or worst (bottom) tenth,
- * using direction-aware percentiles so "lower is better" metrics count correctly. Both lists are
- * sorted by count, then by mean percentile (best first for top, worst first for bottom).
+ * Places that make the top (or bottom) tenth of one metric: floor(TOP_SHARE × places with data),
+ * at least one. With 51 states that is 5, so the 6th best is never counted as "top 10%".
+ */
+export function tenthSize(count: number): number {
+  return Math.max(1, Math.floor(TOP_SHARE * count + 1e-9));
+}
+
+/**
+ * For every place, count the metrics on which it is in the best (top) or worst (bottom) tenth.
+ * The cut is by direction-aware competition rank, so "lower is better" metrics count correctly
+ * and the tenth is strict: rank ≤ tenthSize(n) from the best end, or from the worst end for the
+ * bottom. Both lists are sorted by count, then by mean percentile (best first for top, worst
+ * first for bottom).
  */
 export function tallyExtremes(metrics: readonly FindingMetric[]): {
   top: PlaceTally[];
@@ -210,6 +232,15 @@ export function tallyExtremes(metrics: readonly FindingMetric[]): {
 } {
   const places = metrics[0]?.values.length ?? 0;
   const pcts = metrics.map((m) => percentile(m.values, m.direction));
+  const bestFirst = metrics.map((m) => competitionRank(m.values, m.direction));
+  const worstFirst = metrics.map((m) =>
+    competitionRank(m.values, m.direction === 1 ? -1 : 1)
+  );
+  const cut = bestFirst.map((ranks) => {
+    let n = 0;
+    for (let i = 0; i < ranks.length; i++) if (!Number.isNaN(ranks[i])) n++;
+    return tenthSize(n);
+  });
   const top: PlaceTally[] = [];
   const bottom: PlaceTally[] = [];
   for (let p = 0; p < places; p++) {
@@ -222,8 +253,8 @@ export function tallyExtremes(metrics: readonly FindingMetric[]): {
       if (Number.isNaN(v)) continue;
       covered++;
       sum += v;
-      if (v >= 1 - TOP_SHARE) topIds.push(metrics[k].id);
-      if (v <= TOP_SHARE) bottomIds.push(metrics[k].id);
+      if (bestFirst[k][p] <= cut[k]) topIds.push(metrics[k].id);
+      else if (worstFirst[k][p] <= cut[k]) bottomIds.push(metrics[k].id);
     }
     if (covered === 0) continue;
     const meanPercentile = sum / covered;
