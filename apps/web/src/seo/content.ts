@@ -2,6 +2,7 @@
 // AI answer engines. Computed in route loaders (on the server while
 // prerendering), so only these small objects are embedded in the HTML.
 
+import { topicAnswers } from './topic-content';
 import type { Dataset } from '~/data/dataset';
 import type {
   CategoryInfo,
@@ -17,7 +18,8 @@ import {
   rankableMetrics,
   sizeDrivenMetrics,
 } from '~/features/places/profileModel';
-import { formatInt, formatValue, ordinal, typeNoun } from '~/lib/format';
+import { hasUndated, resolveYear, seriesYears } from '~/features/topic/model';
+import { formatInt, ordinal, typeNoun } from '~/lib/format';
 import { breadcrumbs, faqPage, publisher } from '~/lib/seo';
 import { absoluteUrl, SITE } from '~/site';
 
@@ -70,29 +72,26 @@ export function leadMetric(topic: TopicFile, ds: Dataset): Metric | null {
   return null;
 }
 
-/** A topic metric's values at its default year as [entity index, value] pairs. */
-function topicValues(topic: TopicFile, metric: Metric): [number, number][] {
-  const series = topic.series[String(metric.id)] ?? {};
-  const year = metric.year == null ? '_' : String(metric.year);
-  const keys = Object.keys(series).sort();
-  const pick = series[year] ?? series[keys.at(-1) ?? '_'];
-  if (pick == null) return [];
-  const out: [number, number][] = [];
-  pick[0].forEach((i, k) => {
-    const v = pick[1][k];
-    if (typeof v === 'number' && Number.isFinite(v)) out.push([i, v]);
-  });
-  return out;
+/**
+ * The year a topic page opens a metric on (null for its undated series): the metric's default
+ * year when the topic has it, else the undated series, else the latest year. Same rule as the
+ * page's own year picker (resolveYear), so the build-time text describes the view it opens on.
+ */
+function openingYear(topic: TopicFile, metric: Metric): number | null {
+  return resolveYear(
+    seriesYears(topic, metric.id),
+    undefined,
+    metric.year,
+    hasUndated(topic, metric.id)
+  );
 }
 
-/** Median of a non-empty list. */
-function median(values: number[]): number {
-  const s = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(s.length / 2);
-  return s.length % 2 === 0 ? (s[mid - 1] + s[mid]) / 2 : s[mid];
-}
-
-/** Summary, FAQ and Dataset markup for a topic page. */
+/**
+ * Summary, FAQ and Dataset markup for a topic page. The summary sentence and quick answers are
+ * topicAnswers() for the lead metric at the year the page opens on, so the head tags, the FAQPage
+ * JSON-LD and the visible text all come from the one wording the page also uses for any other
+ * metric or year.
+ */
 export function topicSummary(
   topic: TopicFile,
   ds: Dataset,
@@ -101,43 +100,12 @@ export function topicSummary(
   const type = ds.type;
   const path = `/topics/${type.id}/${topic.slug}`;
   const metric = leadMetric(topic, ds);
-  const rows = metric == null ? [] : topicValues(topic, metric);
-  rows.sort((a, b) => b[1] - a[1]);
-  const name = (i: number): string => ds.entities[i]?.name ?? '';
-  const fmt = (v: number): string => formatValue(metric ?? undefined, v);
-  const yearNote = metric?.year == null ? '' : ` in ${metric.year}`;
-  const faq: QA[] = [];
-  let summary = `${topic.title}: compare ${formatInt(topic.entities.length)} ${plural(type)} on ${formatInt(topic.metrics.length)} ${topic.metrics.length === 1 ? 'metric' : 'metrics'}.`;
-
-  if (metric != null && rows.length >= 2) {
-    const [top, second, third] = rows;
-    const low = rows[rows.length - 1];
-    const label = metric.label;
-    const follow =
-      rows.length >= 3 && second != null && third != null
-        ? `, followed by ${name(second[0])} (${fmt(second[1])}) and ${name(third[0])} (${fmt(third[1])})`
-        : '';
-    summary = `${name(top[0])} has the highest ${label}${yearNote} (${fmt(top[1])})${follow}. ${name(low[0])} has the lowest (${fmt(low[1])}).`;
-    faq.push(
-      {
-        question: `Which ${singular(type)} has the highest ${label}?`,
-        answer: `${name(top[0])} has the highest ${label}${yearNote}, at ${fmt(top[1])}${follow}.`,
-      },
-      {
-        question: `Which ${singular(type)} has the lowest ${label}?`,
-        answer: `${name(low[0])} has the lowest ${label}${yearNote}, at ${fmt(low[1])}.`,
-      },
-      {
-        question: `What is the median ${label} across ${plural(type)}?`,
-        answer: `The median is ${fmt(median(rows.map((r) => r[1])))} across the ${formatInt(rows.length)} ${plural(type)} with data${yearNote}.`,
-      }
-    );
-  }
-  const sourceNames = topic.sources.map((s) => s.name).slice(0, 4);
-  faq.push({
-    question: `Where does this ${topic.title.toLowerCase()} data come from?`,
-    answer: `${SITE.name} compiles it from ${SITE.sourceName}${sourceNames.length > 0 ? ` and the primary sources it cites: ${sourceNames.join('; ')}` : ''}.${topic.updated == null ? '' : ` Last updated ${topic.updated}.`}`,
-  });
+  const { summary, faq } = topicAnswers(
+    topic,
+    ds,
+    metric,
+    metric == null ? null : openingYear(topic, metric)
+  );
 
   const category = categories.find((c) => topic.cats.includes(c.id));
   const crumbs: Crumb[] = [

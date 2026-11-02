@@ -1,9 +1,9 @@
 // The answer-first summary and quick answers of a topic page for whichever
-// metric and year the visitor is looking at. Worded exactly like
-// topicSummary() in ./content.ts, which writes the same text for the lead
-// metric at build time (head tags and FAQPage JSON-LD); the page shows the
-// loader's text for that default view and this module's text after the
-// visitor picks another metric or year.
+// metric and year the visitor is looking at. This is the only place the
+// sentences are worded: topicSummary() in ./content.ts calls topicAnswers()
+// for the lead metric at build time (head tags and FAQPage JSON-LD), the page
+// shows that loader text for its default view and calls topicAnswers() itself
+// after the visitor picks another metric or year.
 
 import type { QA } from './content';
 import type { Dataset } from '~/data/dataset';
@@ -47,9 +47,11 @@ function median(values: number[]): number {
 
 /**
  * Summary and quick answers for one metric of a topic at one year (null for
- * the undated series, which reads without a year), worded like
- * topicSummary(): highest, lowest and median value, then where the data comes
- * from. "Highest" means the largest value, whatever the metric's polarity.
+ * the undated series, which reads without a year): highest, lowest and median
+ * value, then where the data comes from. Without a metric (or with fewer than
+ * two values) the summary is a generic "compare N places" line and only the
+ * source answer remains. "Highest" means the largest value, whatever the
+ * metric's polarity.
  */
 export function topicAnswers(
   topic: TopicFile,
