@@ -31,7 +31,10 @@ export interface ScatterAnalysis {
   /** Effective log flags: requested and valid */
   logX: boolean;
   logY: boolean;
+  /** Pearson r in the plotted space (on log10 values for a log axis) */
   pearson: Correlation;
+  /** Pearson r on the raw values; differs from `pearson` only when an axis is logarithmic */
+  rawPearson: Correlation;
   spearman: Correlation;
   /** Least-squares fit of ty on tx; residual arrays align with `points` */
   regression: Regression;
@@ -82,6 +85,7 @@ export function analyzeScatter(input: {
   const tx = Float64Array.from(points, (p) => p.tx);
   const ty = Float64Array.from(points, (p) => p.ty);
   const regression = linearRegression(tx, ty);
+  const r = pearson(tx, ty);
   const predicted = Float64Array.from(points, (p) => {
     const fit = regression.intercept + regression.slope * p.tx;
     return logY ? 10 ** fit : fit;
@@ -93,7 +97,14 @@ export function analyzeScatter(input: {
     canLogY,
     logX,
     logY,
-    pearson: pearson(tx, ty),
+    pearson: r,
+    rawPearson:
+      logX || logY
+        ? pearson(
+            Float64Array.from(points, (p) => p.x),
+            Float64Array.from(points, (p) => p.y)
+          )
+        : r,
     spearman: spearman(tx, ty),
     regression,
     predicted,
@@ -179,14 +190,22 @@ export function relationshipSentence(
 
 /**
  * For two metrics with a known better direction: whether doing well on one
- * goes with doing well on the other (synergy) or worse (trade-off).
+ * goes with doing well on the other (synergy) or worse (trade-off). Only a
+ * statistically significant correlation (p < 0.05) earns a verdict; a weak,
+ * possibly chance pattern gets none.
  */
 export function verdict(
   c: Correlation,
   x: AxisMeaning,
   y: AxisMeaning
 ): 'together' | 'trade-off' | null {
-  if (x.neutral || y.neutral || !finite(c.r) || strength(c.r) === 'none')
+  if (
+    x.neutral ||
+    y.neutral ||
+    !finite(c.r) ||
+    strength(c.r) === 'none' ||
+    !(c.p < 0.05)
+  )
     return null;
   const good = c.r * (goodIsHigh(x) ? 1 : -1) * (goodIsHigh(y) ? 1 : -1);
   return good > 0 ? 'together' : 'trade-off';
@@ -205,14 +224,19 @@ export interface QuadrantCell {
 
 /**
  * Splits the points at the x and y medians. Points exactly on a median are
- * left out (`onMedian`). Members of each cell are ordered by the sum of their
- * direction-aware percentiles so the cell "leaders" come first.
+ * left out (`onMedian`). When both metrics have a better side, the cell that
+ * is better on both is marked `best`; when neither has one, the cell high on
+ * both is. With exactly one neutral metric no cell is "best": being high or
+ * low on population is not good or bad. Members of each cell are ordered by
+ * the sum of their percentiles on the metrics with a better side (both
+ * percentiles when both or neither have one) so the cell "leaders" come first.
  */
 export function quadrants(
   a: ScatterAnalysis,
   x: AxisMeaning,
   y: AxisMeaning
 ): { cells: QuadrantCell[]; onMedian: number } {
+  const mixed = x.neutral !== y.neutral;
   const px = percentile(
     a.points.map((p) => p.x),
     goodIsHigh(x) ? 1 : -1
@@ -221,6 +245,9 @@ export function quadrants(
     a.points.map((p) => p.y),
     goodIsHigh(y) ? 1 : -1
   );
+  const useX = !mixed || !x.neutral;
+  const useY = !mixed || !y.neutral;
+  const order = (i: number) => (useX ? px[i] : 0) + (useY ? py[i] : 0);
   const cells: QuadrantCell[] = [];
   for (const yHigh of [true, false])
     for (const xHigh of [false, true])
@@ -228,7 +255,7 @@ export function quadrants(
         xHigh,
         yHigh,
         members: [],
-        best: xHigh === goodIsHigh(x) && yHigh === goodIsHigh(y),
+        best: !mixed && xHigh === goodIsHigh(x) && yHigh === goodIsHigh(y),
       });
   let onMedian = 0;
   a.points.forEach((p, i) => {
@@ -241,8 +268,7 @@ export function quadrants(
     const cell = cells.find((c) => c.xHigh === xHigh && c.yHigh === yHigh);
     cell?.members.push(i);
   });
-  for (const c of cells)
-    c.members.sort((i, j) => px[j] + py[j] - (px[i] + py[i]));
+  for (const c of cells) c.members.sort((i, j) => order(j) - order(i));
   return { cells, onMedian };
 }
 
@@ -332,6 +358,25 @@ export function rankTicks(max: number): number[] {
   const out = [1];
   for (let v = step < 5 ? 1 + step : step; v <= max; v += step) out.push(v);
   return out;
+}
+
+/**
+ * One-line reading of a correlation for footnotes and tooltips, e.g. "Weak
+ * negative relationship (not statistically significant, p = 0.26)". Keeps the
+ * significance note inside a single pair of parentheses.
+ */
+export function correlationSummary(c: Correlation): string {
+  if (!finite(c.r)) return 'Not enough overlapping data';
+  const s = strength(c.r);
+  if (s === 'none') return 'No meaningful relationship';
+  const dir = c.r > 0 ? 'positive' : 'negative';
+  const sig =
+    c.p < 0.001
+      ? 'p < 0.001'
+      : c.p < 0.05
+        ? `p = ${c.p.toFixed(3)}`
+        : `not statistically significant, p = ${c.p.toFixed(2)}`;
+  return `${s.charAt(0).toUpperCase()}${s.slice(1)} ${dir} relationship (${sig})`;
 }
 
 /** p-value text: "< 0.001" or three decimals. */

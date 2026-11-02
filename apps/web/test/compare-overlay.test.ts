@@ -4,6 +4,7 @@ import { presetSearch } from '../src/features/compare/presets';
 import {
   analyzeScatter,
   type AxisMeaning,
+  correlationSummary,
   logTicks,
   outlierPoints,
   quadrants,
@@ -119,6 +120,33 @@ describe('relationshipSentence', () => {
     ).toStartWith('There is no clear link');
     expect(verdict({ r: 0.8, n: 50, p: 0 }, area, income)).toBeNull();
   });
+
+  test('gives no verdict when the correlation could be chance', () => {
+    expect(verdict({ r: -0.16, n: 50, p: 0.258 }, eduRank, income)).toBeNull();
+    expect(verdict({ r: -0.16, n: 500, p: 0.0003 }, eduRank, income)).toBe(
+      'together'
+    );
+  });
+
+  test('summarises significance inside one pair of parentheses', () => {
+    expect(correlationSummary({ r: -0.16, n: 50, p: 0.258 })).toBe(
+      'Weak negative relationship (not statistically significant, p = 0.26)'
+    );
+    expect(correlationSummary({ r: 0.84, n: 210, p: 0 })).toBe(
+      'Very strong positive relationship (p < 0.001)'
+    );
+  });
+
+  test('keeps the raw-value r next to a log-scale r', () => {
+    const xs = [1, 10, 100, 1000, 10000];
+    const ys = [1, 2, 3, 4, 5];
+    const base = { entityIdx: [0, 1, 2, 3, 4], xs, ys, logY: false };
+    const logged = analyzeScatter({ ...base, logX: true });
+    expect(logged.pearson.r).toBeCloseTo(1);
+    expect(logged.rawPearson.r).toBeLessThan(0.9);
+    const plain = analyzeScatter({ ...base, logX: false });
+    expect(plain.rawPearson).toBe(plain.pearson);
+  });
 });
 
 describe('quadrants and residuals', () => {
@@ -139,6 +167,20 @@ describe('quadrants and residuals', () => {
     const total = cells.reduce((n, c) => n + c.members.length, 0);
     expect(total).toBe(8);
     const best = cells.filter((c) => c.best);
+    expect(best).toHaveLength(1);
+    expect(best[0].xHigh && best[0].yHigh).toBe(true);
+  });
+
+  test('never calls a cell best when exactly one metric is neutral', () => {
+    const { cells } = quadrants(a, area, income);
+    expect(cells.filter((c) => c.best)).toEqual([]);
+    // Members are ordered by the directional metric (y) alone: place 2 (y = 9) leads its cell.
+    const highY = cells.find((c) => !c.xHigh && c.yHigh);
+    expect(a.points[highY?.members[0] ?? -1].idx).toBe(2);
+  });
+
+  test('marks the high-on-both cell when both metrics are neutral', () => {
+    const best = quadrants(a, area, area).cells.filter((c) => c.best);
     expect(best).toHaveLength(1);
     expect(best[0].xHigh && best[0].yHigh).toBe(true);
   });

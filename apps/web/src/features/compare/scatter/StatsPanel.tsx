@@ -1,9 +1,10 @@
 import { Link } from '@tanstack/react-router';
-import { describeCorrelation, strength } from '@world-data/stats';
+import { strength } from '@world-data/stats';
 import { Info, Pin, PinOff, TrendingDown, TrendingUp } from 'lucide-react';
 
 import {
   type AxisMeaning,
+  correlationSummary,
   formatP,
   formatR,
   goodIsHigh,
@@ -58,15 +59,17 @@ export function InsightCard({
   const v = verdict(c, x, y);
   const s = strength(c.r);
   const r2 = analysis.regression.r2;
-  const logNote =
-    analysis.logX || analysis.logY
-      ? `Pearson r, R² and the trend line use the log of ${[
-          analysis.logX ? x.label : null,
-          analysis.logY ? y.label : null,
-        ]
-          .filter((l) => l != null)
-          .join(' and ')}.`
-      : null;
+  const logged = analysis.logX || analysis.logY;
+  const logNote = logged
+    ? `Pearson r, R² and the trend line use the log of ${[
+        analysis.logX ? x.label : null,
+        analysis.logY ? y.label : null,
+      ]
+        .filter((l) => l != null)
+        .join(
+          ' and '
+        )}; on the raw values r = ${formatR(analysis.rawPearson.r)}.`
+    : null;
   // A negative r can still mean "better goes with better" when one metric is
   // lower-is-better (e.g. a rank); say so to avoid a contradictory reading.
   const flipped = [x, y].filter((a) => !a.neutral && !goodIsHigh(a));
@@ -153,7 +156,8 @@ export function InsightCard({
         />
       </dl>
       <p className="text-muted mt-3 text-xs">
-        {describeCorrelation(c)} between the raw values.
+        {correlationSummary(c)} between the{' '}
+        {logged ? 'plotted (log-scale) values' : 'raw values'}.
         {signNote != null ? ` ${signNote}` : ''}
         {logNote != null ? ` ${logNote}` : ''}
       </p>
@@ -213,7 +217,12 @@ export function QuadrantCard({
   for (const top of [true, false])
     for (const right of [false, true])
       layout.push({ xHigh: right !== flipX, yHigh: top !== flipY });
-  const both = x.neutral && y.neutral ? 'High on both' : 'Best on both';
+  // Both neutral: the "high on both" cell is marked, in a neutral colour. One neutral: no cell
+  // is best (quadrants() marks none), and members are ordered by the directional metric.
+  const bothNeutral = x.neutral && y.neutral;
+  const mixed = x.neutral !== y.neutral;
+  const both = bothNeutral ? 'High on both' : 'Best on both';
+  const directional = x.neutral ? y : x;
   return (
     <Card
       title="Four groups, split at the medians"
@@ -231,16 +240,20 @@ export function QuadrantCard({
               key={`${xHigh}-${yHigh}`}
               className={cx(
                 'min-w-0 rounded-lg border p-3',
-                cell.best
-                  ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/40'
-                  : 'border-app bg-surface-2'
+                !cell.best
+                  ? 'border-app bg-surface-2'
+                  : bothNeutral
+                    ? 'border-accent-300 bg-accent-50 dark:border-accent-800 dark:bg-accent-900/30'
+                    : 'border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/40'
               )}
             >
               <div className="flex items-baseline justify-between gap-2">
                 <span className="tabular text-2xl font-semibold">
                   {cell.members.length}
                 </span>
-                {cell.best ? <Badge tone="good">{both}</Badge> : null}
+                {cell.best ? (
+                  <Badge tone={bothNeutral ? 'accent' : 'good'}>{both}</Badge>
+                ) : null}
               </div>
               <div className="text-muted mt-1 space-y-0.5 text-xs">
                 <p className="truncate" title={sideLabel(y, yHigh)}>
@@ -280,9 +293,13 @@ export function QuadrantCard({
         })}
       </div>
       <p className="text-muted mt-3 text-xs">
-        {cells.find((c) => c.best) != null
-          ? `Leaders are ordered by their combined percentile on both metrics.`
-          : null}
+        {mixed
+          ? `${x.neutral ? x.label : y.label} has no better or worse side, so no group is called best; each lists its best on ${directional.label} first.`
+          : cells.find((c) => c.best) != null
+            ? bothNeutral
+              ? 'Each group lists its highest on both metrics first.'
+              : 'Leaders are ordered by their combined percentile on both metrics.'
+            : null}
         {onMedian > 0
           ? ` ${pluralize(onMedian, 'place')} sitting exactly on a median ${onMedian === 1 ? 'is' : 'are'} left out.`
           : ''}
