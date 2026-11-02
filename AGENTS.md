@@ -8,18 +8,28 @@ catalog, TypeScript 7, oxlint/oxfmt, Bun tests).
 
 ## Projects
 
-- `apps/web` (`web`): the Vite + React 19 single-page app (TanStack Router,
-  Query, Table v9, Virtual and Charts). `public/data` holds the generated
-  dataset, which is committed. `moonx web:dev --ignore-ci-checks` starts it on
-  port 5173 + worktree offset.
+- `apps/web` (`web`): the TanStack Start app (React 19, TanStack Router, Query,
+  Table v9, Virtual and Charts). Topic, place, category and home pages are
+  prerendered to static HTML at build time (`scripts/prerender-pages.ts` lists
+  them and feeds the sitemap); `/compare`, `/vs` and `/search` are `ssr: false`
+  and served by the SPA shell (`/_shell.html`). Deploy `apps/web/dist/client` as
+  a static site. `public/data` holds the generated dataset, which is committed.
+  `moonx web:dev --ignore-ci-checks` starts it on port 5173 + worktree offset
+  with server rendering.
 - `packages/stats` (`stats`): the statistics behind every comparison (ranks,
   percentiles, Pearson/Spearman with p-values, regression, composite scores).
   The app imports it as `@world-data/stats` through its built `dist`.
 
 Regenerate data with `moonx web:data-fetch` (polite, resumable page cache in
-`apps/web/.cache/pages`) and then `moonx web:data-build`. Read the
-`world-data-model` skill before touching data, URL state or metric semantics,
-and the `tanstack-charts` skill before writing any chart.
+`apps/web/.cache/pages`) and then `moonx web:data-build`. Server-rendered code
+must not touch `window`/`document`/`localStorage` during render, must give
+`useSyncExternalStore` a server snapshot, and must render the same markup on the
+server and in the first client render (no `Date.now()`, locale-dependent
+formatting or search params before `useHydrated()`). Route `head()` uses
+`pageHead()` from `src/lib/seo.ts`; brand and canonical URL live in
+`src/site.ts` and `src/site-url.ts`. Read the `world-data-model` skill before
+touching data, URL state or metric semantics, and the `tanstack-charts` skill
+before writing any chart.
 
 ## Agent Environment
 

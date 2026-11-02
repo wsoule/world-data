@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 
 export type Theme = 'light' | 'dark';
 
@@ -18,18 +18,28 @@ export function setTheme(t: Theme) {
   }
 }
 
-/** Re-renders when the light/dark class on <html> changes. */
+/**
+ * Inline script for <head>: applies the saved (or system) theme before first
+ * paint so server-rendered pages never flash light in dark mode.
+ */
+export const THEME_BOOT_SCRIPT = `try{var t=localStorage.getItem('theme');if(t==='dark'||(!t&&matchMedia('(prefers-color-scheme: dark)').matches))document.documentElement.classList.add('dark')}catch(e){}`;
+
+function subscribe(onChange: () => void): () => void {
+  const obs = new MutationObserver(onChange);
+  obs.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['class'],
+  });
+  return () => obs.disconnect();
+}
+
+/**
+ * The active theme. Server renders and hydration use 'light' (the server
+ * cannot know the visitor's theme); the client then re-renders with the real
+ * value, so chart colours never mismatch during hydration.
+ */
 export function useTheme(): Theme {
-  const [theme, set] = useState<Theme>(getTheme);
-  useEffect(() => {
-    const obs = new MutationObserver(() => set(getTheme()));
-    obs.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['class'],
-    });
-    return () => obs.disconnect();
-  }, []);
-  return theme;
+  return useSyncExternalStore(subscribe, getTheme, () => 'light');
 }
 
 const DARK_CHART_COLORS = {

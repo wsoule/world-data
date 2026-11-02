@@ -1,8 +1,10 @@
 import type { QueryClient } from '@tanstack/react-query';
 import {
   createRootRouteWithContext,
+  HeadContent,
   Link,
   Outlet,
+  Scripts,
   useMatch,
   useRouterState,
 } from '@tanstack/react-router';
@@ -17,23 +19,83 @@ import {
   Sun,
   Trophy,
 } from 'lucide-react';
-import { type ReactNode, Suspense, useState } from 'react';
+import { type ReactNode, Suspense } from 'react';
 
 import { PageSpinner } from '~/components/feedback';
 import { cx } from '~/components/ui';
 import { manifestQuery } from '~/data/api';
 import type { CompareSearch } from '~/features/compare/state';
-import { searchShortcutLabel } from '~/features/search/platform';
+import {
+  searchShortcutLabel,
+  usePlatformLabel,
+} from '~/features/search/platform';
 import { SearchPalette } from '~/features/search/SearchPalette';
 import { openSearch } from '~/features/search/store';
-import { setTheme, useTheme } from '~/lib/theme';
+import { setTheme, THEME_BOOT_SCRIPT, useTheme } from '~/lib/theme';
+import { absoluteUrl, SITE } from '~/site';
+import appCss from '~/styles.css?url';
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   {
     loader: ({ context }) => context.queryClient.ensureQueryData(manifestQuery),
+    head: () => ({
+      meta: [
+        { charSet: 'utf-8' },
+        { name: 'viewport', content: 'width=device-width, initial-scale=1' },
+        { title: `${SITE.name} — ${SITE.tagline}` },
+        { name: 'description', content: SITE.description },
+        { name: 'theme-color', content: '#4f46e5' },
+        { property: 'og:site_name', content: SITE.name },
+        { property: 'og:locale', content: SITE.locale },
+        { property: 'og:type', content: 'website' },
+        { name: 'twitter:card', content: 'summary_large_image' },
+      ],
+      links: [
+        { rel: 'stylesheet', href: appCss },
+        { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' },
+      ],
+      scripts: [
+        {
+          type: 'application/ld+json',
+          children: JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'WebSite',
+            name: SITE.name,
+            url: absoluteUrl('/'),
+            description: SITE.description,
+            potentialAction: {
+              '@type': 'SearchAction',
+              target: {
+                '@type': 'EntryPoint',
+                urlTemplate: `${absoluteUrl('/search')}?q={search_term_string}`,
+              },
+              'query-input': 'required name=search_term_string',
+            },
+          }),
+        },
+      ],
+    }),
+    shellComponent: RootDocument,
     component: RootLayout,
   }
 );
+
+/** The HTML document every page renders into (server and client). */
+function RootDocument({ children }: { children: ReactNode }) {
+  return (
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* eslint-disable-next-line react/no-danger -- static theme bootstrap */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+        <HeadContent />
+      </head>
+      <body>
+        {children}
+        <Scripts />
+      </body>
+    </html>
+  );
+}
 
 function RootLayout() {
   return (
@@ -192,7 +254,7 @@ function NavTarget({
 
 function Header() {
   const theme = useTheme();
-  const [shortcut] = useState(searchShortcutLabel);
+  const shortcut = usePlatformLabel(searchShortcutLabel, 'Ctrl K');
   return (
     <header className="border-app bg-surface/85 sticky top-0 z-40 border-b backdrop-blur">
       <div className="mx-auto flex h-14 max-w-7xl items-center gap-2 px-4 md:gap-3 md:px-6">
@@ -331,7 +393,13 @@ function Footer() {
             Head to head
           </Link>
           <span className="text-muted/80 text-xs">
-            Dataset built {new Date(data.generatedAt).toLocaleDateString()}
+            Dataset built{' '}
+            {new Date(data.generatedAt).toLocaleDateString('en-US', {
+              timeZone: 'UTC',
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+            })}
           </span>
         </FooterColumn>
       </div>

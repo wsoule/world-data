@@ -4,7 +4,7 @@ import {
   useQuery,
   useSuspenseQuery,
 } from '@tanstack/react-query';
-import { getRouteApi, Link } from '@tanstack/react-router';
+import { getRouteApi, Link, useHydrated } from '@tanstack/react-router';
 import {
   createColumnHelper,
   createSortedRowModel,
@@ -171,7 +171,10 @@ function metricData(results: QueryObserverResult<Metric[]>[]) {
 
 export function CategoryPage() {
   const { category } = route.useParams();
-  const { type } = route.useSearch();
+  // Prerendered without ?type, so apply it only after hydration.
+  const hydrated = useHydrated();
+  const urlSearch = route.useSearch();
+  const type = hydrated ? urlSearch.type : undefined;
   const navigate = route.useNavigate();
   const { data: manifest } = useSuspenseQuery(manifestQuery);
   const { data: topics } = useSuspenseQuery(topicsIndexQuery);

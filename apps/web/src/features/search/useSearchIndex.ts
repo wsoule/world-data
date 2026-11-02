@@ -128,6 +128,7 @@ export function useSearchIndex(enabled = true): SearchIndexState {
       listeners.add(l);
       return () => listeners.delete(l);
     },
+    () => snapshot,
     () => snapshot
   );
 }

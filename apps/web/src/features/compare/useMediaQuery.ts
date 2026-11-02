@@ -1,16 +1,22 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useSyncExternalStore } from 'react';
 
-/** Tracks a CSS media query, e.g. to give charts a shorter height on phones. */
+/**
+ * Tracks a CSS media query, e.g. to give charts a shorter height on phones.
+ * Server renders and hydration report false; the client then re-renders with
+ * the real value.
+ */
 export function useMediaQuery(query: string): boolean {
-  const [matches, setMatches] = useState(
-    () => typeof window !== 'undefined' && window.matchMedia(query).matches
+  const subscribe = useCallback(
+    (onChange: () => void) => {
+      const mq = window.matchMedia(query);
+      mq.addEventListener('change', onChange);
+      return () => mq.removeEventListener('change', onChange);
+    },
+    [query]
   );
-  useEffect(() => {
-    const mq = window.matchMedia(query);
-    const onChange = () => setMatches(mq.matches);
-    onChange();
-    mq.addEventListener('change', onChange);
-    return () => mq.removeEventListener('change', onChange);
-  }, [query]);
-  return matches;
+  return useSyncExternalStore(
+    subscribe,
+    () => window.matchMedia(query).matches,
+    () => false
+  );
 }

@@ -41,6 +41,7 @@ export function useSearchOpen(): boolean {
       listeners.add(l);
       return () => listeners.delete(l);
     },
-    () => open
+    () => open,
+    () => false
   );
 }

@@ -84,8 +84,7 @@ export function CorrelationsCard({
           {focus.fmt === 'ranking'
             ? ' For ranks a higher number is a worse position, so read the directions accordingly.'
             : ''}{' '}
-          Correlation is not causation. Computed in{' '}
-          {result.ms < 1 ? 'under 1' : Math.round(result.ms)} ms.
+          Correlation is not causation.
         </>
       }
     >

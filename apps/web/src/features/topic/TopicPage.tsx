@@ -1,5 +1,5 @@
 import { useSuspenseQuery } from '@tanstack/react-query';
-import { getRouteApi } from '@tanstack/react-router';
+import { getRouteApi, useHydrated } from '@tanstack/react-router';
 import { summarize } from '@world-data/stats';
 import { FileQuestion } from 'lucide-react';
 import { type ReactNode, useCallback, useMemo, useState } from 'react';
@@ -53,7 +53,11 @@ export function TopicPage() {
 function TopicView({ type, slug }: { type: EntityType; slug: string }) {
   const { data: topic } = useSuspenseQuery(topicQuery(type, slug));
   const dataset = useDataset(type);
-  const search = route.useSearch();
+  // Prerendered HTML is built without search params, so the first (hydrating)
+  // render uses the defaults and ?m / ?year apply right after hydration.
+  const hydrated = useHydrated();
+  const urlSearch = route.useSearch();
+  const search = hydrated ? urlSearch : {};
   const navigate = route.useNavigate();
   useTitle(topic.title);
 

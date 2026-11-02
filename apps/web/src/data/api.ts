@@ -1,4 +1,5 @@
 import { queryOptions } from '@tanstack/react-query';
+import { createIsomorphicFn } from '@tanstack/react-start';
 
 import type {
   Entity,
@@ -12,10 +13,36 @@ import type {
 
 const BASE = `${import.meta.env.BASE_URL}data`;
 
+/** Parsed data files kept for the life of the server process (prerender reuses them across pages). */
+const serverCache = new Map<string, Promise<unknown>>();
+
+/**
+ * Loads a dataset file. In the browser it is fetched from /data; during server
+ * rendering and prerendering it is read from public/data on disk, so no HTTP
+ * server is needed and large files are parsed once per build.
+ */
+const loadJson = createIsomorphicFn()
+  .server((path: string): Promise<unknown> => {
+    let hit = serverCache.get(path);
+    if (hit === undefined) {
+      hit = (async () => {
+        const { readFile } = await import('node:fs/promises');
+        const { join } = await import('node:path');
+        const file = join(process.cwd(), 'public', 'data', path);
+        return JSON.parse(await readFile(file, 'utf8')) as unknown;
+      })();
+      serverCache.set(path, hit);
+    }
+    return hit;
+  })
+  .client(async (path: string): Promise<unknown> => {
+    const res = await fetch(`${BASE}/${path}`);
+    if (!res.ok) throw new Error(`Failed to load ${path} (${res.status})`);
+    return (await res.json()) as unknown;
+  });
+
 async function getJson<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}/${path}`);
-  if (!res.ok) throw new Error(`Failed to load ${path} (${res.status})`);
-  return (await res.json()) as T;
+  return (await loadJson(path)) as T;
 }
 
 // Static files never change during a session.

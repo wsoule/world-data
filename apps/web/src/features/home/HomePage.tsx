@@ -7,7 +7,7 @@ import {
   Search,
   Trophy,
 } from 'lucide-react';
-import { type ReactNode, useMemo, useState } from 'react';
+import { type ReactNode, useMemo } from 'react';
 
 import { HOME_PRESETS, type HomePreset, POPULAR_TOPICS } from './presets';
 import { TYPE_ICONS } from '~/components/TypeTabs';
@@ -18,7 +18,10 @@ import {
   CategoryGlyph,
   categoryTint,
 } from '~/features/categories/categoryIcons';
-import { searchShortcutLabel } from '~/features/search/platform';
+import {
+  searchShortcutLabel,
+  usePlatformLabel,
+} from '~/features/search/platform';
 import { TYPE_PLURAL, TYPE_SHORT } from '~/features/search/results';
 import { openSearch, openSearchWith } from '~/features/search/store';
 import { useTitle } from '~/lib/useTitle';
@@ -214,7 +217,7 @@ function Hero({
   metrics: number;
   topics: number;
 }) {
-  const [shortcut] = useState(searchShortcutLabel);
+  const shortcut = usePlatformLabel(searchShortcutLabel, 'Ctrl K');
   return (
     <section className="relative isolate -mx-4 -mt-6 px-4 pt-12 pb-4 text-center md:-mx-6 md:-mt-8 md:px-6 md:pt-20">
       {/* Soft accent glow over a faint dot grid, fading out towards the content below. */}

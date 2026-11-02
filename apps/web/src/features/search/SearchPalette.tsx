@@ -17,7 +17,7 @@ import {
   useState,
 } from 'react';
 
-import { modKeyLabel } from './platform';
+import { modKeyLabel, usePlatformLabel } from './platform';
 import { clearRecent, pushRecent, readRecent, type RecentItem } from './recent';
 import {
   Highlighted,
@@ -121,7 +121,7 @@ function PaletteDialog() {
   const [query, setQuery] = useState(getSearchSeed);
   const [active, setActive] = useState(0);
   const [recent, setRecent] = useState<RecentItem[]>(readRecent);
-  const [modKey] = useState(modKeyLabel);
+  const modKey = usePlatformLabel(modKeyLabel, 'Ctrl');
   const { index, version, loading, loaded, total, error } = useSearchIndex();
   const openTarget = useOpenTarget();
   const navigate = useNavigate();

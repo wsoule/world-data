@@ -8,6 +8,7 @@
     "@tanstack/charts": "catalog:",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "catalog:",
+    "@tanstack/react-start": "catalog:",
     "@tanstack/react-table": "catalog:",
     "@tanstack/react-virtual": "catalog:",
     "@world-data/stats": "workspace:*",
@@ -26,7 +27,6 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "catalog:",
-    "@tanstack/router-plugin": "catalog:",
     "@types/bun": "catalog:",
     "@types/d3-geo": "catalog:",
     "@types/d3-interpolate": "catalog:",

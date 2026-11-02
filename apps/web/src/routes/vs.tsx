@@ -13,6 +13,8 @@ export interface VersusSearch {
 }
 
 export const Route = createFileRoute('/vs')({
+  // Driven by URL search params, so it renders in the browser only.
+  ssr: false,
   validateSearch: (raw: Record<string, unknown>): VersusSearch => ({
     type: isEntityType(raw.type) ? raw.type : 'state',
     e: Array.isArray(raw.e)

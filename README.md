@@ -19,8 +19,10 @@ What it adds over the source site:
 - **Place profiles and head-to-head comparisons.** Each place's strengths and
   weaknesses across every metric.
 
-Built with React 19, TanStack Router, Query, Table, Virtual and
-[TanStack Charts](https://tanstack.com/charts), plus Tailwind CSS 4 and Vite.
+Built with [TanStack Start](https://tanstack.com/start) (React 19, Router,
+Query, Table, Virtual and [TanStack Charts](https://tanstack.com/charts)),
+Tailwind CSS 4 and Vite. Content pages are prerendered to static HTML for search
+engines and AI answer engines.
 
 ## Start
 
@@ -40,7 +42,7 @@ moonx web:build                             # production build in apps/web/dist
 
 ## Layout
 
-- `apps/web`: the single-page app. `src/data` holds the dataset types and
+- `apps/web`: the TanStack Start app. `src/data` holds the dataset types and
   loaders, `src/charts` the shared TanStack Charts components, `src/features`
   one folder per page, and `src/routes` the TanStack Router file routes.
 - `packages/stats`: statistics for comparisons (ranks, percentiles,
@@ -73,9 +75,12 @@ source site's prose.
 
 ## Deploy
 
-Deploy `apps/web/dist` to any static host and configure SPA fallback so unknown
-paths serve `index.html`. `public/_redirects` (Netlify) and `vercel.json`
-already do this.
+`moonx web:build` prerenders every topic, place, category and type page (about
+6,400 HTML files) plus `sitemap.xml` into `apps/web/dist/client`. Deploy that
+folder to any static host with a fallback to `/_shell.html` for other paths (the
+browser-only `/compare`, `/vs` and `/search`). `public/_redirects` (Netlify) and
+`vercel.json` already do this. Set `VITE_SITE_URL` to the public origin at build
+time so canonical URLs and the sitemap point at it.
 
 ## License
 
