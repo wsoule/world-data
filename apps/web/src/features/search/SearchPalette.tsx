@@ -44,6 +44,7 @@ import {
 import { SUGGESTIONS, TRY_QUERIES } from './suggestions';
 import { useSearchIndex } from './useSearchIndex';
 import { Badge, cx } from '~/components/ui';
+import { SITE } from '~/site';
 
 /** Per-group caps in the palette; the /search page shows everything. */
 const PALETTE_CAPS: Record<SearchKind, number> = {
@@ -304,7 +305,7 @@ function PaletteDialog() {
         className="border-app bg-surface relative flex max-h-[min(40rem,calc(100dvh-1rem))] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border shadow-2xl sm:max-h-[min(40rem,80vh)]"
       >
         <h2 id={titleId} className="sr-only">
-          Search World Data
+          Search {SITE.name}
         </h2>
         <div className="border-app flex items-center gap-3 border-b px-4">
           <Search className="text-muted size-5 shrink-0" aria-hidden />

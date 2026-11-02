@@ -1,4 +1,4 @@
-# World Data
+# Rankodex
 
 Explore, compare and overlay thousands of statistics about countries, US states,
 US cities, world cities and US counties. The data comes from

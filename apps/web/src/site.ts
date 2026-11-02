@@ -9,10 +9,10 @@ export const SITE_URL: string = (
 ).replace(/\/+$/, '');
 
 export const SITE = {
-  name: 'World Data',
-  tagline: 'Compare and rank every statistic about the world’s places',
+  name: 'Rankodex',
+  tagline: 'Rank, overlay and compare any country, state, city or county',
   description:
-    'Explore, overlay and rank thousands of statistics about countries, US states, cities and counties: search any metric, plot two against each other, build combined rankings and see what correlates.',
+    'Rankodex ranks every country, US state, city and county on 5,600 statistics. Search any metric, overlay two, build a combined ranking and see what correlates.',
   locale: 'en_US',
   /** Data provenance shown in footers and structured data. */
   sourceName: 'World Population Review',

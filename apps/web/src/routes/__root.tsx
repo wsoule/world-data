@@ -11,7 +11,6 @@ import {
 import {
   BarChart3,
   Compass,
-  Globe2,
   MapPinned,
   Moon,
   Scale,
@@ -21,6 +20,7 @@ import {
 } from 'lucide-react';
 import { type ReactNode, Suspense } from 'react';
 
+import { BrandMark } from '~/components/BrandMark';
 import { PageSpinner } from '~/components/feedback';
 import { cx } from '~/components/ui';
 import { manifestQuery } from '~/data/api';
@@ -49,10 +49,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         { property: 'og:locale', content: SITE.locale },
         { property: 'og:type', content: 'website' },
         { name: 'twitter:card', content: 'summary_large_image' },
+        { property: 'og:image', content: absoluteUrl('/og.png') },
+        { property: 'og:image:width', content: '1200' },
+        { property: 'og:image:height', content: '630' },
+        { name: 'twitter:image', content: absoluteUrl('/og.png') },
       ],
       links: [
         { rel: 'stylesheet', href: appCss },
         { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' },
+        { rel: 'manifest', href: '/site.webmanifest' },
       ],
       scripts: [
         {
@@ -261,12 +266,10 @@ function Header() {
         <Link
           to="/"
           className="flex shrink-0 items-center gap-2 font-semibold tracking-tight"
-          aria-label="World Data home"
+          aria-label={`${SITE.name} home`}
         >
-          <span className="bg-accent-600 grid size-7 place-items-center rounded-lg text-white shadow-sm">
-            <Globe2 className="size-4" aria-hidden />
-          </span>
-          <span className="hidden sm:inline">World Data</span>
+          <BrandMark className="size-7 shadow-sm" />
+          <span className="hidden sm:inline">{SITE.name}</span>
         </Link>
         <nav
           className="ml-2 hidden items-center gap-0.5 md:flex"
@@ -328,10 +331,8 @@ function Footer() {
       <div className="mx-auto grid max-w-7xl gap-6 px-4 py-8 text-sm md:grid-cols-[1.4fr_1fr_1fr] md:px-6">
         <div>
           <div className="flex items-center gap-2 font-semibold">
-            <span className="bg-accent-600 grid size-6 place-items-center rounded-md text-white">
-              <Globe2 className="size-3.5" aria-hidden />
-            </span>
-            World Data
+            <BrandMark className="size-5" />
+            {SITE.name}
           </div>
           <p className="text-muted mt-2 max-w-sm text-xs leading-relaxed">
             {totals.metrics.toLocaleString('en-US')} statistics about{' '}

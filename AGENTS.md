@@ -1,10 +1,10 @@
-# World Data
+# Rankodex
 
-A site for exploring, overlaying and ranking thousands of statistics about
-countries, US states, US cities, world cities and US counties. The data comes
-from worldpopulationreview.com, cached and normalized by the pipeline in
-`apps/web/scripts`. Built on the Pierre-derived monorepo template (moon, pnpm
-catalog, TypeScript 7, oxlint/oxfmt, Bun tests).
+Rankodex (rankodex.com) is a site for exploring, overlaying and ranking
+thousands of statistics about countries, US states, US cities, world cities and
+US counties. The data comes from worldpopulationreview.com, cached and
+normalized by the pipeline in `apps/web/scripts`. Built on the Pierre-derived
+monorepo template (moon, pnpm catalog, TypeScript 7, oxlint/oxfmt, Bun tests).
 
 ## Projects
 

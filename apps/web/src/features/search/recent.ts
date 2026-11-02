@@ -14,7 +14,7 @@ export interface RecentItem {
   target: SearchTarget;
 }
 
-const KEY = 'world-data:recent-searches';
+const KEY = 'rankodex:recent-searches';
 const MAX = 6;
 
 function isRecord(v: unknown): v is Record<string, unknown> {

@@ -54,7 +54,7 @@ function exportRanking(dataset: Dataset, model: RankingModel) {
       };
     }),
   });
-  downloadCsv(`world-data-ranking-${dataset.type.id}-${method}.csv`, csv);
+  downloadCsv(`rankodex-ranking-${dataset.type.id}-${method}.csv`, csv);
 }
 
 function RankingWorkbench(props: CompareViewProps) {

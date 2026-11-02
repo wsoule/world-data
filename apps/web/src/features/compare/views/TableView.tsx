@@ -334,7 +334,7 @@ function ComparisonTable(props: CompareViewProps) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `world-data-${dataset.type.id}-comparison.csv`;
+    a.download = `rankodex-${dataset.type.id}-comparison.csv`;
     document.body.append(a);
     a.click();
     a.remove();
