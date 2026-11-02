@@ -1,5 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query';
 import {
+  type AnyRouteMatch,
   createRootRouteWithContext,
   HeadContent,
   Link,
@@ -43,7 +44,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   {
     loader: ({ context }) => context.queryClient.ensureQueryData(manifestQuery),
     // An unknown path renders the not-found view under this route (the router flags the root
-    // match), so the server-rendered page carries the not-found title.
+    // match), so the server-rendered page and the static 404.html carry the not-found title.
     head: ({ match }) => ({
       meta: [
         { charSet: 'utf-8' },
@@ -135,12 +136,34 @@ function RootLayout() {
 type NavId = 'explore' | 'places' | 'compare' | 'rankings' | 'vs';
 
 /**
+ * Link activeOptions for the header and footer. By default a link counts as the current page
+ * (aria-current, the "active" class) on every URL below its path, but a place report card is not
+ * the "US states" page, and an unknown URL such as /places/state/nowhere or /compare/xyz, which
+ * gets the static 404.html, must render the same links as that file. So links to a list page
+ * match its path exactly with any search params (EXACT_PATH), and links that carry search params
+ * match only that exact URL (EXACT).
+ */
+const EXACT_PATH = { exact: true, includeSearch: false } as const;
+const EXACT = { exact: true } as const;
+
+/**
+ * Whether the page shows a not-found view: an unknown path (the router flags the root match) or a
+ * loader that threw notFound().
+ */
+function showsNotFound(matches: readonly AnyRouteMatch[]): boolean {
+  return matches.some((m) => m._notFound === true || m.status === 'notFound');
+}
+
+/**
  * Which main-nav item the current URL belongs to. /compare counts as Rankings only on the
- * combined-ranking view and as Compare on every other view.
+ * combined-ranking view and as Compare on every other view. A not-found view belongs to none,
+ * whatever its URL: the static 404.html is rendered once for an unmatched path and served for
+ * every unknown URL, so the chrome around it must not depend on the address.
  */
 function useActiveNav(): NavId | null {
   return useRouterState({
     select: (s): NavId | null => {
+      if (showsNotFound(s.matches)) return null;
       const path = s.location.pathname;
       if (path.startsWith('/categories')) return 'explore';
       if (path.startsWith('/places')) return 'places';
@@ -155,17 +178,17 @@ function useActiveNav(): NavId | null {
 /** Main navigation links; shared by the desktop bar and the mobile tab row. */
 function NavLinks({ variant }: { variant: 'desktop' | 'mobile' }) {
   const active = useActiveNav();
-  // Switching between Compare and Rankings keeps the current metric basket.
+  // Switching between Compare and Rankings keeps the current metric basket (only while the
+  // workbench itself is showing, so a not-found view never depends on its URL).
   const compare = useMatch({
     from: '/compare',
     shouldThrow: false,
     select: (m) => m.search,
   });
-  const base: CompareSearch = compare ?? {
-    type: 'state',
-    view: 'scatter',
-    m: [],
-  };
+  const base: CompareSearch =
+    compare != null && (active === 'compare' || active === 'rankings')
+      ? compare
+      : { type: 'state', view: 'scatter', m: [] };
   const compareSearch: CompareSearch =
     base.view === 'ranking' ? { ...base, view: 'scatter' } : base;
   const rankingSearch: CompareSearch = { ...base, view: 'ranking' };
@@ -241,31 +264,51 @@ function NavTarget({
   switch (id) {
     case 'explore':
       return (
-        <Link {...common} to="/categories">
+        <Link {...common} to="/categories" activeOptions={EXACT_PATH}>
           {children}
         </Link>
       );
     case 'places':
       return (
-        <Link {...common} to="/places/$type" params={{ type: 'country' }}>
+        <Link
+          {...common}
+          to="/places/$type"
+          params={{ type: 'country' }}
+          activeOptions={EXACT_PATH}
+        >
           {children}
         </Link>
       );
     case 'compare':
       return (
-        <Link {...common} to="/compare" search={compareSearch}>
+        <Link
+          {...common}
+          to="/compare"
+          search={compareSearch}
+          activeOptions={EXACT}
+        >
           {children}
         </Link>
       );
     case 'rankings':
       return (
-        <Link {...common} to="/compare" search={rankingSearch}>
+        <Link
+          {...common}
+          to="/compare"
+          search={rankingSearch}
+          activeOptions={EXACT}
+        >
           {children}
         </Link>
       );
     case 'vs':
       return (
-        <Link {...common} to="/vs" search={{ type: 'state', e: [] }}>
+        <Link
+          {...common}
+          to="/vs"
+          search={{ type: 'state', e: [] }}
+          activeOptions={EXACT}
+        >
           {children}
         </Link>
       );
@@ -365,12 +408,17 @@ function Footer() {
           </p>
         </div>
         <FooterColumn title="Explore">
-          <Link to="/categories" className="hover:text-app">
+          <Link
+            to="/categories"
+            activeOptions={EXACT_PATH}
+            className="hover:text-app"
+          >
             All categories
           </Link>
           <Link
             to="/places/$type"
             params={{ type: 'country' }}
+            activeOptions={EXACT_PATH}
             className="hover:text-app"
           >
             Countries
@@ -378,11 +426,16 @@ function Footer() {
           <Link
             to="/places/$type"
             params={{ type: 'state' }}
+            activeOptions={EXACT_PATH}
             className="hover:text-app"
           >
             US states
           </Link>
-          <Link to="/search" className="hover:text-app">
+          <Link
+            to="/search"
+            activeOptions={EXACT_PATH}
+            className="hover:text-app"
+          >
             Search
           </Link>
         </FooterColumn>
@@ -390,6 +443,7 @@ function Footer() {
           <Link
             to="/compare"
             search={{ type: 'state', view: 'scatter', m: [] }}
+            activeOptions={EXACT}
             className="hover:text-app"
           >
             Overlay two metrics
@@ -397,6 +451,7 @@ function Footer() {
           <Link
             to="/compare"
             search={{ type: 'state', view: 'ranking', m: [] }}
+            activeOptions={EXACT}
             className="hover:text-app"
           >
             Combined rankings
@@ -404,6 +459,7 @@ function Footer() {
           <Link
             to="/vs"
             search={{ type: 'state', e: [] }}
+            activeOptions={EXACT}
             className="hover:text-app"
           >
             Head to head

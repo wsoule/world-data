@@ -83,6 +83,14 @@ const NOT_FOUND_LINK =
   'border-app hover:bg-surface-2 hover:text-app rounded-lg border px-3 py-1.5 text-sm font-medium';
 
 /**
+ * Link activeOptions for the ways on: a link counts as the current page only on its own URL, so
+ * at /places/state/nowhere the US states link does not claim aria-current. This also keeps the
+ * static 404.html, rendered once for an unmatched path, identical to the first client render at
+ * whatever unknown URL the host serves it for.
+ */
+const EXACT = { exact: true } as const;
+
+/**
  * The 404 view for unknown paths and for routes whose loader threw notFound(). It titles the page
  * "Page not found", keeps it out of search indexes (React places the robots <meta> in <head>) and
  * offers search and the main lists as ways on.
@@ -111,15 +119,16 @@ export function NotFound() {
           <Search className="size-4" aria-hidden />
           Search {SITE.name}
         </button>
-        <Link to="/" className={NOT_FOUND_LINK}>
+        <Link to="/" activeOptions={EXACT} className={NOT_FOUND_LINK}>
           Home
         </Link>
-        <Link to="/categories" className={NOT_FOUND_LINK}>
+        <Link to="/categories" activeOptions={EXACT} className={NOT_FOUND_LINK}>
           All categories
         </Link>
         <Link
           to="/places/$type"
           params={{ type: 'country' }}
+          activeOptions={EXACT}
           className={NOT_FOUND_LINK}
         >
           Countries
@@ -127,6 +136,7 @@ export function NotFound() {
         <Link
           to="/places/$type"
           params={{ type: 'state' }}
+          activeOptions={EXACT}
           className={NOT_FOUND_LINK}
         >
           US states

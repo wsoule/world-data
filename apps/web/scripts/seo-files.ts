@@ -5,14 +5,17 @@
 //   llms.txt        site summary and entry points for AI answer engines
 //   llms-full.txt   every topic with a one-line answer-first fact
 //   site.webmanifest
-//   404.html        the SPA shell titled "Page not found", which static hosts
-//                   serve with a 404 status for any path without a page
+//   404.html        the server render of an unknown path (the not-found view),
+//                   which static hosts serve with a 404 status for any path
+//                   without a page
 //   data/<type>/topics/<slug>.csv   each topic's default-year table
 //
-// Run by the web:build moon task after `vite build`.
+// Run by the web:build moon task (and the Dockerfile) after `vite build`, from
+// apps/web: 404.html needs the server bundle that build leaves in dist/server.
 
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import type {
   Entity,
@@ -66,19 +69,40 @@ function robots(): string {
   ].join('\n');
 }
 
+/** A path no route matches, rendered to make 404.html. */
+const NOT_FOUND_PATH = '/__not-found';
+
+/** The fetch handler TanStack Start builds into dist/server/server.js. */
+interface ServerEntry {
+  default: { fetch: (request: Request) => Promise<Response> };
+}
+
 /**
- * The 404 page: the prerendered SPA shell (which already carries
- * robots=noindex) with a "Page not found" title and description. Once its
- * script loads, the router renders the not-found view for the requested URL.
+ * The 404 page: the built server entry renders a path no route matches, the
+ * same way it renders every prerendered page. The file holds the not-found
+ * view itself (title, robots noindex, header and footer) plus the router state
+ * for a global not-found, so the browser hydrates it without a mismatch at
+ * whatever unknown URL the host serves it for. The SPA shell cannot do this:
+ * its markup is the app's loading state, not the not-found view the client
+ * renders, so every 404 used to fail hydration (React error #418).
  */
-function notFoundPage(shell: string): string {
-  const title = `Page not found — ${SITE.name}`;
-  return shell
-    .replace(/<title>[^<]*<\/title>/, `<title>${title}</title>`)
-    .replace(
-      /<meta name="description" content="[^"]*"\/>/,
-      '<meta name="description" content="There is no page at this address."/>'
+async function notFoundPage(): Promise<string> {
+  const entry = path.resolve('dist/server/server.js');
+  const server = (await import(pathToFileURL(entry).href)) as ServerEntry;
+  const res = await server.default.fetch(
+    new Request(new URL(NOT_FOUND_PATH, SITE_URL))
+  );
+  const html = await res.text();
+  if (
+    res.status !== 404 ||
+    !html.includes(`<title>Page not found — ${SITE.name}</title>`) ||
+    !html.includes('name="robots" content="noindex')
+  ) {
+    throw new Error(
+      `404.html: rendering ${NOT_FOUND_PATH} gave status ${res.status} without the not-found title and robots tag`
     );
+  }
+  return html;
 }
 
 /** CSV-escapes one cell. */
@@ -242,10 +266,7 @@ async function main(): Promise<void> {
   };
 
   await writeFile(path.join(OUT, 'robots.txt'), robots());
-  await writeFile(
-    path.join(OUT, '404.html'),
-    notFoundPage(await readFile(path.join(OUT, '_shell.html'), 'utf8'))
-  );
+  await writeFile(path.join(OUT, '404.html'), await notFoundPage());
   await writeFile(path.join(OUT, 'llms.txt'), llms.join('\n'));
   await writeFile(path.join(OUT, 'llms-full.txt'), full.join('\n'));
   await writeFile(
