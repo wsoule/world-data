@@ -93,7 +93,22 @@ const HIGHER =
 const NEGATOR =
   /\b(less than|without|lack of|lacking|no access|never|non[- ]?smok\w*)\b|-free\b/i;
 
-/** Guesses whether a higher value reads as better (1), worse (-1) or neither (0). */
+/**
+ * Guesses whether a higher value reads as better (1), worse (-1) or neither
+ * (0). Rank columns are lower-is-better; calendar years, age limits and
+ * speed limits are neutral; costs and prices are lower-is-better; otherwise
+ * the label, then the topic titles, are matched against the word lists.
+ */
+// Columns with no better/worse reading regardless of the words above.
+const NEUTRAL =
+  /\b(min(imum)?|max(imum)?|legal|voting|drinking|driving)\s+age\b|\bage requirement\b|\bspeed limits?\b|^year\b|\byear (of|joined|admitted|founded|established|adopted|implemented|assessed|measured|granted)\b|\b(join|founding|independence) year\b/i;
+
+// Money or effort spent: less is better for the person paying it.
+const COST =
+  /\bcosts?\b|\bprices?\b|\bfees?\b|\bspent on (groceries|food|rent|housing|transport|utilities|child ?care)\b|\bexpensive\b|\bbelow basic\b|\b(livable|living) wage\b|\bpoverty wage\b/i;
+// Scores that fold cost into "how good is access", where higher is better.
+const ACCESS = /\bafford|\bavailability\b/i;
+
 export function guessPolarity(
   label: string,
   key: string,
@@ -101,6 +116,9 @@ export function guessPolarity(
   topics: readonly string[]
 ): -1 | 0 | 1 {
   if (fmt === 'ranking' || /\brank(ing)?\b/i.test(label)) return -1;
+  if (fmt === 'year' || NEUTRAL.test(label)) return 0;
+  if (COST.test(label) && !ACCESS.test(label)) return -1;
+  if (/\bspeeds?\b/i.test(label)) return 1;
   const text = `${label} ${key.replace(/([a-z])([A-Z])/g, '$1 $2')}`;
   const t = topics.join(' ').replace(/-/g, ' ');
   let pol: -1 | 0 | 1 = 0;
