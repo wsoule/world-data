@@ -14,7 +14,9 @@ import { useCategoryLabels } from './hooks';
 import { MetricExplorer } from './MetricExplorer';
 import { GROUP_LABEL } from './PlacesPage';
 import {
+  basisCoverage,
   categoryScores,
+  MIN_SIMILARITY_METRICS,
   notableFacts,
   placeStandings,
   qualifyingRows,
@@ -102,6 +104,14 @@ function Profile({ dataset, index }: { dataset: Dataset; index: number }) {
     () => similarPlaces(basis, index, dataset.entities.length),
     [basis, index, dataset]
   );
+  // How many basis metrics, from how many categories, this place can be compared on.
+  const basisFit = useMemo(() => {
+    const cats = new Set<string>();
+    basis.columns.forEach((col, k) => {
+      if (!Number.isNaN(col[index])) cats.add(basis.categories[k]);
+    });
+    return { metrics: basisCoverage(basis, index), categories: cats.size };
+  }, [basis, index]);
   // Size-driven metrics this place actually has, for the toggle label.
   const sizeCount = useMemo(
     () =>
@@ -212,12 +222,15 @@ function Profile({ dataset, index }: { dataset: Dataset; index: number }) {
           {MAPPED.includes(type) ? (
             <Locator dataset={dataset} index={index} />
           ) : null}
-          <SimilarPlaces
-            dataset={dataset}
-            entity={entity}
-            similar={similar}
-            basisSize={basis.metricIds.length}
-          />
+          {basisFit.metrics >= MIN_SIMILARITY_METRICS ? (
+            <SimilarPlaces
+              dataset={dataset}
+              entity={entity}
+              similar={similar}
+              basisMetrics={basisFit.metrics}
+              basisCategories={basisFit.categories}
+            />
+          ) : null}
         </div>
       </div>
 

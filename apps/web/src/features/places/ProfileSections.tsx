@@ -11,7 +11,7 @@ import { PolarityIcon } from '~/components/MetricPicker';
 import { Badge, Card, cx } from '~/components/ui';
 import type { Dataset } from '~/data/dataset';
 import type { Entity, Metric } from '~/data/types';
-import { formatValue } from '~/lib/format';
+import { formatInt, formatValue, plural } from '~/lib/format';
 import type { Theme } from '~/lib/theme';
 
 /**
@@ -233,23 +233,31 @@ export function NotableFacts({
   );
 }
 
-/** Nearest neighbours by percentile profile, with a shortcut to a head-to-head. */
+/**
+ * Nearest neighbours by percentile profile, with a shortcut to a head-to-head. The basis is
+ * the place's share of `similarityBasis`: widely reported rates, scores and averages from
+ * several categories, without population, area or raw totals.
+ */
 export function SimilarPlaces({
   dataset,
   entity,
   similar,
-  basisSize,
+  basisMetrics,
+  basisCategories,
 }: {
   dataset: Dataset;
   entity: Entity;
   similar: readonly SimilarPlace[];
-  basisSize: number;
+  /** Basis metrics this place has a value for */
+  basisMetrics: number;
+  /** Categories those metrics come from */
+  basisCategories: number;
 }) {
   const type = dataset.type.id;
   return (
     <Card
       title="Similar places"
-      subtitle={`Closest match across the ${basisSize} best-covered metrics`}
+      subtitle={`Closest percentiles on ${plural(basisMetrics, 'widely reported measure')} from ${plural(basisCategories, 'category', 'categories')}, leaving out size and totals`}
     >
       {similar.length === 0 ? (
         <EmptyState title="No close matches">
@@ -273,7 +281,7 @@ export function SimilarPlaces({
                     </Link>
                     <span
                       className="tabular text-muted shrink-0 text-xs"
-                      title={`Compared on ${s.shared} shared metrics`}
+                      title={`Compared on ${plural(s.shared, 'shared measure')}`}
                     >
                       {pctText(s.similarity)}% similar
                     </span>
@@ -284,6 +292,12 @@ export function SimilarPlaces({
                       style={{ width: `${s.similarity * 100}%` }}
                     />
                   </div>
+                  {s.shared < basisMetrics ? (
+                    <div className="tabular text-muted mt-0.5 text-[11px]">
+                      Compared on {formatInt(s.shared)} of{' '}
+                      {formatInt(basisMetrics)}
+                    </div>
+                  ) : null}
                 </div>
                 <Link
                   to="/vs"

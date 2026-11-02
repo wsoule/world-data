@@ -2,7 +2,7 @@
 // metric, which metrics are its strengths and weak spots, how it scores per category, and which
 // places look most like it. Kept free of React so it can be unit tested with plain data.
 
-import { percentile, spearman } from '@world-data/stats';
+import { pearson, percentile, spearman } from '@world-data/stats';
 
 import type { Metric } from '~/data/types';
 
@@ -491,34 +491,176 @@ export interface SimilarityBasis {
   metricIds: number[];
   /** One percentile column (0–1, NaN = missing) per metric, aligned to entities */
   columns: Float64Array[];
+  /** Primary category of each metric, aligned to `metricIds` */
+  categories: string[];
+}
+
+/** Coverage shares tried, highest first, until enough basis candidates qualify. */
+const BASIS_COVERAGE_LADDER = [1, 0.9, 0.75, 0.5, 0.25, 0.1, 0.05] as const;
+
+/**
+ * Synthetic columns that measure size rather than character: population and area. Density
+ * and growth stay in the basis even though density follows population.
+ */
+const SIZE_COLUMNS: ReadonlySet<number> = new Set([-1, -5]);
+
+/** Rank columns ("Overall Rank") restate a value column on another scale. */
+const RANK_LABEL = /\brank(ing)?\b/i;
+
+/** Most basis metrics taken from one topic page. */
+const MAX_BASIS_PER_TOPIC = 2;
+
+/** Two basis columns this alike (|Pearson r| of their percentiles) measure the same thing. */
+const REDUNDANT_R = 0.95;
+
+/**
+ * How many distinct values a column has, and their share of its values: a yes/no or
+ * "4 seasons" column has few, so most places tie on it and it says little about any of them.
+ */
+function distinctValues(col: ArrayLike<number>): {
+  count: number;
+  share: number;
+} {
+  const seen = new Set<number>();
+  let n = 0;
+  for (let i = 0; i < col.length; i++) {
+    const v = col[i];
+    if (!isFiniteNumber(v)) continue;
+    n++;
+    seen.add(v);
+  }
+  return { count: seen.size, share: n > 0 ? seen.size / n : 0 };
+}
+
+/** Fewest distinct values a basis column needs: ten, or a tenth of its values if fewer. */
+const minDistinct = (n: number) => Math.min(10, Math.ceil(n * 0.1));
+
+/** Whether every value is a whole number from 1500 to 2100: a calendar year column. */
+function looksLikeYears(col: ArrayLike<number>): boolean {
+  let any = false;
+  for (let i = 0; i < col.length; i++) {
+    const v = col[i];
+    if (!isFiniteNumber(v)) continue;
+    if (!Number.isInteger(v) || v < 1500 || v > 2100) return false;
+    any = true;
+  }
+  return any;
+}
+
+/** Whether `col` repeats (or mirrors) one of the `chosen` percentile columns. */
+function isRedundant(
+  col: Float64Array,
+  chosen: readonly Float64Array[]
+): boolean {
+  for (const other of chosen) {
+    const c = pearson(col, other);
+    if (c.n >= 5 && Math.abs(c.r) >= REDUNDANT_R) return true;
+  }
+  return false;
 }
 
 /**
- * The `limit` best-covered numeric metrics (one per label, so a measure repeated on several
- * topic pages is not counted twice) as percentile columns. Direction does not matter for
- * distances, so every column ranks higher values higher.
+ * Up to `limit` metrics that describe what a place is like, as percentile columns, for
+ * measuring how alike two places are. Candidates are numeric measures with the widest
+ * coverage available (the highest rung of `BASIS_COVERAGE_LADDER` that still offers `limit`
+ * directional ones), leaving out population and area, metrics that track population (raw counts, see
+ * `tracksPopulation`), rank columns, calendar years and columns with only a handful of
+ * distinct values (see `distinctValues`). Density and growth go first, then
+ * directional metrics, then neutral ones only where directional metrics run out (sparse place
+ * types). Within each group, broader coverage wins, then columns with more distinct values (a
+ * column most places tie on says little), and the pick rotates through categories, one topic
+ * at a time, taking at most two per topic, so no single subject or source page fills the
+ * basis. A metric that repeats an earlier label or tracks an earlier column almost exactly is
+ * skipped. Direction does not
+ * matter for distances, so every column ranks higher values higher.
  */
 export function similarityBasis(
   data: ProfileData,
-  limit = 60
+  {
+    limit = 60,
+    populationId = -1,
+  }: { limit?: number; populationId?: number } = {}
 ): SimilarityBasis {
-  const minN = Math.max(3, Math.ceil(data.entities.length * 0.05));
+  const total = data.entities.length;
+  const minN = Math.max(3, Math.ceil(total * 0.05));
+  const candidates = rankableMetrics(data).filter(
+    (m) =>
+      m.n >= minN &&
+      m.fmt !== 'year' &&
+      m.fmt !== 'ranking' &&
+      !RANK_LABEL.test(m.label) &&
+      !SIZE_COLUMNS.has(m.id) &&
+      (m.base === true ||
+        (!tracksPopulation(data, m.id, { populationId }) &&
+          !looksLikeYears(data.numeric(m.id))))
+  );
+  let floor = minN;
+  for (const share of BASIS_COVERAGE_LADDER) {
+    const f = Math.max(minN, Math.ceil(share * total));
+    let count = 0;
+    for (const m of candidates) if (isPolar(m) && m.n >= f) count++;
+    if (count >= limit) {
+      floor = f;
+      break;
+    }
+  }
+  // Coverage in steps of 5% of all places, so near-equal coverage defers to the next key.
+  const coverageStep = (m: Metric) => Math.floor((m.n / total) * 20);
+  const pool = candidates
+    .filter((m) => m.n >= floor || m.base === true)
+    .map((m) => ({ m, distinct: distinctValues(data.numeric(m.id)) }))
+    .filter((c) => c.m.base === true || c.distinct.count >= minDistinct(c.m.n))
+    .sort((a, b) =>
+      byKeys(
+        coverageStep(b.m) - coverageStep(a.m),
+        b.distinct.share - a.distinct.share,
+        a.m.label.localeCompare(b.m.label)
+      )
+    )
+    .map((c) => c.m);
+  const primaryCategory = (m: Metric) => m.cats[0] ?? 'other';
+  const rotate = (ms: Metric[]) =>
+    diversifyByTopic(
+      diversifyByTopic(ms, (m) => m.topics[0] ?? `#${m.id}`),
+      primaryCategory
+    );
+  const order = [
+    ...pool.filter((m) => m.base === true),
+    ...rotate(pool.filter((m) => m.base !== true && isPolar(m))),
+    ...rotate(pool.filter((m) => m.base !== true && !isPolar(m))),
+  ];
+
   const seen = new Set<string>();
+  const perTopic = new Map<string, number>();
   const metricIds: number[] = [];
   const columns: Float64Array[] = [];
-  const candidates = rankableMetrics(data)
-    .filter((m) => m.n >= minN)
-    .sort((a, b) => byKeys(b.n - a.n, a.id - b.id));
-  for (const m of candidates) {
+  const categories: string[] = [];
+  for (const m of order) {
     if (metricIds.length >= limit) break;
     const key = m.label.trim().toLowerCase();
-    if (seen.has(key)) continue;
+    const topic = m.topics[0] ?? `#${m.id}`;
+    const fromTopic = perTopic.get(topic) ?? 0;
+    if (seen.has(key) || fromTopic >= MAX_BASIS_PER_TOPIC) continue;
     seen.add(key);
+    const col = percentile(data.numeric(m.id), 1);
+    if (isRedundant(col, columns)) continue;
+    perTopic.set(topic, fromTopic + 1);
     metricIds.push(m.id);
-    columns.push(percentile(data.numeric(m.id), 1));
+    columns.push(col);
+    categories.push(primaryCategory(m));
   }
-  return { metricIds, columns };
+  return { metricIds, columns, categories };
 }
+
+/** Basis metrics the place at `index` has a value for. */
+export function basisCoverage(basis: SimilarityBasis, index: number): number {
+  let count = 0;
+  for (const col of basis.columns) if (isFiniteNumber(col[index])) count++;
+  return count;
+}
+
+/** Fewest basis metrics a place, and each match, needs before similarity means anything. */
+export const MIN_SIMILARITY_METRICS = 10;
 
 export interface SimilarPlace {
   index: number;
@@ -531,20 +673,25 @@ export interface SimilarPlace {
 /**
  * Nearest neighbours of the place at `index`: Euclidean distance over shared basis percentiles,
  * normalised to a root mean square so places compared on fewer metrics are not favoured.
- * Candidates must share at least `minShared` of the target's basis metrics.
+ * Returns nothing when the place has fewer than `minMetrics` basis metrics; candidates must
+ * share at least `minShared` of them, and never fewer than `minMetrics`.
  */
 export function similarPlaces(
   basis: SimilarityBasis,
   index: number,
   entityCount: number,
-  { limit = 5, minShared = 0.7 }: { limit?: number; minShared?: number } = {}
+  {
+    limit = 5,
+    minShared = 0.7,
+    minMetrics = MIN_SIMILARITY_METRICS,
+  }: { limit?: number; minShared?: number; minMetrics?: number } = {}
 ): SimilarPlace[] {
   const own: number[] = [];
   basis.columns.forEach((col, k) => {
     if (isFiniteNumber(col[index])) own.push(k);
   });
-  if (own.length < 3) return [];
-  const need = Math.max(3, Math.ceil(own.length * minShared));
+  if (own.length < minMetrics) return [];
+  const need = Math.max(minMetrics, Math.ceil(own.length * minShared));
   const out: SimilarPlace[] = [];
   for (let e = 0; e < entityCount; e++) {
     if (e === index) continue;

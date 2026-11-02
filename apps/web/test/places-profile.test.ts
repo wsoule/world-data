@@ -4,6 +4,7 @@ import { describe, expect, test } from 'bun:test';
 import type { Metric } from '../src/data/types';
 import { rankText } from '../src/features/places/percentile';
 import {
+  basisCoverage,
   categoryScores,
   coverageCut,
   dedupeKey,
@@ -15,6 +16,7 @@ import {
   placeStandings,
   type ProfileData,
   qualifyingRows,
+  type SimilarityBasis,
   similarityBasis,
   similarPlaces,
   sizeDrivenMetrics,
@@ -294,33 +296,111 @@ describe('profile sections', () => {
   });
 });
 
-describe('similarity', () => {
-  const names = ['a', 'b', 'c', 'd'];
+describe('similarity basis', () => {
+  // 30 places with reproducible pseudo-random values.
+  const n = 30;
+  const names = Array.from({ length: n }, (_, i) => `p${i}`);
+  let seed = 7;
+  const rand = () => {
+    seed = (seed * 16807) % 2147483647;
+    return seed / 2147483647;
+  };
+  const randomColumn = () => names.map(() => Math.round(rand() * 1e6) / 100);
+  const pop = names.map((_, i) => Math.round(1e6 / (i + 1)));
+  const crime = randomColumn();
+  const pay = (id: number, label: string) =>
+    metric(id, label, 1, ['health'], { topics: ['pay'] });
   const data = fixture(names, [
-    [metric(1, 'One', 1), [1, 2, 10, 11]],
-    [metric(2, 'Two', 1), [5, 6, 50, 60]],
-    [metric(3, 'Three', -1), [3, 3.5, 30, 40]],
-    [metric(4, 'Three', 1), [7, 8, 9, 10]],
-    [metric(5, 'Four', 0), [1, Number.NaN, 2, 3]],
+    [metric(-1, 'Population', 0, ['population'], { base: true }), pop],
+    [metric(-5, 'Area', 0, ['geography'], { base: true }), randomColumn()],
+    [metric(-2, 'Density', 0, ['population'], { base: true }), randomColumn()],
+    [metric(1, 'Income', 1), randomColumn()],
+    [metric(2, 'Income', 1, ['economics'], { topics: ['t2'] }), randomColumn()],
+    [
+      metric(3, 'Overall Rank', -1, ['economics'], { fmt: 'ranking' }),
+      randomColumn(),
+    ],
+    [
+      metric(4, 'Seasons', 1, ['geography']),
+      names.map((_, i) => (i % 5 === 0 ? 2 : 4)),
+    ],
+    [
+      metric(5, 'Murders', -1, ['crime-safety']),
+      pop.map((p) => p * (1 + rand())),
+    ],
+    [metric(6, 'Crime Rate', -1, ['crime-safety']), crime],
+    [
+      metric(7, 'Crimes per 1k', -1, ['crime-safety']),
+      crime.map((v) => v * 10),
+    ],
+    [metric(8, 'Founded', 1, ['history']), names.map((_, i) => 1800 + i * 5)],
+    [pay(9, 'Pay A'), randomColumn()],
+    [pay(10, 'Pay B'), randomColumn()],
+    [pay(11, 'Pay C'), randomColumn()],
+    [metric(12, '% Catholic', 0, ['culture']), randomColumn()],
+    [
+      metric(13, 'Sparse', 1, ['education']),
+      names.map((_, i) => (i % 2 === 0 ? rand() * 100 : Number.NaN)),
+    ],
   ]);
+  const basis = similarityBasis(data);
 
-  test('basis keeps one metric per label, best covered first', () => {
-    const basis = similarityBasis(data, 10);
-    expect(basis.metricIds).toEqual([1, 2, 3, 5]);
-    expect(basis.columns[0][0]).toBe(0);
+  test('density first, then directional metrics by category, neutral ones last', () => {
+    // Left out: population and area (size), the repeated "Income" label, the rank column,
+    // "Seasons" (two distinct values), murders (tracks population), "Crimes per 1k" (the
+    // crime rate again), "Founded" (calendar years) and "Pay C" (a third metric from one
+    // topic). Directional metrics rotate through categories; the sparse one goes last in
+    // its round because broader coverage comes first.
+    expect(basis.metricIds).toEqual([-2, 6, 1, 9, 13, 10, 12]);
+    expect(basis.categories).toEqual([
+      'population',
+      'crime-safety',
+      'economics',
+      'health',
+      'education',
+      'health',
+      'culture',
+    ]);
+    expect(basis.columns[1]).toEqual(percentile(crime, 1));
   });
 
+  test('uses only the best-covered rung when it has enough directional metrics', () => {
+    expect(similarityBasis(data, { limit: 3 }).metricIds).toEqual([-2, 6, 1]);
+  });
+
+  test('basisCoverage counts the basis metrics a place has', () => {
+    expect(basisCoverage(basis, 0)).toBe(7);
+    expect(basisCoverage(basis, 1)).toBe(6);
+  });
+
+  test('places with too few basis metrics get no matches', () => {
+    expect(similarPlaces(basis, 0, n)).toEqual([]);
+    expect(similarPlaces(basis, 0, n, { minMetrics: 3 })).toHaveLength(5);
+  });
+});
+
+describe('similarPlaces', () => {
+  const col = (values: number[]) => percentile(values, 1);
+  const basis: SimilarityBasis = {
+    metricIds: [1, 2, 3, 4],
+    columns: [
+      col([1, 2, 10, 11]),
+      col([5, 6, 50, 60]),
+      col([3, 3.5, 30, 40]),
+      col([1, Number.NaN, 2, 3]),
+    ],
+    categories: ['a', 'b', 'c', 'd'],
+  };
+
   test('nearest neighbour is the place with the closest percentiles', () => {
-    const basis = similarityBasis(data, 10);
-    const near = similarPlaces(basis, 0, names.length, { limit: 2 });
+    const near = similarPlaces(basis, 0, 4, { limit: 2, minMetrics: 3 });
     expect(near.map((s) => s.index)).toEqual([1, 2]);
     expect(near[0].similarity).toBeGreaterThan(near[1].similarity);
     expect(near[0].shared).toBe(3);
   });
 
   test('candidates sharing too little of the basis are skipped', () => {
-    const basis = similarityBasis(data, 10);
-    const near = similarPlaces(basis, 0, names.length, { minShared: 1 });
+    const near = similarPlaces(basis, 0, 4, { minShared: 1, minMetrics: 3 });
     expect(near.map((s) => s.index)).toEqual([2, 3]);
   });
 });
