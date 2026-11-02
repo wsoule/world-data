@@ -2,6 +2,9 @@ import { useState } from 'react';
 
 import type { Entity, EntityType } from '~/data/types';
 
+/** Flags flagcdn.com does not have, served from public/flags instead. */
+const LOCAL_FLAGS = new Set(['us-dc']);
+
 /** Flag image from flagcdn.com. Countries/world cities use ISO2; US places use the state flag. */
 export function Flag({
   entity,
@@ -30,7 +33,11 @@ export function Flag({
       : `us-${entity.flag}`;
   return (
     <img
-      src={`https://flagcdn.com/w40/${code}.png`}
+      src={
+        LOCAL_FLAGS.has(code)
+          ? `/flags/${code}.svg`
+          : `https://flagcdn.com/w40/${code}.png`
+      }
       alt=""
       loading="lazy"
       width={size}
