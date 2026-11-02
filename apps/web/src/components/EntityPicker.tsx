@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Flag } from './Flag';
 import { cx } from './ui';
 import type { Dataset } from '~/data/dataset';
+import { typeNoun } from '~/lib/format';
 import { searchItems } from '~/lib/textSearch';
 
 /** Search-as-you-type picker for places (countries, states, …). Calls onSelect with the entity id. */
@@ -88,14 +89,12 @@ export function EntityPicker({
             } else if (e.key === 'Escape') setOpen(false);
           }}
           placeholder={
-            placeholder ?? `Add a ${dataset.type.singular.toLowerCase()}…`
+            placeholder ?? `Add a ${typeNoun(dataset.type.singular)}…`
           }
           className="placeholder:text-muted min-w-0 flex-1 bg-transparent text-sm outline-none"
           role="combobox"
           aria-expanded={open}
-          aria-label={
-            placeholder ?? `Add a ${dataset.type.singular.toLowerCase()}`
-          }
+          aria-label={placeholder ?? `Add a ${typeNoun(dataset.type.singular)}`}
         />
         <Plus className="text-muted size-4" aria-hidden />
       </div>

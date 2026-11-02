@@ -4,14 +4,6 @@ import { scaleLinear } from 'd3-scale';
 import type { Theme } from '~/lib/theme';
 
 /**
- * Chart host class that paints text-mark labels (`<g class="ts-chart__text">`) in the theme's
- * text colour. The global `.ts-chart-host text { fill: currentColor }` rule otherwise turns every
- * label muted, which is right for axes but too faint for numbers printed on cells and bars.
- * `!` is needed because that rule is unlayered and Tailwind utilities live in a cascade layer.
- */
-export const DATA_LABELS = '[&_g[class$=text]_text]:fill-(--text)!';
-
-/**
  * Percentile colours (0 = worst, 50 = middling, 100 = best). Tints are chosen so one text colour
  * per theme stays readable on every cell: dark text on light tints, light text on deep tints.
  */

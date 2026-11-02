@@ -6,7 +6,7 @@ import { tooltip } from '@tanstack/charts/tooltip';
 import { useMemo } from 'react';
 
 import type { CompareViewProps } from '../state';
-import { DATA_LABELS, percentileScale, percentileStops } from './colors';
+import { percentileScale, percentileStops } from './colors';
 import type { RankingModel } from './useRanking';
 import { useWidth } from './useWidth';
 import { midSentence } from './words';
@@ -239,7 +239,6 @@ export function PercentileGrid({
       <div ref={boxRef}>
         <Chart
           definition={definition}
-          className={DATA_LABELS}
           height={rows * layout.rowHeight + layout.header + 8}
           ariaLabel={`Heat grid of percentiles for the top ${rows} ${midSentence(dataset.type.label)} across ${built.columns.length} metrics`}
           onSelect={(p) => {

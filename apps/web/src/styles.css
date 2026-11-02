@@ -92,9 +92,6 @@ body {
 .ts-chart-host {
   color: var(--muted);
 }
-.ts-chart-host text {
-  fill: currentColor;
-}
 
 .card {
   border: 1px solid var(--border);

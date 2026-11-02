@@ -390,7 +390,7 @@ function PointChart({
         geoShape(pts, {
           key: (f) => f.key,
           projection,
-          r: (f) => (hl.has(dataset.entities[f.idx].id) ? 6.5 : 4),
+          r: (f) => (hl.has(dataset.entities[f.idx].id) ? 9 : 4),
           fill: (f) => {
             const v = valueOf(f.idx);
             return v != null && model != null ? model.color(v) : colors.missing;
@@ -456,7 +456,9 @@ function MapLegend({
         ))}
       </div>
       <span className="tabular">
-        {format(bins[0].from)} → {format(bins[bins.length - 1].to)}
+        {format(bins[0].from) === format(bins[bins.length - 1].to)
+          ? format(bins[0].from)
+          : `${format(bins[0].from)} → ${format(bins[bins.length - 1].to)}`}
       </span>
       <span className="inline-flex items-center gap-1">
         <span

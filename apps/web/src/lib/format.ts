@@ -196,6 +196,17 @@ export function formatSigned(v: number, digits = 2): string {
   return (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(digits);
 }
 
+/**
+ * Lower-cases a type name for use mid-sentence while keeping acronyms, so
+ * "US City" becomes "US city" and "Country" becomes "country".
+ */
+export function typeNoun(name: string): string {
+  return name
+    .split(' ')
+    .map((w) => (/^[A-Z]{2,}$/.test(w) ? w : w.toLowerCase()))
+    .join(' ');
+}
+
 export function plural(n: number, one: string, many = `${one}s`) {
   return `${int.format(n)} ${n === 1 ? one : many}`;
 }

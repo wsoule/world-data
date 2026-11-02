@@ -32,33 +32,41 @@ export function useTheme(): Theme {
   return theme;
 }
 
-/** Colours that charts need as literal strings (SVG fills cannot read Tailwind classes). */
-export function chartColors(theme: Theme) {
-  return theme === 'dark'
-    ? {
-        missing: '#2a3550',
-        border: '#0b1020',
-        text: '#e5e9f5',
-        muted: '#94a3b8',
-        grid: '#26324f',
-        accent: '#818cf8',
-        highlight: '#fbbf24',
-        point: '#818cf8',
-        good: '#34d399',
-        bad: '#f87171',
-      }
-    : {
-        missing: '#e2e8f0',
-        border: '#ffffff',
-        text: '#0f172a',
-        muted: '#64748b',
-        grid: '#e2e8f0',
-        accent: '#4f46e5',
-        highlight: '#d97706',
-        point: '#4f46e5',
-        good: '#059669',
-        bad: '#dc2626',
-      };
+const DARK_CHART_COLORS = {
+  missing: '#2a3550',
+  border: '#0b1020',
+  text: '#e5e9f5',
+  muted: '#94a3b8',
+  grid: '#26324f',
+  accent: '#818cf8',
+  highlight: '#fbbf24',
+  point: '#818cf8',
+  good: '#34d399',
+  bad: '#f87171',
+} as const;
+
+const LIGHT_CHART_COLORS = {
+  missing: '#e2e8f0',
+  border: '#ffffff',
+  text: '#0f172a',
+  muted: '#64748b',
+  grid: '#e2e8f0',
+  accent: '#4f46e5',
+  highlight: '#d97706',
+  point: '#4f46e5',
+  good: '#059669',
+  bad: '#dc2626',
+} as const;
+
+export type ChartColors = typeof LIGHT_CHART_COLORS | typeof DARK_CHART_COLORS;
+
+/**
+ * Colours that charts need as literal strings (SVG fills cannot read Tailwind
+ * classes). Returns one stable object per theme so memoized chart definitions
+ * that depend on it only rebuild when the theme changes.
+ */
+export function chartColors(theme: Theme): ChartColors {
+  return theme === 'dark' ? DARK_CHART_COLORS : LIGHT_CHART_COLORS;
 }
 
 /** Categorical palette for groups (continents, regions), readable on both themes. */

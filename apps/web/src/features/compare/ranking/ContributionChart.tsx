@@ -15,7 +15,7 @@ import { tooltip } from '@tanstack/charts/tooltip';
 import { useMemo } from 'react';
 
 import type { CompareViewProps } from '../state';
-import { DATA_LABELS, metricPalette } from './colors';
+import { metricPalette } from './colors';
 import { formatScore } from './model';
 import type { RankingModel } from './useRanking';
 import { midSentence } from './words';
@@ -280,7 +280,6 @@ export function ContributionChart({
     >
       <Chart
         definition={definition}
-        className={DATA_LABELS}
         height={placeCount * 26 + 70 + Math.ceil(built.domain.length / 3) * 18}
         ariaLabel={`Stacked bars of each metric's weighted contribution to the combined score for the top ${placeCount} ${midSentence(dataset.type.label)}`}
         onSelect={(p) => {
