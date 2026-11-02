@@ -64,3 +64,51 @@ describe('formatValue', () => {
     );
   });
 });
+
+describe('formatValue edge cases from data review', () => {
+  test('negative money puts the sign before the currency', () => {
+    expect(formatValue(metric('moneyWithCurrency'), -93e9)).toBe('-$93B');
+  });
+
+  test('negative years read as BC', () => {
+    expect(formatValue(metric('year'), -9000)).toBe('9000 BC');
+    expect(formatValue(metric('year'), 1947)).toBe('1947');
+  });
+
+  test('heights never show 12 inches', () => {
+    expect(formatValue(metric('cmToFeet'), 182.79)).toBe('6′ 0″');
+  });
+
+  test('rank columns holding scores are not ordinals', () => {
+    expect(formatValue(metric('ranking'), 52.2)).toBe('52.2');
+  });
+
+  test('scale units are never abbreviated twice', () => {
+    expect(formatValue(metric('abbreviateNumber', 'Mt'), 13125)).toBe(
+      '13,125 Mt'
+    );
+    expect(
+      formatValue(metric('numberWithCommas', 'millions'), 569, {
+        compact: true,
+      })
+    ).toBe('569 millions');
+  });
+
+  test('units that duplicate the format are dropped, others kept', () => {
+    expect(formatValue(metric('degC', 'C'), -40)).toBe('-40.0°C');
+    expect(formatValue(metric('floatNumberTenths', '°F'), 26.6)).toBe(
+      '26.6 °F'
+    );
+    expect(formatValue(metric('floatNumber3', '$ per gallon'), 1.183)).toBe(
+      '$1.183 per gallon'
+    );
+    expect(formatValue(metric('ranking', 'acres'), 41)).toBe('41st');
+    expect(
+      formatValue(metric('moneyWithCurrencyCents', 'per dozen'), 6.12)
+    ).toBe('$6.12 per dozen');
+  });
+
+  test('whole counts have no stray decimals', () => {
+    expect(formatValue(metric(null), 590)).toBe('590');
+  });
+});

@@ -51,7 +51,7 @@ export function ordinal(n: number): string {
 function smartNumber(v: number): string {
   const a = Math.abs(v);
   if (a >= 1e6) return compact2.format(v);
-  if (a >= 1000) return int.format(v);
+  if (a >= 1000 || Number.isInteger(v)) return int.format(v);
   if (a >= 100) return dec1.format(v);
   if (a >= 1) return dec2.format(v);
   if (a === 0) return '0';
@@ -65,6 +65,52 @@ function money(v: number): string {
   return usdCents.format(v);
 }
 
+/** Puts the minus sign before the currency symbol ("-$93B", not "$-93B"). */
+function signedMoney(v: number, format: (abs: number) => string): string {
+  return v < 0 ? `-${format(-v)}` : format(v);
+}
+
+/** Units that state a scale ("in millions", "kt"): numbers in them are never abbreviated again. */
+const SCALE_UNIT = /^(thousands?|millions?|billions?|mn|bn|kt|mt)$/i;
+
+/** Units that repeat what the format already prints (°C for degC, $ for money, % for percents). */
+function duplicatesFormat(unit: string, fmt: string | null): boolean {
+  const u = unit.trim();
+  if (fmt === 'degC') return /^°?\s*C$/i.test(u);
+  if (fmt === 'degF') return /^°?\s*F$/i.test(u);
+  if (fmt?.startsWith('money') === true) return /^(\$|usd|us\$)$/i.test(u);
+  return false;
+}
+
+/**
+ * Appends a metric's unit to a formatted number. Ranks, percentages, feet and
+ * scale ranges such as "0-10" get no unit; "$ per gallon" becomes a currency
+ * prefix plus " per gallon"; "%" attaches without a space.
+ */
+function withUnit(
+  out: string,
+  unit: string | null | undefined,
+  fmt: string | null
+): string {
+  if (unit == null) return out;
+  const u = unit.trim();
+  if (u === '' || duplicatesFormat(u, fmt)) return out;
+  if (
+    fmt === 'ranking' ||
+    fmt === 'perc' ||
+    fmt === 'percAlt' ||
+    fmt === 'cmToFeet'
+  )
+    return out;
+  if (/^\d+(\.\d+)?\s*[-–]\s*\d+/.test(u)) return out;
+  if (u === '%') return `${out}%`;
+  if (u.startsWith('$') && fmt?.startsWith('money') !== true) {
+    const rest = u.slice(1).trim();
+    return `$${out}${rest === '' ? '' : ` ${rest}`}`;
+  }
+  return `${out} ${u}`;
+}
+
 /** Format a metric value the way the source presents it (with a few readability improvements). */
 export function formatValue(
   metric: Pick<Metric, 'fmt' | 'unit' | 'kind'> | undefined,
@@ -75,10 +121,13 @@ export function formatValue(
   if (typeof v === 'string')
     return v.replaceAll(' | ', ', ').replace(/\s*\|\s*$/, '');
   const fmt = metric?.fmt ?? null;
+  const scaled = metric?.unit != null && SCALE_UNIT.test(metric.unit.trim());
+  const compactOk = opts.compact === true && !scaled;
   let out: string;
   switch (fmt) {
     case 'ranking':
-      out = ordinal(v);
+      // Some "rank" columns hold scores (52.2); only whole numbers are ordinals.
+      out = Number.isInteger(v) ? ordinal(v) : dec1.format(v);
       break;
     case 'percAlt':
       out = `${Math.abs(v) < 10 ? dec2.format(v) : dec1.format(v)}%`;
@@ -88,37 +137,42 @@ export function formatValue(
       break;
     case 'moneyWithCurrency':
     case 'moneyWithCurrencyAbbrev':
-      out =
-        opts.compact === true || Math.abs(v) >= 1e6
-          ? '$' + compact2.format(v)
-          : money(v);
+      out = signedMoney(v, (a) =>
+        !scaled && (opts.compact === true || a >= 1e6)
+          ? '$' + compact2.format(a)
+          : money(a)
+      );
       break;
     case 'moneyWithCurrencyDollars':
-      out =
-        opts.compact === true && Math.abs(v) >= 1e5
-          ? '$' + compact.format(v)
-          : usd.format(v);
+      out = signedMoney(v, (a) =>
+        compactOk && a >= 1e5 ? '$' + compact.format(a) : usd.format(a)
+      );
       break;
     case 'moneyWithCurrencyCents':
-      out = usdCents.format(v);
+      out = signedMoney(v, (a) => usdCents.format(a));
       break;
     case 'moneyWithCurrency3':
-      out = usd3.format(v);
+      out = signedMoney(v, (a) => usd3.format(a));
       break;
     case 'moneyWithCurrencyEuros':
-      out = eur.format(v);
+      out = signedMoney(v, (a) => eur.format(a));
       break;
     case 'abbreviateNumber':
     case 'abbreviateNumber1k':
     case 'floatNumberSmart':
-      out = Math.abs(v) >= 1e4 ? compact.format(v) : smartNumber(v);
+      out =
+        !scaled && Math.abs(v) >= 1e4
+          ? compact.format(v)
+          : scaled && Math.abs(v) >= 1e4
+            ? int.format(v)
+            : smartNumber(v);
       break;
     case 'numberWithCommas':
     case 'numberWithCommasRound':
     case 'numberWithCommasZeroes':
     case 'km2MiRound':
       out =
-        opts.compact === true && Math.abs(v) >= 1e5
+        compactOk && Math.abs(v) >= 1e5
           ? compact.format(v)
           : Number.isInteger(v) || Math.abs(v) >= 100
             ? int.format(v)
@@ -126,15 +180,11 @@ export function formatValue(
       break;
     case 'floatNumberTenths':
       out =
-        opts.compact === true && Math.abs(v) >= 1e5
-          ? compact.format(v)
-          : dec1.format(v);
+        compactOk && Math.abs(v) >= 1e5 ? compact.format(v) : dec1.format(v);
       break;
     case 'floatNumber':
       out =
-        opts.compact === true && Math.abs(v) >= 1e5
-          ? compact.format(v)
-          : dec2.format(v);
+        compactOk && Math.abs(v) >= 1e5 ? compact.format(v) : dec2.format(v);
       break;
     case 'floatNumber3':
       out = dec3.format(v);
@@ -146,12 +196,14 @@ export function formatValue(
       out = `${dec1.format(v)}°F`;
       break;
     case 'year':
+      out = v < 0 ? `${Math.round(-v)} BC` : String(Math.round(v));
+      break;
     case 'zipCode':
       out = String(Math.round(v));
       break;
     case 'cmToFeet': {
-      const inches = v / 2.54;
-      out = `${Math.floor(inches / 12)}′ ${Math.round(inches % 12)}″`;
+      const inches = Math.round(v / 2.54);
+      out = `${Math.floor(inches / 12)}′ ${inches % 12}″`;
       break;
     }
     case 'plusMinus':
@@ -163,21 +215,9 @@ export function formatValue(
       break;
     default:
       out =
-        opts.compact === true && Math.abs(v) >= 1e5
-          ? compact.format(v)
-          : smartNumber(v);
+        compactOk && Math.abs(v) >= 1e5 ? compact.format(v) : smartNumber(v);
   }
-  if (
-    opts.unit !== false &&
-    metric?.unit &&
-    !/[$%°]/.test(metric.unit) &&
-    !/^\d+(\.\d+)?\s*[-–]\s*\d+/.test(metric.unit) &&
-    fmt?.startsWith('money') !== true &&
-    fmt !== 'cmToFeet'
-  ) {
-    out += ` ${metric.unit}`;
-  }
-  return out;
+  return opts.unit === false ? out : withUnit(out, metric?.unit, fmt);
 }
 
 /** Short axis tick formatter for a metric. */
