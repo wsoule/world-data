@@ -29,6 +29,13 @@ interface MapLayer {
   label: string;
   subtitle: string;
   values: Float64Array;
+  /**
+   * What the choropleth colours: `values`, or their negation for a lower-is-better metric so
+   * the shared red-to-green scheme puts the best (lowest) values in green
+   */
+  mapValues: Float64Array;
+  /** Formats a `mapValues` entry back into the real value for the legend and tooltip */
+  mapFormat: (v: number) => string;
   polarity: Polarity;
   scheme: ColorScheme;
   /** Ranking direction for the top / bottom lists */
@@ -61,6 +68,13 @@ function metricLayer(
   // Units such as "per 100k pop." go in the label once instead of after
   // every value, which keeps the ranked lists readable.
   const unit = m.unit != null && !/[$%°]/.test(m.unit) ? m.unit.trim() : '';
+  const values = maskColumn(dataset.numeric(m.id), entityIdx);
+  const format = (v: number) =>
+    formatValue(m, v, { compact: true, unit: false });
+  // Every tile with a better side uses the same red (worse) to green (better) ramp, so a colour
+  // means the same thing side by side. The choropleth colours higher values greener, so a
+  // lower-is-better metric is drawn from its negated values (and formatted back).
+  const flip = polarity === -1;
   return {
     key: m.id,
     label: unit !== '' ? `${m.label} (${unit})` : m.label,
@@ -70,11 +84,13 @@ function metricLayer(
     ]
       .filter((s) => s != null)
       .join(' · '),
-    values: maskColumn(dataset.numeric(m.id), entityIdx),
+    values,
+    mapValues: flip ? values.map((v) => -v) : values,
+    mapFormat: flip ? (v) => format(-v) : format,
     polarity,
-    scheme: 'auto',
+    scheme: polarity === 0 ? 'auto' : 'score',
     direction,
-    format: (v) => formatValue(m, v, { compact: true, unit: false }),
+    format,
     formatLong: (v) => formatValue(m, v),
     bestLabel: polarity === 0 ? 'Highest' : 'Best',
     worstLabel: polarity === 0 ? 'Lowest' : 'Worst',
@@ -143,6 +159,8 @@ export function MapView({
       label: 'Combined score',
       subtitle: `${metrics.length} metrics · ${NORMALIZATION_LABELS[norm].toLowerCase()} · higher is better`,
       values: score,
+      mapValues: score,
+      mapFormat: fmt,
       polarity: 1,
       scheme: 'score',
       direction: 1,
@@ -259,8 +277,8 @@ export function MapView({
         >
           <Choropleth
             dataset={dataset}
-            values={active.values}
-            format={active.format}
+            values={active.mapValues}
+            format={active.mapFormat}
             label={active.label}
             polarity={active.polarity}
             scheme={active.scheme}
@@ -277,8 +295,8 @@ export function MapView({
           <div className="mb-2 flex items-baseline justify-between gap-2">
             <h2 className="text-sm font-semibold">Side by side</h2>
             <p className="text-muted text-xs">
-              Click a title to focus it. Greener is better, redder is worse;
-              blue marks metrics with no better side.
+              Click a title to focus it. On every map green is better and red is
+              worse; blue marks metrics with no better side (darker = higher).
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
@@ -303,8 +321,8 @@ export function MapView({
                   </button>
                   <Choropleth
                     dataset={dataset}
-                    values={l.values}
-                    format={l.format}
+                    values={l.mapValues}
+                    format={l.mapFormat}
                     label={l.label}
                     polarity={l.polarity}
                     scheme={l.scheme}
