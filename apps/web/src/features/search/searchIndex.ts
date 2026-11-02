@@ -6,12 +6,12 @@
 
 import MiniSearch, { type Query, type SearchResult } from 'minisearch';
 
+import { isSearchableMetric, type SearchMetric } from './searchMetric';
 import type {
   Entity,
   EntityType,
   EntityTypeInfo,
   Manifest,
-  Metric,
   TopicSummary,
 } from '~/data/types';
 
@@ -315,14 +315,17 @@ export interface TopicDocOptions {
   featured?: ReadonlySet<string>;
 }
 
-export function topicDocs(
-  topics: readonly TopicSummary[],
+/**
+ * Builds one topic's search document. Lookups shared by every topic are prepared once, so the
+ * caller can index topics a slice at a time (see SearchIndex.addInSlices).
+ */
+export function topicDocBuilder(
   manifest: Manifest,
   options: TopicDocOptions = {}
-): SearchDoc[] {
+): (t: TopicSummary) => SearchDoc {
   const cats = categoryLabelMap(manifest);
   const totals = new Map(manifest.types.map((t) => [t.id, t.entities]));
-  return topics.map((t) => {
+  return (t) => {
     const total = totals.get(t.type) ?? Math.max(1, t.n);
     const coverage = Math.min(1, t.n / Math.max(1, total));
     return finish({
@@ -348,14 +351,22 @@ export function topicDocs(
       total,
       metricCount: t.metrics.length,
     });
-  });
+  };
 }
 
-export function placeDocs(
-  info: EntityTypeInfo,
-  entities: readonly Entity[]
+export function topicDocs(
+  topics: readonly TopicSummary[],
+  manifest: Manifest,
+  options: TopicDocOptions = {}
 ): SearchDoc[] {
-  return entities.map((e) => {
+  return topics.map(topicDocBuilder(manifest, options));
+}
+
+/** Builds the search documents of one place type's places, one entity at a time. */
+export function placeDocBuilder(
+  info: EntityTypeInfo
+): (e: Entity) => SearchDoc {
+  return (e) => {
     const aliases: string[] = [];
     const codes: string[] = [];
     if (info.id === 'state') aliases.push(e.id);
@@ -389,12 +400,14 @@ export function placeDocs(
       prior: TYPE_PRIOR[info.id] * (1 + Math.log10(pop + 10) / 12),
       flag: e.flag,
     });
-  });
+  };
 }
 
-/** Metrics worth finding: numeric or categorical, with values, not bookkeeping columns. */
-export function isSearchableMetric(m: Metric): boolean {
-  return m.meta !== true && m.kind !== 'text' && m.n > 0;
+export function placeDocs(
+  info: EntityTypeInfo,
+  entities: readonly Entity[]
+): SearchDoc[] {
+  return entities.map(placeDocBuilder(info));
 }
 
 export interface MetricDocOptions {
@@ -403,25 +416,23 @@ export interface MetricDocOptions {
 }
 
 /**
- * Search documents for one place type's metrics. The popularity prior rewards coverage, numeric
- * columns, core statistics, columns shared by several topics, the column a topic is named after,
- * and the flagship metrics in `options.featured`.
+ * Builds one metric's search document, or null for metrics search leaves out. The popularity
+ * prior rewards coverage, numeric columns, core statistics, columns shared by several topics, the
+ * column a topic is named after, and the flagship metrics in `options.featured`.
  */
-export function metricDocs(
+export function metricDocBuilder(
   info: EntityTypeInfo,
-  metrics: readonly Metric[],
   topicTitles: ReadonlyMap<string, string>,
   categoryLabels: ReadonlyMap<string, string>,
   options: MetricDocOptions = {}
-): SearchDoc[] {
-  const out: SearchDoc[] = [];
+): (m: SearchMetric) => SearchDoc | null {
   const total = Math.max(1, info.entities);
   const prefix = `${info.id}:`;
   const subjects = new Set<string>();
   for (const [key, title] of topicTitles)
     if (key.startsWith(prefix)) subjects.add(topicSubject(title));
-  for (const m of metrics) {
-    if (!isSearchableMetric(m)) continue;
+  return (m) => {
+    if (!isSearchableMetric(m)) return null;
     const primary = m.topics[0];
     const primaryTitle =
       primary != null ? (topicTitles.get(`${info.id}:${primary}`) ?? '') : '';
@@ -431,43 +442,56 @@ export function metricDocs(
       .map((s) => topicTitles.get(`${info.id}:${s}`) ?? '')
       .join(' ');
     const coverage = Math.min(1, m.n / total);
-    out.push(
-      finish({
-        id: `metric:${info.id}:${m.id}`,
+    return finish({
+      id: `metric:${info.id}:${m.id}`,
+      kind: 'metric',
+      type: info.id,
+      title: m.label,
+      subtitle:
+        primaryTitle !== ''
+          ? primaryTitle
+          : m.base === true
+            ? 'Core statistic'
+            : m.cats.map((c) => categoryLabels.get(c) ?? c).join(' · '),
+      target: {
         kind: 'metric',
         type: info.id,
-        title: m.label,
-        subtitle:
-          primaryTitle !== ''
-            ? primaryTitle
-            : m.base === true
-              ? 'Core statistic'
-              : m.cats.map((c) => categoryLabels.get(c) ?? c).join(' · '),
-        target: {
-          kind: 'metric',
-          type: info.id,
-          id: m.id,
-          topic: primary ?? null,
-        },
-        aliases: [],
-        codes: [],
-        context: `${primaryTitle} ${otherTitles} ${m.unit ?? ''}`,
-        categories: m.cats.map((c) => categoryLabels.get(c) ?? c),
-        prior:
-          TYPE_PRIOR[info.id] *
-          (0.55 + 0.45 * coverage) *
-          (m.kind === 'num' ? 1 : 0.8) *
-          (m.base === true ? 1.15 : 1) *
-          // Columns shared by several topics are the canonical ones.
-          (1 + 0.08 * Math.min(5, Math.max(0, m.topics.length - 1))) *
-          (subjects.has(normalizeText(m.label)) ? CANONICAL_PRIOR : 1) *
-          (options.featured?.has(m.id) === true ? FEATURED_PRIOR : 1),
-        flag: null,
-        n: m.n,
-        total,
-        year: m.year,
-      })
-    );
+        id: m.id,
+        topic: primary ?? null,
+      },
+      aliases: [],
+      codes: [],
+      context: `${primaryTitle} ${otherTitles} ${m.unit ?? ''}`,
+      categories: m.cats.map((c) => categoryLabels.get(c) ?? c),
+      prior:
+        TYPE_PRIOR[info.id] *
+        (0.55 + 0.45 * coverage) *
+        (m.kind === 'num' ? 1 : 0.8) *
+        (m.base === true ? 1.15 : 1) *
+        // Columns shared by several topics are the canonical ones.
+        (1 + 0.08 * Math.min(5, Math.max(0, m.topics.length - 1))) *
+        (subjects.has(normalizeText(m.label)) ? CANONICAL_PRIOR : 1) *
+        (options.featured?.has(m.id) === true ? FEATURED_PRIOR : 1),
+      flag: null,
+      n: m.n,
+      total,
+      year: m.year,
+    });
+  };
+}
+
+export function metricDocs(
+  info: EntityTypeInfo,
+  metrics: readonly SearchMetric[],
+  topicTitles: ReadonlyMap<string, string>,
+  categoryLabels: ReadonlyMap<string, string>,
+  options: MetricDocOptions = {}
+): SearchDoc[] {
+  const build = metricDocBuilder(info, topicTitles, categoryLabels, options);
+  const out: SearchDoc[] = [];
+  for (const m of metrics) {
+    const doc = build(m);
+    if (doc != null) out.push(doc);
   }
   return out;
 }
@@ -725,6 +749,8 @@ const FIELDS = [
 export class SearchIndex {
   readonly docs = new Map<string, SearchDoc>();
   private readonly sources = new Set<string>();
+  /** Sources that addInSlices is still working through */
+  private readonly pending = new Set<string>();
   private readonly mini: MiniSearch<SearchDoc>;
   version = 0;
 
@@ -756,7 +782,9 @@ export class SearchIndex {
       },
       searchOptions: {
         boost: BOOST,
-        prefix: true,
+        // A one-letter prefix expands to thousands of terms (30 ms per keystroke for "c", far more
+        // on slow phones) for results nobody reads, so prefixes start at two letters.
+        prefix: (term) => term.length >= 2,
         fuzzy: (term) => (term.length >= 5 ? 0.2 : false),
         maxFuzzy: 2,
         weights: { prefix: 0.55, fuzzy: 0.3 },
@@ -774,12 +802,50 @@ export class SearchIndex {
 
   /** Adds a source's documents once; later calls with the same source are ignored. */
   add(source: string, docs: readonly SearchDoc[]): void {
-    if (this.sources.has(source)) return;
+    if (this.sources.has(source) || this.pending.has(source)) return;
     this.sources.add(source);
     const fresh = docs.filter((d) => !this.docs.has(d.id));
     for (const d of fresh) this.docs.set(d.id, d);
     this.mini.addAll(fresh);
     this.version++;
+  }
+
+  /**
+   * Adds a source like `add`, but builds and indexes its documents a slice at a time: whenever a
+   * slice has run for `budgetMs` it awaits `pause()` (which yields to the browser), so indexing a
+   * 4,000-metric catalog never blocks typing for long. The source counts as added, and `version`
+   * changes, only once every item is in. Resolves false when the source was already added or is
+   * being added.
+   */
+  async addInSlices<T>(
+    source: string,
+    items: readonly T[],
+    toDoc: (item: T) => SearchDoc | null,
+    pause: () => Promise<void>,
+    budgetMs = 8
+  ): Promise<boolean> {
+    if (this.sources.has(source) || this.pending.has(source)) return false;
+    this.pending.add(source);
+    try {
+      let sliceStart = performance.now();
+      for (let i = 0; i < items.length; i++) {
+        const doc = toDoc(items[i]);
+        if (doc != null && !this.docs.has(doc.id)) {
+          this.docs.set(doc.id, doc);
+          this.mini.add(doc);
+        }
+        // Reading the clock every 16 items keeps its cost negligible.
+        if (i % 16 === 15 && performance.now() - sliceStart >= budgetMs) {
+          await pause();
+          sliceStart = performance.now();
+        }
+      }
+      this.sources.add(source);
+      this.version++;
+      return true;
+    } finally {
+      this.pending.delete(source);
+    }
   }
 
   /**

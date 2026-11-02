@@ -196,6 +196,34 @@ describe('SearchIndex (synthetic)', () => {
     ]);
     expect(r.map((x) => x.score)).toEqual([10, 8.5, 10 * 0.85 ** 2, 9]);
   });
+
+  test('indexes in slices, pausing between them, and publishes once', async () => {
+    const index = new SearchIndex();
+    let pauses = 0;
+    const docs = Array.from({ length: 40 }, (_, i) =>
+      base({ id: `t${i}`, title: `Topic ${i}` })
+    );
+    const added = await index.addInSlices(
+      'topics',
+      docs,
+      (d) => (d.id === 't3' ? null : d),
+      () => {
+        pauses++;
+        expect(index.version).toBe(0);
+        return Promise.resolve();
+      },
+      0
+    );
+    expect(added).toBe(true);
+    expect(pauses).toBe(2);
+    expect(index.size).toBe(39);
+    expect(index.version).toBe(1);
+    expect(index.has('topics')).toBe(true);
+    expect(
+      await index.addInSlices('topics', docs, (d) => d, Promise.resolve)
+    ).toBe(false);
+    expect(index.search('topic 7')[0]?.doc.id).toBe('t7');
+  });
 });
 
 describe('topicSubject', () => {

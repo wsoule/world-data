@@ -1,21 +1,18 @@
 import { type QueryClient, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useSyncExternalStore } from 'react';
 
+import { loadSearchMetrics } from './catalogWorkerApi';
 import {
   categoryDocs,
   categoryLabelMap,
-  metricDocs,
-  placeDocs,
+  metricDocBuilder,
+  placeDocBuilder,
+  type SearchDoc,
   SearchIndex,
-  topicDocs,
+  topicDocBuilder,
   topicTitleMap,
 } from './searchIndex';
-import {
-  entitiesQuery,
-  manifestQuery,
-  metricsQuery,
-  topicsIndexQuery,
-} from '~/data/api';
+import { entitiesQuery, manifestQuery, topicsIndexQuery } from '~/data/api';
 import { ENTITY_TYPES } from '~/data/types';
 import { featuredMetricIds, featuredTopicKeys } from '~/features/home/presets';
 
@@ -39,6 +36,8 @@ let loaded = 0;
 let error: string | null = null;
 let snapshot: SearchIndexState = makeSnapshot();
 const listeners = new Set<() => void>();
+// Sources are indexed one at a time, in the order their files arrive.
+let queue: Promise<void> = Promise.resolve();
 
 function makeSnapshot(): SearchIndexState {
   return {
@@ -57,38 +56,65 @@ function publish() {
 }
 
 /**
- * Fetches every file search needs through TanStack Query (so pages reuse the cache) and adds each
- * source to the index as soon as its files arrive: categories and topics first, then places, then
- * the large metric catalogs. Safe to call repeatedly; it runs once unless a fetch failed.
+ * Gives the browser a chance to handle input and paint between indexing slices:
+ * `scheduler.yield()` where supported (it resumes ahead of other queued tasks), a zero-delay
+ * timeout elsewhere.
+ */
+function pause(): Promise<void> {
+  const scheduler = (
+    globalThis as { scheduler?: { yield?: () => Promise<void> } }
+  ).scheduler;
+  if (typeof scheduler?.yield === 'function') return scheduler.yield();
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+function fail(e: unknown) {
+  error = e instanceof Error ? e.message : String(e);
+  started = false;
+  publish();
+}
+
+/**
+ * Queues one source for indexing. Each source is built and indexed in short slices
+ * (SearchIndex.addInSlices) after the previous one finishes, so even the 4,000-metric catalogs
+ * never block typing in the palette for more than a few milliseconds at a time.
+ */
+function enqueue<T>(
+  source: string,
+  items: readonly T[],
+  toDoc: (item: T) => SearchDoc | null
+) {
+  queue = queue
+    .then(async () => {
+      if (await index.addInSlices(source, items, toDoc, pause)) loaded++;
+      publish();
+    })
+    .catch(fail);
+}
+
+/**
+ * Fetches every file search needs and queues each source for indexing as soon as its files
+ * arrive: categories and topics first, then places, then the large metric catalogs. Small files
+ * go through TanStack Query (so pages reuse the cache); the metric catalogs are parsed in a worker
+ * unless a page already loaded them (loadSearchMetrics). Safe to call repeatedly; it runs once
+ * unless a fetch failed.
  */
 function startIndexing(qc: QueryClient) {
   if (started) return;
   started = true;
   error = null;
-  const fail = (e: unknown) => {
-    error = e instanceof Error ? e.message : String(e);
-    started = false;
-    publish();
-  };
-  const addSource = (
-    source: string,
-    build: () => Parameters<SearchIndex['add']>[1]
-  ) => {
-    if (!index.has(source)) {
-      index.add(source, build());
-      loaded++;
-    }
-    publish();
-  };
   const manifestP = qc.ensureQueryData(manifestQuery);
   const topicsP = qc.ensureQueryData(topicsIndexQuery);
+  const titlesP = topicsP.then(topicTitleMap);
   manifestP
-    .then((m) => addSource('categories', () => categoryDocs(m)))
+    .then((m) => enqueue('categories', categoryDocs(m), (d) => d))
     .catch(fail);
   Promise.all([manifestP, topicsP])
     .then(([m, t]) =>
-      addSource('topics', () =>
-        topicDocs(t, m, { featured: featuredTopicKeys() })
+      enqueue(
+        'topics',
+        t,
+        topicDocBuilder(m, { featured: featuredTopicKeys() })
       )
     )
     .catch(fail);
@@ -96,24 +122,24 @@ function startIndexing(qc: QueryClient) {
     Promise.all([manifestP, qc.ensureQueryData(entitiesQuery(type))])
       .then(([m, entities]) => {
         const info = m.types.find((t) => t.id === type);
-        addSource(`places:${type}`, () =>
-          info != null ? placeDocs(info, entities) : []
-        );
+        // A type missing from the manifest still counts as indexed, so loading can finish.
+        if (info == null) enqueue(`places:${type}`, [], () => null);
+        else enqueue(`places:${type}`, entities, placeDocBuilder(info));
       })
       .catch(fail);
-    Promise.all([manifestP, topicsP, qc.ensureQueryData(metricsQuery(type))])
-      .then(([m, topics, metrics]) => {
+    Promise.all([manifestP, titlesP, loadSearchMetrics(qc, type)])
+      .then(([m, titles, metrics]) => {
         const info = m.types.find((t) => t.id === type);
-        addSource(`metrics:${type}`, () =>
-          info != null
-            ? metricDocs(
-                info,
-                metrics,
-                topicTitleMap(topics),
-                categoryLabelMap(m),
-                { featured: featuredMetricIds(type) }
-              )
-            : []
+        if (info == null) {
+          enqueue(`metrics:${type}`, [], () => null);
+          return;
+        }
+        enqueue(
+          `metrics:${type}`,
+          metrics,
+          metricDocBuilder(info, titles, categoryLabelMap(m), {
+            featured: featuredMetricIds(type),
+          })
         );
       })
       .catch(fail);
@@ -127,7 +153,10 @@ function startIndexing(qc: QueryClient) {
 export function useSearchIndex(enabled = true): SearchIndexState {
   const qc = useQueryClient();
   useEffect(() => {
-    if (enabled) startIndexing(qc);
+    if (!enabled) return;
+    // A separate task, so the palette paints before the downloads are set up.
+    const timer = window.setTimeout(() => startIndexing(qc), 0);
+    return () => window.clearTimeout(timer);
   }, [enabled, qc]);
   return useSyncExternalStore(
     (l) => {
