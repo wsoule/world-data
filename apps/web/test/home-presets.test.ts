@@ -3,7 +3,11 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import type { Metric, TopicSummary } from '../src/data/types';
-import { HOME_PRESETS, POPULAR_TOPICS } from '../src/features/home/presets';
+import {
+  featuredMetricIds,
+  HOME_PRESETS,
+  POPULAR_TOPICS,
+} from '../src/features/home/presets';
 
 const DATA = join(import.meta.dir, '..', 'public', 'data');
 const read = <T>(path: string): T =>
@@ -37,5 +41,13 @@ describe('home presets', () => {
     );
     for (const t of POPULAR_TOPICS)
       expect(topics.has(`${t.type}:${t.slug}`)).toBe(true);
+  });
+
+  test('featured metrics are the preset metrics of one place type', () => {
+    const state = featuredMetricIds('state');
+    expect(state.has(24419)).toBe(true);
+    expect(state.has(19182)).toBe(false);
+    expect(featuredMetricIds('country').has(19182)).toBe(true);
+    expect(featuredMetricIds('county').size).toBe(0);
   });
 });

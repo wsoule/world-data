@@ -17,6 +17,7 @@ import {
   topicsIndexQuery,
 } from '~/data/api';
 import { ENTITY_TYPES } from '~/data/types';
+import { featuredMetricIds, featuredTopicKeys } from '~/features/home/presets';
 
 export interface SearchIndexState {
   index: SearchIndex;
@@ -85,7 +86,11 @@ function startIndexing(qc: QueryClient) {
     .then((m) => addSource('categories', () => categoryDocs(m)))
     .catch(fail);
   Promise.all([manifestP, topicsP])
-    .then(([m, t]) => addSource('topics', () => topicDocs(t, m)))
+    .then(([m, t]) =>
+      addSource('topics', () =>
+        topicDocs(t, m, { featured: featuredTopicKeys() })
+      )
+    )
     .catch(fail);
   for (const type of ENTITY_TYPES) {
     Promise.all([manifestP, qc.ensureQueryData(entitiesQuery(type))])
@@ -105,7 +110,8 @@ function startIndexing(qc: QueryClient) {
                 info,
                 metrics,
                 topicTitleMap(topics),
-                categoryLabelMap(m)
+                categoryLabelMap(m),
+                { featured: featuredMetricIds(type) }
               )
             : []
         );

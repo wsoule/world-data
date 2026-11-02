@@ -14,6 +14,7 @@ import {
   KIND_LABELS,
   type RankedResult,
   SEARCH_KINDS,
+  type SearchDoc,
   type SearchIndex,
   type SearchKind,
 } from './searchIndex';
@@ -461,6 +462,9 @@ function ResultItem({
             </span>
           ) : null}
         </div>
+        {result.variants.length > 0 ? (
+          <VariantLinks variants={result.variants} />
+        ) : null}
       </div>
       {doc.type != null ? (
         <span className="hidden shrink-0 sm:block">
@@ -484,6 +488,35 @@ function ResultItem({
         </Link>
       ) : null}
     </li>
+  );
+}
+
+/** Same-label metrics shown before "and N more". */
+const VARIANT_LINKS = 3;
+
+/**
+ * The other topics with a metric of the same label (folded into this result by the index), as
+ * small links to each one, so "Hourly Mean Wage" leads to every occupation's column.
+ */
+function VariantLinks({ variants }: { variants: readonly SearchDoc[] }) {
+  const shown = variants.slice(0, VARIANT_LINKS);
+  const rest = variants.length - shown.length;
+  return (
+    <div className="text-muted relative z-10 mt-0.5 truncate text-xs">
+      Also in{' '}
+      {shown.map((v, i) => (
+        <span key={v.id}>
+          {i > 0 ? ', ' : ''}
+          <TargetLink
+            target={v.target}
+            className="hover:text-app underline-offset-2 hover:underline"
+          >
+            {v.subtitle !== '' ? v.subtitle : v.title}
+          </TargetLink>
+        </span>
+      ))}
+      {rest > 0 ? ` and ${rest.toLocaleString('en-US')} more` : ''}
+    </div>
   );
 }
 

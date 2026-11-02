@@ -1,14 +1,18 @@
 import { describe, expect, test } from 'bun:test';
 
 import {
+  foldSameLabel,
   groupResults,
   highlightParts,
   matchQuality,
   normalizeText,
   parseQuery,
+  type RankedResult,
   type SearchDoc,
   SearchIndex,
   type SearchKind,
+  spreadTopics,
+  topicSubject,
 } from '../src/features/search/searchIndex';
 import { loadFullIndex } from './search-fixtures';
 
@@ -56,7 +60,16 @@ describe('matchQuality', () => {
     );
     expect(matchQuality(doc('Japan'), ...q('jap'))).toBe('prefix');
     expect(
+      matchQuality(doc('Median Household Income'), ...q('household income'))
+    ).toBe('phrase');
+    expect(
       matchQuality(doc('Median Household Income'), ...q('income median'))
+    ).toBe('words');
+    expect(
+      matchQuality(
+        doc('Median Income - Four Person Household'),
+        ...q('household income')
+      )
     ).toBe('words');
     expect(matchQuality(doc('Tokyo'), ...q('japan'))).toBe('other');
   });
@@ -102,6 +115,7 @@ describe('SearchIndex (synthetic)', () => {
       normTitleWords: normTitle.split(' '),
       normAliases: [],
       normCodes: [],
+      normSubject: normTitle,
       ...over,
     };
   };
@@ -123,6 +137,77 @@ describe('SearchIndex (synthetic)', () => {
     ]);
     const r = index.search('crime zebra');
     expect(r.map((x) => x.doc.id)).toEqual(['x']);
+  });
+
+  /** A metric document of `type` from topic `topic`. */
+  const metric = (
+    id: number,
+    title: string,
+    topic: string,
+    type: 'state' | 'country' = 'state'
+  ): SearchDoc =>
+    base({
+      id: `metric:${type}:${id}`,
+      title,
+      kind: 'metric',
+      type,
+      target: { kind: 'metric', type, id, topic },
+    });
+  const ranked = (doc: SearchDoc, score: number): RankedResult => ({
+    doc,
+    score,
+    quality: 'phrase',
+    terms: [],
+    variants: [],
+  });
+
+  test('folds same-label metrics of one place type into the best one', () => {
+    const nurse = metric(1, 'Hourly Mean Wage', 'nurse-salary');
+    const teacher = metric(2, 'Hourly Mean Wage', 'teacher-salary');
+    const country = metric(3, 'Hourly Mean Wage', 'wages', 'country');
+    const other = metric(4, 'Annual Mean Wage', 'nurse-salary');
+    const folded = foldSameLabel([
+      ranked(nurse, 10),
+      ranked(country, 9),
+      ranked(teacher, 8),
+      ranked(other, 7),
+    ]);
+    expect(folded.map((r) => r.doc.id)).toEqual([
+      nurse.id,
+      country.id,
+      other.id,
+    ]);
+    expect(folded[0].variants.map((d) => d.id)).toEqual([teacher.id]);
+    expect(folded[1].variants).toEqual([]);
+  });
+
+  test('never folds places that share a name', () => {
+    const a = base({ id: 'place:a', title: 'Springfield', kind: 'place' });
+    const b = base({ id: 'place:b', title: 'Springfield', kind: 'place' });
+    expect(foldSameLabel([ranked(a, 2), ranked(b, 1)])).toHaveLength(2);
+  });
+
+  test('lowers further metrics from a topic that already placed one', () => {
+    const r = spreadTopics([
+      ranked(metric(1, 'One Person', 'household'), 10),
+      ranked(metric(2, 'Two Person', 'household'), 10),
+      ranked(metric(3, 'Three Person', 'household'), 10),
+      ranked(metric(4, 'Headline', 'income'), 9),
+    ]);
+    expect(r.map((x) => x.score)).toEqual([10, 8.5, 10 * 0.85 ** 2, 9]);
+  });
+});
+
+describe('topicSubject', () => {
+  test('drops the place-type ending of a topic title', () => {
+    expect(topicSubject('Median Household Income by State')).toBe(
+      'median household income'
+    );
+    expect(topicSubject('Happiest Countries in the World')).toBe(
+      'happiest countries'
+    );
+    expect(topicSubject('Crime Rate by Country')).toBe('crime rate');
+    expect(topicSubject('Happiest States')).toBe('happiest states');
   });
 });
 
@@ -157,6 +242,40 @@ describe('SearchIndex (real dataset)', () => {
   test('"income" opens on income metrics', () => {
     expect(firstGroup('income')).toBe('metric');
     expect(first('income')?.title.toLowerCase()).toContain('income');
+  });
+
+  test('key metrics outrank weaker partial matches', () => {
+    const firstMetric = (q: string) =>
+      index.search(q, { kinds: new Set(['metric']) })[0]?.doc.id;
+    // Median household income (state 24419) backs every home comparison.
+    expect(firstMetric('income')).toBe('metric:state:24419');
+    expect(firstMetric('household income')).toBe('metric:state:24419');
+    expect(firstMetric('median household income')).toBe('metric:state:24419');
+    const palette = groupResults(index.search('income'), 6).find(
+      (g) => g.kind === 'metric'
+    );
+    expect(palette?.results[0]?.doc.id).toBe('metric:state:24419');
+  });
+
+  test('one topic’s breakdown columns do not crowd out other metrics', () => {
+    const top = index
+      .search('median income', { kinds: new Set(['metric']) })
+      .slice(0, 6)
+      .map((r) => r.doc.id);
+    expect(top).toContain('metric:state:24419');
+  });
+
+  test('shows each label once per place type', () => {
+    for (const q of ['hourly mean wage', 'population', 'legality']) {
+      const keys = index
+        .search(q)
+        .filter((r) => r.doc.kind === 'metric')
+        .map((r) => `${r.doc.type}:${r.doc.normTitle}`);
+      expect(new Set(keys).size).toBe(keys.length);
+    }
+    const wage = index.search('hourly mean wage')[0];
+    expect(wage?.doc.title).toBe('Hourly Mean Wage');
+    expect(wage?.variants.length).toBeGreaterThan(3);
   });
 
   test('"crime" opens on crime metrics or topics', () => {

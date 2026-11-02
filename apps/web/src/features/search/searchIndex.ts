@@ -71,6 +71,11 @@ export interface SearchDoc {
   normTitleWords: string[];
   normAliases: string[];
   normCodes: string[];
+  /**
+   * The normalized part of the title that names what the result is about: topic titles without
+   * their "by State" ending, the whole title for everything else
+   */
+  normSubject: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -205,6 +210,11 @@ const TYPE_TERMS: Record<EntityType, string> = {
   county: 'county counties us',
 };
 
+/** Prior multiplier for a metric named exactly like one of its type's topics ("Median Household Income"). */
+const CANONICAL_PRIOR = 1.2;
+/** Prior multiplier for the site's flagship metrics and topics (home-page comparisons and lists). */
+const FEATURED_PRIOR = 1.2;
+
 /** Familiar names for countries whose dataset name differs (by ISO3). */
 const COUNTRY_ALIASES: Record<string, readonly string[]> = {
   USA: ['usa', 'us', 'america', 'united states of america'],
@@ -243,8 +253,26 @@ const CITY_ALIASES: Record<string, readonly string[]> = {
 /** Raw fields before normalization; `finish` adds the precomputed comparison strings. */
 type DocInput = Omit<
   SearchDoc,
-  'normTitle' | 'normTitleWords' | 'normAliases' | 'normCodes'
+  'normTitle' | 'normTitleWords' | 'normAliases' | 'normCodes' | 'normSubject'
 >;
+
+/** "… by State", "… in the World" and similar endings that name the place type, not the subject. */
+const TOPIC_PLACE_SUFFIX =
+  / (by|in|of|per|across) (the )?(us |united states |world )?(states?|countr(y|ies)|cit(y|ies)|count(y|ies)|nations?|world|us|america)$/;
+
+/** Drops a normalized topic title's place-type ending ("… by state"). */
+function stripPlaceSuffix(normTitle: string): string {
+  return normTitle.replace(TOPIC_PLACE_SUFFIX, '');
+}
+
+/**
+ * The subject of a topic title, normalized: "Median Household Income by State" → "median household
+ * income". A metric whose label equals a topic's subject is the column that topic is named after,
+ * so search treats it as the canonical metric for that phrase.
+ */
+export function topicSubject(title: string): string {
+  return stripPlaceSuffix(normalizeText(title));
+}
 
 function finish(d: DocInput): SearchDoc {
   const normTitle = normalizeText(d.title);
@@ -254,6 +282,7 @@ function finish(d: DocInput): SearchDoc {
     normTitleWords: normTitle === '' ? [] : normTitle.split(' '),
     normAliases: d.aliases.map(normalizeText).filter((a) => a !== ''),
     normCodes: d.codes.map(normalizeText).filter((a) => a !== ''),
+    normSubject: d.kind === 'topic' ? stripPlaceSuffix(normTitle) : normTitle,
   };
 }
 
@@ -281,9 +310,15 @@ export function categoryDocs(manifest: Manifest): SearchDoc[] {
   );
 }
 
+export interface TopicDocOptions {
+  /** "type:slug" keys of the site's most-visited topics, ranked a little higher */
+  featured?: ReadonlySet<string>;
+}
+
 export function topicDocs(
   topics: readonly TopicSummary[],
-  manifest: Manifest
+  manifest: Manifest,
+  options: TopicDocOptions = {}
 ): SearchDoc[] {
   const cats = categoryLabelMap(manifest);
   const totals = new Map(manifest.types.map((t) => [t.id, t.entities]));
@@ -304,7 +339,10 @@ export function topicDocs(
       prior:
         TYPE_PRIOR[t.type] *
         (0.8 + 0.2 * coverage) *
-        (1 + 0.02 * Math.min(10, t.metrics.length)),
+        (1 + 0.02 * Math.min(10, t.metrics.length)) *
+        (options.featured?.has(`${t.type}:${t.slug}`) === true
+          ? FEATURED_PRIOR
+          : 1),
       flag: null,
       n: t.n,
       total,
@@ -359,14 +397,29 @@ export function isSearchableMetric(m: Metric): boolean {
   return m.meta !== true && m.kind !== 'text' && m.n > 0;
 }
 
+export interface MetricDocOptions {
+  /** Ids of this type's flagship metrics, ranked a little higher (see FEATURED_PRIOR) */
+  featured?: ReadonlySet<number>;
+}
+
+/**
+ * Search documents for one place type's metrics. The popularity prior rewards coverage, numeric
+ * columns, core statistics, columns shared by several topics, the column a topic is named after,
+ * and the flagship metrics in `options.featured`.
+ */
 export function metricDocs(
   info: EntityTypeInfo,
   metrics: readonly Metric[],
   topicTitles: ReadonlyMap<string, string>,
-  categoryLabels: ReadonlyMap<string, string>
+  categoryLabels: ReadonlyMap<string, string>,
+  options: MetricDocOptions = {}
 ): SearchDoc[] {
   const out: SearchDoc[] = [];
   const total = Math.max(1, info.entities);
+  const prefix = `${info.id}:`;
+  const subjects = new Set<string>();
+  for (const [key, title] of topicTitles)
+    if (key.startsWith(prefix)) subjects.add(topicSubject(title));
   for (const m of metrics) {
     if (!isSearchableMetric(m)) continue;
     const primary = m.topics[0];
@@ -406,7 +459,9 @@ export function metricDocs(
           (m.kind === 'num' ? 1 : 0.8) *
           (m.base === true ? 1.15 : 1) *
           // Columns shared by several topics are the canonical ones.
-          (1 + 0.06 * Math.min(5, Math.max(0, m.topics.length - 1))),
+          (1 + 0.08 * Math.min(5, Math.max(0, m.topics.length - 1))) *
+          (subjects.has(normalizeText(m.label)) ? CANONICAL_PRIOR : 1) *
+          (options.featured?.has(m.id) === true ? FEATURED_PRIOR : 1),
         flag: null,
         n: m.n,
         total,
@@ -429,30 +484,45 @@ export function topicTitleMap(
 
 /**
  * How closely the title (or an alias) matches the whole query, from strongest to weakest:
- * exact name, exact alias/code, name starts with the query, every word is a prefix of a title
- * word, anything else MiniSearch found (fuzzy, context, synonyms).
+ * exact name, exact alias/code, name starts with the query, the query appears in the name as a
+ * run of whole words ("household income" in "Median Household Income"), every word is a prefix of
+ * a title word, anything else MiniSearch found (fuzzy, context, synonyms).
  */
-export type MatchQuality = 'exact' | 'code' | 'prefix' | 'words' | 'other';
+export type MatchQuality =
+  | 'exact'
+  | 'code'
+  | 'prefix'
+  | 'phrase'
+  | 'words'
+  | 'other';
 
 /**
  * Score multipliers per match quality. Names (places, categories) reward "starts with" strongly
- * because people type them left to right; metric and topic labels are descriptive, so a label that
- * merely starts with the word is barely better than one that contains it.
+ * because people type them left to right. Metric and topic labels are descriptive: a label that
+ * contains the query as a phrase is as good as one that starts with it, and both clearly beat a
+ * label that only has the words scattered ("Median Income - Four Person Household").
  */
 const NAME_BOOST: Record<MatchQuality, number> = {
   exact: 8,
   code: 3,
   prefix: 3.2,
+  phrase: 2.2,
   words: 1.8,
   other: 1,
 };
 const LABEL_BOOST: Record<MatchQuality, number> = {
   exact: 8,
   code: 3,
-  prefix: 2.1,
-  words: 1.9,
+  prefix: 2.2,
+  phrase: 2.3,
+  words: 1.6,
   other: 1,
 };
+/**
+ * Extra multiplier for a label that ends with the query phrase. English noun phrases put the head
+ * last, so "Median Household Income" is an income while "Income Tax Bracket" is a bracket.
+ */
+const HEAD_BONUS = 1.15;
 const QUALITY_BOOST: Record<SearchKind, Record<MatchQuality, number>> = {
   place: NAME_BOOST,
   category: NAME_BOOST,
@@ -485,6 +555,7 @@ export function matchQuality(
     doc.normAliases.some((a) => a.startsWith(query) && query.length >= 3)
   )
     return 'prefix';
+  if (` ${doc.normTitle} `.includes(` ${query} `)) return 'phrase';
   if (
     tokens.length > 0 &&
     tokens.every((t) => doc.normTitleWords.some((w) => w.startsWith(t)))
@@ -493,12 +564,81 @@ export function matchQuality(
   return 'other';
 }
 
+/** True when a normalized label is, or ends with, the whole query ("… household income"). */
+function endsWithQuery(subject: string, query: string): boolean {
+  if (query === '' || !subject.endsWith(query)) return false;
+  return (
+    subject.length === query.length ||
+    subject.charAt(subject.length - query.length - 1) === ' '
+  );
+}
+
 export interface RankedResult {
   doc: SearchDoc;
   score: number;
   quality: MatchQuality;
   /** Document terms that matched, for highlighting */
   terms: string[];
+  /**
+   * Lower-ranked metrics of the same place type with the same label (the "Hourly Mean Wage"
+   * column of several occupation topics), folded into this result so they do not crowd the list.
+   */
+  variants: SearchDoc[];
+}
+
+/** Result order: exact name matches always lead, then the blended score, then the title. */
+function byRank(a: RankedResult, b: RankedResult): number {
+  const exact = Number(b.quality === 'exact') - Number(a.quality === 'exact');
+  if (exact !== 0) return exact;
+  if (b.score !== a.score) return b.score - a.score;
+  return a.doc.title.localeCompare(b.doc.title);
+}
+
+/** Score multiplier applied once more for each earlier metric from the same topic. */
+const TOPIC_REPEAT = 0.85;
+
+/**
+ * Lowers each further metric from a topic that already placed one (score × 0.85 per earlier
+ * sibling), so one topic's breakdown columns ("Median Income - One/Two/… Person Household") do not
+ * bury other topics' headline metrics. `ranked` must be in rank order; re-sort the result.
+ */
+export function spreadTopics(ranked: readonly RankedResult[]): RankedResult[] {
+  const seen = new Map<string, number>();
+  return ranked.map((r) => {
+    const target = r.doc.target;
+    if (target.kind !== 'metric' || target.topic == null) return r;
+    const key = `${target.type}:${target.topic}`;
+    const earlier = seen.get(key) ?? 0;
+    seen.set(key, earlier + 1);
+    return earlier === 0
+      ? r
+      : { ...r, score: r.score * TOPIC_REPEAT ** earlier };
+  });
+}
+
+/**
+ * Folds metrics that share a place type and a label into the best-ranked one (its `variants`), so
+ * a label that many topics repeat takes one row. `ranked` must already be in rank order.
+ */
+export function foldSameLabel(ranked: readonly RankedResult[]): RankedResult[] {
+  const out: RankedResult[] = [];
+  const leaders = new Map<string, RankedResult>();
+  for (const r of ranked) {
+    if (r.doc.kind !== 'metric') {
+      out.push(r);
+      continue;
+    }
+    const key = `${r.doc.type ?? ''}:${r.doc.normTitle}`;
+    const leader = leaders.get(key);
+    if (leader != null) {
+      leader.variants.push(r.doc);
+      continue;
+    }
+    const copy = { ...r, variants: [...r.variants] };
+    leaders.set(key, copy);
+    out.push(copy);
+  }
+  return out;
 }
 
 export interface SearchOptions {
@@ -669,22 +809,28 @@ export class SearchIndex {
       const doc = this.docs.get(String(h.id));
       if (doc == null) continue;
       const quality = matchQuality(doc, q.text, q.tokens);
+      const head =
+        (doc.kind === 'metric' || doc.kind === 'topic') &&
+        quality !== 'exact' &&
+        endsWithQuery(doc.normSubject, q.text)
+          ? HEAD_BONUS
+          : 1;
       out.push({
         doc,
         quality,
-        score: h.score * QUALITY_BOOST[doc.kind][quality] * doc.prior * penalty,
+        score:
+          h.score *
+          QUALITY_BOOST[doc.kind][quality] *
+          head *
+          doc.prior *
+          penalty,
         terms: h.terms,
+        variants: [],
       });
     }
-    // Exact name matches always lead; everything else is ordered by the blended score.
-    out.sort((a, b) => {
-      const exact =
-        Number(b.quality === 'exact') - Number(a.quality === 'exact');
-      if (exact !== 0) return exact;
-      if (b.score !== a.score) return b.score - a.score;
-      return a.doc.title.localeCompare(b.doc.title);
-    });
-    return opts.limit != null ? out.slice(0, opts.limit) : out;
+    out.sort(byRank);
+    const ranked = spreadTopics(foldSameLabel(out)).sort(byRank);
+    return opts.limit != null ? ranked.slice(0, opts.limit) : ranked;
   }
 
   /** "Did you mean" for queries with no results: the best fuzzy completion, if any. */

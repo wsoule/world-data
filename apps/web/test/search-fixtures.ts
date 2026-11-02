@@ -6,6 +6,10 @@ import { join } from 'node:path';
 
 import type { Entity, Manifest, Metric, TopicSummary } from '../src/data/types';
 import {
+  featuredMetricIds,
+  featuredTopicKeys,
+} from '../src/features/home/presets';
+import {
   categoryDocs,
   categoryLabelMap,
   metricDocs,
@@ -31,7 +35,10 @@ export function loadFullIndex(): SearchIndex {
   const titles = topicTitleMap(topics);
   const cats = categoryLabelMap(manifest);
   index.add('categories', categoryDocs(manifest));
-  index.add('topics', topicDocs(topics, manifest));
+  index.add(
+    'topics',
+    topicDocs(topics, manifest, { featured: featuredTopicKeys() })
+  );
   for (const info of manifest.types) {
     index.add(
       `places:${info.id}`,
@@ -39,7 +46,15 @@ export function loadFullIndex(): SearchIndex {
     );
     index.add(
       `metrics:${info.id}`,
-      metricDocs(info, read<Metric[]>(`${info.id}/metrics.json`), titles, cats)
+      metricDocs(
+        info,
+        read<Metric[]>(`${info.id}/metrics.json`),
+        titles,
+        cats,
+        {
+          featured: featuredMetricIds(info.id),
+        }
+      )
     );
   }
   cached = index;

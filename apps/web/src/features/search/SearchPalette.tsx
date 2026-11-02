@@ -27,6 +27,7 @@ import {
   TargetLink,
   TYPE_SHORT,
   useOpenTarget,
+  variantsFact,
 } from './results';
 import {
   groupResults,
@@ -106,7 +107,13 @@ function optionId(listId: string, key: string): string {
 }
 
 type Row =
-  | { key: string; item: ResultLike; terms: readonly string[] }
+  | {
+      key: string;
+      item: ResultLike;
+      terms: readonly string[];
+      /** Same-label metrics folded into this one */
+      variants: number;
+    }
   | { key: string; seeAll: string };
 
 interface Section {
@@ -171,6 +178,7 @@ function PaletteDialog() {
             key: `recent-${r.id}`,
             item: r,
             terms: [],
+            variants: 0,
           })),
         });
       const seen = new Set(recent.map((r) => r.id));
@@ -182,6 +190,7 @@ function PaletteDialog() {
           key: `suggested-${s.id}`,
           item: s,
           terms: [],
+          variants: 0,
         })),
       });
       return out;
@@ -195,6 +204,7 @@ function PaletteDialog() {
         key: r.doc.id,
         item: r.doc,
         terms: r.terms,
+        variants: r.variants.length,
       })),
     }));
     if (out.length > 0)
@@ -501,6 +511,7 @@ function PaletteDialog() {
                         id={id}
                         item={row.item}
                         terms={row.terms}
+                        variants={row.variants}
                         query={trimmed}
                         active={isActive}
                         onHover={() => setActive(i)}
@@ -575,6 +586,7 @@ function ResultRow({
   id,
   item,
   terms,
+  variants,
   query,
   active,
   onHover,
@@ -583,12 +595,15 @@ function ResultRow({
   id: string;
   item: ResultLike;
   terms: readonly string[];
+  variants: number;
   query: string;
   active: boolean;
   onHover: () => void;
   onPick: () => void;
 }) {
   const facts = 'normTitle' in item ? resultFacts(item) : [];
+  const more = variantsFact(variants);
+  if (more != null) facts.push(more);
   return (
     <TargetLink
       target={item.target}

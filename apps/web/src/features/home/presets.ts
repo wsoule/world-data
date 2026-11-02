@@ -96,6 +96,17 @@ export const HOME_PRESETS: readonly HomePreset[] = [
   },
 ];
 
+/**
+ * Ids of the metrics the home presets compare for one place type. These are the site's flagship
+ * statistics (median household income, GDP per capita…), which search ranks a little higher.
+ */
+export function featuredMetricIds(type: CompareSearch['type']): Set<number> {
+  const ids = new Set<number>();
+  for (const p of HOME_PRESETS)
+    if (p.search.type === type) for (const id of p.search.m) ids.add(id);
+  return ids;
+}
+
 /** Curated well-known topics for the "Popular topics" list (type + slug). */
 export const POPULAR_TOPICS: readonly {
   type: CompareSearch['type'];
@@ -112,3 +123,8 @@ export const POPULAR_TOPICS: readonly {
   { type: 'state', slug: 'most-educated-states' },
   { type: 'country', slug: 'average-iq-by-country' },
 ];
+
+/** "type:slug" keys of the popular topics, which search also ranks a little higher. */
+export function featuredTopicKeys(): Set<string> {
+  return new Set(POPULAR_TOPICS.map((t) => `${t.type}:${t.slug}`));
+}

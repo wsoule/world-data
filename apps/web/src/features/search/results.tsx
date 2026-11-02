@@ -277,5 +277,11 @@ export function resultFacts(doc: SearchDoc): string[] {
   return facts;
 }
 
+/** "also in 3 other topics" for a metric whose same-label siblings were folded into it. */
+export function variantsFact(count: number): string | null {
+  if (count <= 0) return null;
+  return `also in ${count.toLocaleString('en-US')} other ${count === 1 ? 'topic' : 'topics'}`;
+}
+
 /** Shape shared by live results and stored recents. */
 export type ResultLike = SearchDoc | RecentItem;
