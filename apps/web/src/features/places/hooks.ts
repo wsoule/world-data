@@ -49,6 +49,12 @@ export function useElementWidth<T extends HTMLElement>(): [
  * Row virtualization for a <table> inside a scroll container: returns the row indexes to render
  * plus spacer heights for the rows above and below the window. Below `threshold` rows every row
  * renders and no spacers are needed.
+ *
+ * `scrollable` says whether the list is long enough to live in a fixed-height scroll container.
+ * It depends only on `count`, so it is the same on the server and in the browser. Pass
+ * `active: false` while server rendering and hydrating (see `useHydrated`): nothing can be
+ * measured yet, so the first `staticLimit` rows render in full instead, which puts real rows
+ * and links in the prerendered HTML.
  */
 export function useVirtualRows({
   count,
@@ -56,14 +62,19 @@ export function useVirtualRows({
   scrollRef,
   threshold = 120,
   getKey,
+  active = true,
+  staticLimit = Infinity,
 }: {
   count: number;
   rowHeight: number;
   scrollRef: RefObject<HTMLElement | null>;
   threshold?: number;
   getKey: (index: number) => string;
+  active?: boolean;
+  staticLimit?: number;
 }) {
-  const enabled = count > threshold;
+  const scrollable = count > threshold;
+  const enabled = active && scrollable;
   const virtualizer = useVirtualizer({
     count: enabled ? count : 0,
     getScrollElement: () => scrollRef.current,
@@ -74,7 +85,11 @@ export function useVirtualRows({
   if (!enabled)
     return {
       enabled,
-      indexes: Array.from({ length: count }, (_, i) => i),
+      scrollable,
+      indexes: Array.from(
+        { length: scrollable ? Math.min(count, staticLimit) : count },
+        (_, i) => i
+      ),
       padTop: 0,
       padBottom: 0,
     };
@@ -84,5 +99,11 @@ export function useVirtualRows({
     items.length > 0
       ? virtualizer.getTotalSize() - items[items.length - 1].end
       : 0;
-  return { enabled, indexes: items.map((it) => it.index), padTop, padBottom };
+  return {
+    enabled,
+    scrollable,
+    indexes: items.map((it) => it.index),
+    padTop,
+    padBottom,
+  };
 }

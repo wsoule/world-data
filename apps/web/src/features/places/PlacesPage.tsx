@@ -71,6 +71,11 @@ const features = tableFeatures({
 const helper = createColumnHelper<typeof features, PlaceRow>();
 
 const ROW_HEIGHT = 48;
+/**
+ * Rows rendered before hydration, when the list cannot be virtualized yet. They put real
+ * rows and links in the prerendered HTML; longer lists show the most populous ones.
+ */
+const STATIC_ROWS = 400;
 /** Typing settles for this long before the text filter is written to the URL. */
 const QUERY_URL_DELAY = 300;
 /** Group chips shown before "Show all" for types with many groups (world cities by country). */
@@ -245,7 +250,8 @@ function buildRecords(dataset: Dataset): RecordRow[] {
 /**
  * Searchable, sortable, virtualized table of every place of the type. The filter, group chips
  * and sort live in the URL (replacing the history entry), so they survive Back from a place.
- * The server and the hydrating render use the defaults; URL state applies once hydrated.
+ * The server and the hydrating render use the defaults and render the first `STATIC_ROWS`
+ * rows in full; URL state and virtualization apply once hydrated.
  */
 function PlacesTable({ dataset }: { dataset: Dataset }) {
   const type = dataset.type.id;
@@ -471,6 +477,8 @@ function PlacesTable({ dataset }: { dataset: Dataset }) {
     rowHeight: ROW_HEIGHT,
     scrollRef,
     getKey: (i) => rows[i]?.id ?? String(i),
+    active: hydrated,
+    staticLimit: STATIC_ROWS,
   });
 
   const toggleGroup = (g: string) => {
@@ -548,7 +556,7 @@ function PlacesTable({ dataset }: { dataset: Dataset }) {
           ref={scrollRef}
           className={cx(
             'border-app overflow-auto border-t',
-            virtual.enabled && 'max-h-[70vh]'
+            virtual.scrollable && 'max-h-[70vh]'
           )}
           role="region"
           aria-label={`${dataset.type.label} table`}
@@ -618,6 +626,12 @@ function PlacesTable({ dataset }: { dataset: Dataset }) {
             </p>
           ) : null}
         </div>
+        {!virtual.enabled && rows.length > virtual.indexes.length ? (
+          <p className="border-app text-muted border-t px-4 py-2.5 text-xs">
+            Showing the {formatInt(virtual.indexes.length)} most populous of{' '}
+            {formatInt(rows.length)} {noun}. Search or sort to find the rest.
+          </p>
+        ) : null}
       </div>
     </Card>
   );
