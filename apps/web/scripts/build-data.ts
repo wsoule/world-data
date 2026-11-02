@@ -885,6 +885,28 @@ const METRIC_FIXES: Record<
   'state:23931': { label: 'Gas Tax ($/gallon)', unit: '$/gallon' },
 };
 
+/**
+ * Metric id → slugs of the topics where that metric has at least one value.
+ * A column can appear on a page with nothing but "no data" placeholders:
+ * "States without NBA Teams" lists 29 states whose only cell, "NBA Teams",
+ * is "-" on every row. Such a column is left off that topic, and a topic
+ * left with no metric is not published, since it has no value to show.
+ */
+function topicsWithValues(
+  topics: readonly TopicAcc[]
+): Map<number, Set<string>> {
+  const out = new Map<number, Set<string>>();
+  for (const t of topics) {
+    for (const [id, byYear] of t.series) {
+      if (![...byYear.values()].some((store) => store.size > 0)) continue;
+      const set = out.get(id) ?? new Set<string>();
+      set.add(t.slug);
+      out.set(id, set);
+    }
+  }
+  return out;
+}
+
 /** Writes every output file for one entity type and returns its manifest entry. */
 async function writeType(
   prefix: Prefix,
@@ -929,6 +951,7 @@ async function writeType(
   // Metric catalog and default-year values.
   const topicSizes = new Map(D.topics.map((t) => [t.slug, t.metrics.length]));
   const topicRows = new Map(D.topics.map((t) => [t.slug, t.entityIds.length]));
+  const withValues = topicsWithValues(D.topics);
   const metricsOut: Metric[] = [];
   const values: ValuesFile['metrics'] = [];
   for (const m of D.metrics.values()) {
@@ -956,15 +979,18 @@ async function writeType(
     // Primary topic: the page whose title best matches the metric (dedicated
     // "…-by-country" pages over listicles), then the one covering the most
     // places (global over regional subsets), then the most focused one.
-    const topics = [...m.topics].sort((a, b) =>
-      firstNonZero(
-        Math.sign(topicFit(label, m.key, b) - topicFit(label, m.key, a)),
-        (topicRows.get(b) ?? 0) - (topicRows.get(a) ?? 0),
-        (topicSizes.get(a) ?? 99) - (topicSizes.get(b) ?? 99),
-        a.length - b.length,
-        a.localeCompare(b)
-      )
-    );
+    const ownTopics = withValues.get(m.id) ?? new Set<string>();
+    const topics = [...m.topics]
+      .filter((s) => ownTopics.has(s))
+      .sort((a, b) =>
+        firstNonZero(
+          Math.sign(topicFit(label, m.key, b) - topicFit(label, m.key, a)),
+          (topicRows.get(b) ?? 0) - (topicRows.get(a) ?? 0),
+          (topicSizes.get(a) ?? 99) - (topicSizes.get(b) ?? 99),
+          a.length - b.length,
+          a.localeCompare(b)
+        )
+      );
     const cats = new Set<string>();
     for (const s of topics)
       for (const c of categories.get(`${T.id}:${s}`) ?? []) cats.add(c);
@@ -1098,7 +1124,9 @@ async function writeType(
   const metricSet = new Set(metricsOut.map((m) => m.id));
   let topicCount = 0;
   for (const t of D.topics) {
-    const metrics = t.metrics.filter((id) => metricSet.has(id));
+    const shown = (id: number) =>
+      metricSet.has(id) && withValues.get(id)?.has(t.slug) === true;
+    const metrics = t.metrics.filter(shown);
     if (metrics.length === 0 || t.entityIds.length === 0) continue;
     const series: TopicFile['series'] = {};
     for (const id of metrics) {
@@ -1130,7 +1158,7 @@ async function writeType(
       tables: t.tables
         .map((tb) => ({
           name: tb.name,
-          metrics: tb.metrics.filter((id) => metricSet.has(id)),
+          metrics: tb.metrics.filter(shown),
         }))
         .filter((tb) => tb.metrics.length > 0),
       metrics,

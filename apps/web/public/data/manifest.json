@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-02T23:51:25.847Z",
+  "generatedAt": "2026-11-02T23:52:28.420Z",
   "source": "https://worldpopulationreview.com",
   "types": [
     {
@@ -20,7 +20,7 @@
       "entities": 51,
       "metrics": 4177,
       "numericMetrics": 2606,
-      "topics": 1258
+      "topics": 1257
     },
     {
       "id": "city",
@@ -142,7 +142,7 @@
     {
       "id": "sports",
       "label": "Sports",
-      "topics": 79
+      "topics": 78
     },
     {
       "id": "tech-business",
