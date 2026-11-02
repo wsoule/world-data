@@ -1,12 +1,14 @@
-// Loads metric catalogs for the search index. A catalog the page already has (TanStack Query cache)
-// is used as is; otherwise catalog.worker.ts downloads and parses it off the main thread. Browsers
-// without module workers, and any worker failure, fall back to the normal query fetch.
+// Loads metric catalogs for the search index. A full catalog the page already has (TanStack Query
+// cache) is used as is; otherwise catalog.worker.ts downloads and decodes the compact search
+// catalog (<type>/search.json) off the main thread. Browsers without module workers, and any
+// worker failure, fall back to fetching the same compact file on the main thread.
 
-import type { QueryClient } from '@tanstack/react-query';
+import { type QueryClient, queryOptions } from '@tanstack/react-query';
 
+import { fromSearchCatalog } from './searchCatalog';
 import type { SearchMetric } from './searchMetric';
 import { metricsQuery } from '~/data/api';
-import type { EntityType } from '~/data/types';
+import type { EntityType, SearchCatalog } from '~/data/types';
 
 export interface CatalogRequest {
   id: number;
@@ -67,22 +69,41 @@ function viaWorker(w: Worker, url: string): Promise<SearchMetric[]> {
   });
 }
 
+/** Absolute URL of one place type's compact search catalog. */
+function searchCatalogUrl(type: EntityType): string {
+  return new URL(
+    `${import.meta.env.BASE_URL}data/${type}/search.json`,
+    window.location.href
+  ).href;
+}
+
+/** The compact search catalog fetched and decoded on the main thread (the no-worker fallback). */
+const searchCatalogQuery = (type: EntityType) =>
+  queryOptions({
+    queryKey: ['search-catalog', type],
+    queryFn: async (): Promise<SearchMetric[]> => {
+      const url = searchCatalogUrl(type);
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`Failed to load ${url} (${res.status})`);
+      return fromSearchCatalog((await res.json()) as SearchCatalog);
+    },
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
+
 /**
  * The searchable fields of one place type's metric catalog: from the query cache when a page
- * already loaded it, else from the worker, else (no worker, or it failed) from a normal fetch.
+ * already loaded the full catalog, else the compact search catalog from the worker, else (no
+ * worker, or it failed) from a main-thread fetch of the same file.
  */
 export function loadSearchMetrics(
   qc: QueryClient,
   type: EntityType
 ): Promise<readonly SearchMetric[]> {
-  const query = metricsQuery(type);
-  const cached = qc.getQueryData(query.queryKey);
+  const cached = qc.getQueryData(metricsQuery(type).queryKey);
   if (cached != null) return Promise.resolve(cached);
+  const fallback = () => qc.ensureQueryData(searchCatalogQuery(type));
   const w = catalogWorker();
-  if (w == null) return qc.ensureQueryData(query);
-  const url = new URL(
-    `${import.meta.env.BASE_URL}data/${type}/metrics.json`,
-    window.location.href
-  ).href;
-  return viaWorker(w, url).catch(() => qc.ensureQueryData(query));
+  if (w == null) return fallback();
+  return viaWorker(w, searchCatalogUrl(type)).catch(fallback);
 }

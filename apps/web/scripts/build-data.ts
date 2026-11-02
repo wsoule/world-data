@@ -8,6 +8,7 @@
 //   topics.json                 every topic (source page) with its metric ids
 //   <type>/entities.json        the places of that type, population-descending
 //   <type>/metrics.json         metric catalog (label, format, years, polarity, topics)
+//   <type>/search.json          searchable metrics, compacted for the search palette
 //   <type>/values.json          default-year value of every metric, sparse
 //   <type>/topics/<slug>.json   one topic: sources, tables, every year of its metrics
 //
@@ -30,6 +31,7 @@ import type {
   TopicSummary,
   ValuesFile,
 } from '../src/data/types';
+import { toSearchCatalog } from '../src/features/search/searchCatalog';
 import { parseInlineData, parseIslands } from './lib/astro';
 import {
   collapseRepeatedWords,
@@ -1190,6 +1192,10 @@ async function writeType(
 
   await writeFile(path.join(dir, 'entities.json'), JSON.stringify(entitiesOut));
   await writeFile(path.join(dir, 'metrics.json'), JSON.stringify(metricsOut));
+  await writeFile(
+    path.join(dir, 'search.json'),
+    JSON.stringify(toSearchCatalog(metricsOut))
+  );
   const valuesFile: ValuesFile = {
     entityCount: entitiesOut.length,
     metrics: values,

@@ -91,6 +91,33 @@ export interface Metric {
   cats_values?: string[];
 }
 
+/**
+ * One searchable metric in search.json: [id, label, n, topic indexes, category indexes, unit,
+ * year, flags]. Indexes point into SearchCatalog.topics / .cats; flags: 1 = categorical (else
+ * numeric), 2 = synthetic base metric.
+ */
+export type SearchCatalogRow = [
+  number,
+  string,
+  number,
+  number[],
+  number[],
+  string | null,
+  number | null,
+  number,
+];
+
+/**
+ * <type>/search.json: the metrics the search palette can find (numeric or categorical, with
+ * values, not bookkeeping columns), reduced to the fields search reads. Topic slugs and category
+ * ids are listed once and referenced by index.
+ */
+export interface SearchCatalog {
+  topics: string[];
+  cats: string[];
+  metrics: SearchCatalogRow[];
+}
+
 /** values.json: default-year values, sparse: [metricId, entityIndexes, values] */
 export interface ValuesFile {
   entityCount: number;
