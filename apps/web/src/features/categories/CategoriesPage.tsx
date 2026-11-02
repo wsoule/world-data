@@ -11,6 +11,7 @@ import {
   typeColors,
 } from './CategoryMixChart';
 import { type CategorySummary, summarizeCategories } from './categoryStats';
+import { TYPE_ICONS } from '~/components/TypeTabs';
 import { Badge, Card, cx, PageHeader } from '~/components/ui';
 import { manifestQuery, topicsIndexQuery } from '~/data/api';
 import { ENTITY_TYPES } from '~/data/types';
@@ -81,6 +82,40 @@ export function CategoriesPage() {
           <CategoryCard key={s.id} summary={s} colors={colors} />
         ))}
       </div>
+
+      <h2 className="mt-10 mb-1 text-lg font-semibold tracking-tight">
+        Browse by place
+      </h2>
+      <p className="text-muted mb-3 text-sm">
+        Every country, state, city and county, with its profile and rankings.
+      </p>
+      <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        {manifest.types.map((t) => {
+          const Icon = TYPE_ICONS[t.id];
+          return (
+            <li key={t.id}>
+              <Link
+                to="/places/$type"
+                params={{ type: t.id }}
+                className="card group hover:border-accent-300 dark:hover:border-accent-700 flex h-full items-center gap-3 p-3 transition-colors"
+              >
+                <span className="bg-surface-2 text-accent-600 dark:text-accent-300 grid size-9 shrink-0 place-items-center rounded-xl">
+                  <Icon className="size-5" aria-hidden />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="group-hover:text-accent-700 dark:group-hover:text-accent-300 block truncate font-semibold">
+                    {t.label}
+                  </span>
+                  <span className="text-muted tabular block truncate text-xs">
+                    {t.entities.toLocaleString('en-US')} places ·{' '}
+                    {t.topics.toLocaleString('en-US')} topics
+                  </span>
+                </span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }
