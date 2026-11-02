@@ -308,6 +308,19 @@ export function leaderInsight(
   };
 }
 
+/**
+ * Why a surprise happens. `standouts`: a few very strong metrics pull its average above its
+ * typical metric (mean well above median). `weak-spots`: a few very weak metrics pull it below.
+ * `consistent`: no metric carries it; it ranks above its typical metric because places ahead of
+ * it metric by metric have weak spots. `uneven-rivals`: the mirror, places behind it metric by
+ * metric have standout metrics that lift them past it.
+ */
+export type SurpriseReason =
+  | 'standouts'
+  | 'weak-spots'
+  | 'consistent'
+  | 'uneven-rivals';
+
 export interface Surprise {
   idx: number;
   combinedRank: number;
@@ -315,21 +328,59 @@ export interface Surprise {
   medianRank: number;
   /** medianRank − combinedRank: positive = does better combined than metric by metric */
   delta: number;
+  /**
+   * Weighted mean minus median of the place's normalised metric scores (the parts the combined
+   * score averages): clearly positive when standouts lift it, clearly negative when weak spots
+   * drag it, near zero for a balanced profile.
+   */
+  skew: number;
+  reason: SurpriseReason;
+}
+
+/**
+ * How far mean and median of a place's normalised scores must differ before a few metrics are
+ * said to carry (or drag) it: 5 points on the 0–100 scales, 0.2 standard deviations for z-scores.
+ */
+export function skewThreshold(method: Normalization): number {
+  return method === 'zscore' ? 0.2 : 5;
+}
+
+/** Weighted mean minus median of one place's normalised scores on the active metrics. */
+function partsSkew(
+  parts: readonly Float64Array[],
+  inputs: readonly RankingInput[],
+  idx: number
+): number {
+  const vals: number[] = [];
+  let wsum = 0;
+  let acc = 0;
+  for (let k = 0; k < parts.length; k++) {
+    const w = inputs[k].weight;
+    const v = parts[k][idx];
+    if (w <= 0 || !Number.isFinite(v)) continue;
+    vals.push(v);
+    wsum += w;
+    acc += w * v;
+  }
+  if (vals.length === 0 || wsum <= 0) return 0;
+  vals.sort((a, b) => a - b);
+  return acc / wsum - quantileSorted(vals, 0.5);
 }
 
 /**
  * "Biggest surprise": the scored place whose combined rank differs most from its median
- * single-metric rank — usually an all-rounder with no standout metric, or a place carried by one
- * or two extreme metrics. Ties prefer the better combined rank.
+ * single-metric rank. Ties prefer the better combined rank. The reason says whether a few extreme
+ * metrics explain the gap or the place is simply more (or less) balanced than its rivals.
  */
 export function biggestSurprise(
   base: RankingResult,
   stats: readonly MetricStats[],
-  inputs: readonly RankingInput[]
+  inputs: readonly RankingInput[],
+  method: Normalization = 'percentile'
 ): Surprise | null {
   const active = stats.filter((_, k) => inputs[k].weight > 0);
   if (active.length < 2) return null;
-  let best: Surprise | null = null;
+  let best: Omit<Surprise, 'skew' | 'reason'> | null = null;
   const ranks: number[] = [];
   for (const idx of base.order) {
     ranks.length = 0;
@@ -343,7 +394,18 @@ export function biggestSurprise(
     if (best == null || Math.abs(delta) > Math.abs(best.delta))
       best = { idx, combinedRank, medianRank, delta };
   }
-  return best != null && Math.abs(best.delta) >= 1 ? best : null;
+  if (best == null || Math.abs(best.delta) < 1) return null;
+  const skew = partsSkew(base.composite.parts, inputs, best.idx);
+  const t = skewThreshold(method);
+  const reason: SurpriseReason =
+    best.delta > 0
+      ? skew > t
+        ? 'standouts'
+        : 'consistent'
+      : skew < -t
+        ? 'weak-spots'
+        : 'uneven-rivals';
+  return { ...best, skew, reason };
 }
 
 /** Score formatting: 0–100 scales get one decimal, z-scores a signed two-decimal value. */

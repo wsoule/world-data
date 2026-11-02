@@ -120,8 +120,8 @@ export function useRanking(props: CompareViewProps): RankingModel {
     [base, stats, inputs]
   );
   const surprise = useMemo(
-    () => biggestSurprise(base, stats, inputs),
-    [base, stats, inputs]
+    () => biggestSurprise(base, stats, inputs, method),
+    [base, stats, inputs, method]
   );
   const labels = useMemo(
     () => uniqueLabels(dataset, metrics),

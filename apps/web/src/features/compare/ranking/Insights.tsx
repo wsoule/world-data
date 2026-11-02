@@ -3,7 +3,7 @@ import { useMemo } from 'react';
 
 import type { CompareViewProps } from '../state';
 import { percentileScale, percentileStops } from './colors';
-import { formatScore, type MetricStanding } from './model';
+import { formatScore, type MetricStanding, type SurpriseReason } from './model';
 import { PlaceLink } from './PlaceLink';
 import type { RankingModel } from './useRanking';
 import { midSentence } from './words';
@@ -11,15 +11,18 @@ import { Card } from '~/components/ui';
 import { formatValue, ordinal } from '~/lib/format';
 import { useTheme } from '~/lib/theme';
 
-/** One metric line: label, place's value, rank and a percentile pill. */
+/** One metric line: label, place's value, rank and a percentile pill, with an optional tag. */
 function StandingRow({
   standing,
   idx,
   model,
+  tag,
 }: {
   standing: MetricStanding;
   idx: number;
   model: RankingModel;
+  /** Short role shown above the label ("Strongest", "Weakest") */
+  tag?: string;
 }) {
   const theme = useTheme();
   const scale = useMemo(() => percentileScale(theme), [theme]);
@@ -44,6 +47,11 @@ function StandingRow({
         {Math.round(standing.pct)}
       </span>
       <span className="min-w-0 flex-1">
+        {tag != null ? (
+          <span className="text-muted block text-[10px] font-semibold tracking-wide uppercase">
+            {tag}
+          </span>
+        ) : null}
         <span className="block truncate text-sm leading-snug" title={label}>
           {label}
         </span>
@@ -174,6 +182,45 @@ export function WhyFirstCard({
   );
 }
 
+/** Plain-English explanation for each kind of surprise (see SurpriseReason). */
+const SURPRISE_TEXT: Record<SurpriseReason, string> = {
+  standouts: 'A few standout metrics lift it well above its usual position.',
+  'weak-spots': 'A few weak metrics drag it well below its usual position.',
+  consistent:
+    'No single metric carries it. It climbs because places that beat it on individual metrics tend to have weak spots that pull their combined scores down.',
+  'uneven-rivals':
+    'No single weak metric drags it down. It slips because places it beats on individual metrics tend to have standout strengths that lift their combined scores past it.',
+};
+
+/**
+ * Metrics to list under the explanation, from the place's standings sorted best first: the top
+ * two for standouts, the bottom two (worst first) for weak spots, otherwise its strongest and
+ * weakest metric, labelled, to show how even its profile is.
+ */
+function surpriseEvidence(
+  reason: SurpriseReason,
+  sorted: readonly MetricStanding[]
+): { standing: MetricStanding; tag: string }[] {
+  if (sorted.length === 0) return [];
+  if (reason === 'standouts')
+    return sorted
+      .slice(0, 2)
+      .map((standing) => ({ standing, tag: 'Lifts it' }));
+  if (reason === 'weak-spots')
+    return sorted
+      .slice(-2)
+      .reverse()
+      .map((standing) => ({ standing, tag: 'Drags it' }));
+  const strongest = sorted[0];
+  const weakest = sorted[sorted.length - 1];
+  return weakest === strongest
+    ? [{ standing: strongest, tag: 'Strongest' }]
+    : [
+        { standing: strongest, tag: 'Strongest' },
+        { standing: weakest, tag: 'Weakest' },
+      ];
+}
+
 /** "Biggest surprise": the place whose combined rank differs most from its typical metric rank. */
 export function SurpriseCard({
   props,
@@ -186,8 +233,9 @@ export function SurpriseCard({
   const { surprise, stats, inputs, entityIdx } = model;
   const singular = midSentence(dataset.type.singular);
 
-  // The place's best and worst active metrics, as evidence for the explanation.
-  const extremes = useMemo(() => {
+  // Evidence for the explanation: the metrics that lift it (standouts), the ones that drag it
+  // (weak spots), or its strongest and weakest metric to show how balanced it is.
+  const evidence = useMemo(() => {
     if (surprise == null) return null;
     const standings: MetricStanding[] = [];
     stats.forEach((s, k) => {
@@ -201,12 +249,12 @@ export function SurpriseCard({
         });
     });
     standings.sort((a, b) => b.pct - a.pct);
-    return { best: standings[0], worst: standings[standings.length - 1] };
+    return surpriseEvidence(surprise.reason, standings);
   }, [surprise, stats, inputs]);
 
   return (
     <Card title="Biggest surprise">
-      {surprise == null || extremes == null ? (
+      {surprise == null || evidence == null ? (
         <p className="text-muted text-sm">
           No surprises: every {singular} ranks about where its individual
           metrics put it.
@@ -237,25 +285,18 @@ export function SurpriseCard({
             </div>
           </div>
           <p className="text-muted mt-3 text-sm">
-            {surprise.delta > 0
-              ? 'A few standout metrics lift it well above its usual position.'
-              : 'A few weak metrics drag it well below its usual position.'}
+            {SURPRISE_TEXT[surprise.reason]}
           </p>
           <ul className="mt-2">
-            {extremes.best != null ? (
+            {evidence.map(({ standing, tag }) => (
               <StandingRow
-                standing={extremes.best}
+                key={standing.id}
+                standing={standing}
                 idx={surprise.idx}
                 model={model}
+                tag={tag}
               />
-            ) : null}
-            {extremes.worst != null && extremes.worst !== extremes.best ? (
-              <StandingRow
-                standing={extremes.worst}
-                idx={surprise.idx}
-                model={model}
-              />
-            ) : null}
+            ))}
           </ul>
         </>
       )}

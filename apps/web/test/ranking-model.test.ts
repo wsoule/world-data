@@ -182,6 +182,27 @@ describe('insights', () => {
     expect(s?.combinedRank).toBe(2);
     expect(s?.medianRank).toBe(4);
     expect(s?.delta).toBe(2);
+    // Percentiles 25, 25, 100: the mean sits far above the median, so standouts explain it.
+    expect(s?.reason).toBe('standouts');
+    expect(s?.skew).toBe(25);
+  });
+
+  test('biggestSurprise calls a balanced place consistent, not carried by standouts', () => {
+    // E is 3rd of 6 on every metric. A–D each take 1st, 2nd, 5th and 6th once, so their weak
+    // spots pull them below E: E is 1st combined with a median rank of 3 and no standout.
+    //               A  B  C  D  E  F
+    const even = [
+      input(1, [6, 5, 2, 1, 4, 3]),
+      input(2, [1, 6, 5, 2, 4, 3]),
+      input(3, [2, 1, 6, 5, 4, 3]),
+      input(4, [5, 2, 1, 6, 4, 3]),
+    ];
+    const res = computeRanking(even, 6, 'percentile', 0.5);
+    const s = biggestSurprise(res, metricStats(even), even);
+    expect(s?.idx).toBe(4);
+    expect(s?.combinedRank).toBe(1);
+    expect(s?.delta).toBe(2);
+    expect(s?.reason).toBe('consistent');
   });
 
   test('biggestSurprise is null when every place ranks as its metrics suggest', () => {
