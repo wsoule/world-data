@@ -37,9 +37,35 @@ const loadJson = createIsomorphicFn()
   })
   .client(async (path: string): Promise<unknown> => {
     const res = await fetch(`${BASE}/${path}`);
-    if (!res.ok) throw new Error(`Failed to load ${path} (${res.status})`);
+    if (!res.ok) throw new DataFileError(path, res.status);
     return (await res.json()) as unknown;
   });
+
+/** A dataset file the server answered with an error status. */
+export class DataFileError extends Error {
+  constructor(
+    readonly path: string,
+    readonly status: number
+  ) {
+    super(`Failed to load ${path} (${status})`);
+    this.name = 'DataFileError';
+  }
+}
+
+/**
+ * React Query retry policy: up to three retries for network failures and
+ * server errors, none for 4xx answers. A missing file (an unknown topic slug)
+ * will not appear on retry, and retrying would delay the 404 view by seconds.
+ */
+export function shouldRetry(failureCount: number, error: unknown): boolean {
+  if (
+    error instanceof DataFileError &&
+    error.status >= 400 &&
+    error.status < 500
+  )
+    return false;
+  return failureCount < 3;
+}
 
 async function getJson<T>(path: string): Promise<T> {
   return (await loadJson(path)) as T;

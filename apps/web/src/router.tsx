@@ -3,6 +3,7 @@ import { createRouter } from '@tanstack/react-router';
 
 import { NotFound, PageSpinner } from './components/feedback';
 import { RouteError } from './components/RouteError';
+import { shouldRetry } from './data/api';
 import { routeTree } from './routeTree.gen';
 
 /**
@@ -14,9 +15,13 @@ export function getRouter() {
   const queryClient = new QueryClient({
     defaultOptions: {
       // Dataset files are static, so they never go stale; a failed download is
-      // retried three times with backoff (1s, 2s, 4s) before the route shows
-      // its error view.
-      queries: { staleTime: Infinity, refetchOnWindowFocus: false, retry: 3 },
+      // retried up to three times with backoff (1s, 2s, 4s) before the route
+      // shows its error view.
+      queries: {
+        staleTime: Infinity,
+        refetchOnWindowFocus: false,
+        retry: shouldRetry,
+      },
     },
   });
 
