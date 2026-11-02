@@ -11,6 +11,7 @@ import {
   summarizeCategories,
   topCategoryMetrics,
   topicInfoMap,
+  topicsByType,
 } from '../src/features/categories/categoryStats';
 
 const DATA = join(import.meta.dir, '..', 'public', 'data');
@@ -83,6 +84,33 @@ describe('summarizeCategories (real dataset)', () => {
     const law = summaries.find((s) => s.id === 'law');
     expect(law != null && dominantType(law)).toBe('state');
     expect(dominantType({ byType: [] })).toBe('country');
+  });
+});
+
+describe('topicsByType', () => {
+  test('groups a category’s topics by place type, A–Z within each group', () => {
+    const groups = topicsByType(
+      [
+        topic({ slug: 'b', title: 'beta by State' }),
+        topic({ slug: 'z', title: 'Zeta by Country', type: 'country' }),
+        topic({ slug: 'a', title: 'Alpha by State' }),
+        topic({ slug: 'x', title: 'Other', cats: ['health'] }),
+        topic({ slug: 'c', title: 'Alpha by County', type: 'county' }),
+      ],
+      'economics'
+    );
+    expect(groups.map((g) => g.type)).toEqual(['country', 'state', 'county']);
+    expect(groups[1].topics.map((t) => t.slug)).toEqual(['a', 'b']);
+  });
+
+  test('lists every topic of a real category exactly once', () => {
+    const topics = read<TopicSummary[]>('topics.json');
+    const health = topics.filter((t) => t.cats.includes('health'));
+    const listed = topicsByType(topics, 'health').flatMap((g) => g.topics);
+    expect(listed).toHaveLength(health.length);
+    expect(new Set(listed.map((t) => `${t.type}:${t.slug}`)).size).toBe(
+      health.length
+    );
   });
 });
 

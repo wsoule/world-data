@@ -36,6 +36,7 @@ import {
   summarizeCategories,
   topCategoryMetrics,
   topicInfoMap,
+  topicsByType,
 } from './categoryStats';
 import { Spinner } from '~/components/feedback';
 import { PolarityIcon } from '~/components/MetricPicker';
@@ -481,7 +482,77 @@ export function CategoryPage() {
           topics={topics}
         />
       </div>
+
+      <TopicDirectory
+        category={category}
+        categoryLabel={info.label}
+        total={summary.total}
+        topics={topics}
+      />
     </div>
+  );
+}
+
+/**
+ * Every topic in the category as a plain link, A–Z, one collapsible group per place type. The
+ * groups are native <details>, so all links are in the server-rendered HTML (crawlable, and usable
+ * before scripts load) while the page stays short until a reader opens a group.
+ */
+function TopicDirectory({
+  category,
+  categoryLabel,
+  total,
+  topics,
+}: {
+  category: string;
+  categoryLabel: string;
+  total: number;
+  topics: readonly TopicSummary[];
+}) {
+  const groups = useMemo(
+    () => topicsByType(topics, category),
+    [topics, category]
+  );
+  return (
+    <section className="card mt-8 overflow-hidden" aria-labelledby="all-topics">
+      <header className="border-app border-b px-4 py-3">
+        <h2 id="all-topics" className="text-sm font-semibold">
+          All {total.toLocaleString('en-US')} {categoryLabel} topics, A–Z
+        </h2>
+        <p className="text-muted mt-0.5 text-xs">
+          Every topic in this category, grouped by place type.
+        </p>
+      </header>
+      <div className="divide-y divide-[var(--border)]">
+        {groups.map((g) => (
+          <details key={g.type} className="group">
+            <summary className="hover:bg-surface-2/60 flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-medium [&::-webkit-details-marker]:hidden">
+              <ChevronRight
+                className="text-muted size-4 shrink-0 transition-transform group-open:rotate-90"
+                aria-hidden
+              />
+              {TYPE_LABELS[g.type]}
+              <span className="tabular bg-surface-2 text-muted rounded-full px-1.5 text-xs">
+                {g.topics.length.toLocaleString('en-US')}
+              </span>
+            </summary>
+            <ul className="columns-1 gap-x-8 px-4 pt-1 pb-4 text-sm sm:columns-2 lg:columns-3">
+              {g.topics.map((t) => (
+                <li key={t.slug} className="break-inside-avoid py-1">
+                  <Link
+                    to="/topics/$type/$slug"
+                    params={{ type: t.type, slug: t.slug }}
+                    className="hover:text-accent-700 dark:hover:text-accent-300 underline-offset-2 hover:underline"
+                  >
+                    {t.title}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </details>
+        ))}
+      </div>
+    </section>
   );
 }
 

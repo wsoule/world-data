@@ -91,6 +91,39 @@ export function summarizeCategories(
   });
 }
 
+/**
+ * Every topic of a category grouped by place type (ENTITY_TYPES order, empty types left out),
+ * A–Z within each group. Feeds the category page's full topic directory.
+ */
+export function topicsByType(
+  topics: readonly TopicSummary[],
+  category: string
+): { type: EntityType; topics: TopicSummary[] }[] {
+  const groups = new Map<EntityType, TopicSummary[]>();
+  for (const t of topics) {
+    if (!t.cats.includes(category)) continue;
+    const list = groups.get(t.type);
+    if (list == null) groups.set(t.type, [t]);
+    else list.push(t);
+  }
+  const out: { type: EntityType; topics: TopicSummary[] }[] = [];
+  for (const type of ENTITY_TYPES) {
+    const list = groups.get(type);
+    if (list == null) continue;
+    // A plain code-unit comparison of lower-cased titles sorts the same in Node and every
+    // browser, so the server-rendered list always matches the first client render.
+    const key = new Map(list.map((t) => [t, t.title.toLowerCase()]));
+    list.sort((a, b) => {
+      const ka = key.get(a) ?? '';
+      const kb = key.get(b) ?? '';
+      if (ka !== kb) return ka < kb ? -1 : 1;
+      return a.slug < b.slug ? -1 : a.slug > b.slug ? 1 : 0;
+    });
+    out.push({ type, topics: list });
+  }
+  return out;
+}
+
 /** The place type with the most topics in a summary (ties go to ENTITY_TYPES order). */
 export function dominantType(
   summary: Pick<CategorySummary, 'byType'>
