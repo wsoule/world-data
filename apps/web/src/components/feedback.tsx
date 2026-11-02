@@ -1,4 +1,4 @@
-import { type ErrorComponentProps, Link } from '@tanstack/react-router';
+import { Link } from '@tanstack/react-router';
 import { Loader2, Search } from 'lucide-react';
 import { type ReactNode, useEffect } from 'react';
 
@@ -38,24 +38,6 @@ export function EmptyState({
       {children != null ? (
         <div className="text-muted max-w-md text-sm">{children}</div>
       ) : null}
-    </div>
-  );
-}
-
-export function RouteError({ error, reset }: ErrorComponentProps) {
-  return (
-    <div className="mx-auto max-w-xl py-16">
-      <EmptyState title="Something went wrong">
-        <p className="mb-4 font-mono text-xs break-all">
-          {error instanceof Error ? error.message : String(error)}
-        </p>
-        <button
-          className="bg-accent-600 rounded-lg px-3 py-1.5 text-sm text-white"
-          onClick={reset}
-        >
-          Try again
-        </button>
-      </EmptyState>
     </div>
   );
 }
