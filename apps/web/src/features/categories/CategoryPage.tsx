@@ -44,7 +44,6 @@ import { manifestQuery, metricsQuery, topicsIndexQuery } from '~/data/api';
 import type { EntityType, Metric, TopicSummary } from '~/data/types';
 import { TYPE_PLURAL, TYPE_SHORT } from '~/features/search/results';
 import { normalizeText } from '~/features/search/searchIndex';
-import { useTitle } from '~/lib/useTitle';
 
 const route = getRouteApi('/categories/$category');
 
@@ -195,7 +194,6 @@ export function CategoryPage() {
     () => topics.filter((t) => t.cats.includes(category)),
     [topics, category]
   );
-  useTitle(info?.label ?? 'Category');
 
   // Metric catalogs give each topic its newest "updated" date (topics rarely carry one).
   const loadTypes = useMemo<EntityType[]>(

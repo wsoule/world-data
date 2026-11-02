@@ -1,9 +1,12 @@
 import { createFileRoute, notFound } from '@tanstack/react-router';
 
-import { topicQuery } from '~/data/api';
+import { QuickAnswers } from '~/components/QuickAnswers';
+import { manifestQuery, topicQuery } from '~/data/api';
 import { loadDataset } from '~/data/dataset';
 import { isEntityType } from '~/data/types';
 import { TopicPage } from '~/features/topic/TopicPage';
+import { pageHead } from '~/lib/seo';
+import { topicSummary } from '~/seo/content';
 
 export interface TopicSearch {
   /** Focused metric id */
@@ -27,15 +30,34 @@ export const Route = createFileRoute('/topics/$type/$slug')({
   }),
   loader: async ({ context, params }) => {
     if (!isEntityType(params.type)) throw notFound();
-    const [, topic] = await Promise.all([
+    const [ds, topic, manifest] = await Promise.all([
       loadDataset(context.queryClient, params.type),
       context.queryClient
         .ensureQueryData(topicQuery(params.type, params.slug))
         .catch(() => {
           throw notFound();
         }),
+      context.queryClient.ensureQueryData(manifestQuery),
     ]);
-    return { title: topic.title };
+    // Only this small summary is embedded in the HTML for hydration.
+    return { seo: topicSummary(topic, ds, manifest.categories) };
   },
-  component: TopicPage,
+  head: ({ loaderData, params }) =>
+    loaderData == null
+      ? {}
+      : pageHead({
+          ...loaderData.seo,
+          path: `/topics/${params.type}/${params.slug}`,
+        }),
+  component: TopicRoute,
 });
+
+function TopicRoute() {
+  const { seo } = Route.useLoaderData();
+  return (
+    <>
+      <TopicPage />
+      <QuickAnswers items={seo.faq} />
+    </>
+  );
+}

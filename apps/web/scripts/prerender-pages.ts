@@ -12,11 +12,16 @@ import type {
   Entity,
   EntityType,
   Manifest,
+  Metric,
   TopicSummary,
   ValuesFile,
 } from '../src/data/types';
 
-/** Places with fewer metrics than this are not prerendered or listed in the sitemap. */
+/**
+ * Places with fewer numeric metrics than this are not prerendered or listed in
+ * the sitemap. Keep in sync with MIN_PLACE_METRICS in src/seo/content.ts,
+ * which marks the same pages noindex.
+ */
 export const MIN_PLACE_METRICS = 10;
 
 interface SitemapOptions {
@@ -34,10 +39,18 @@ export interface PrerenderPage {
 const readJson = <T>(dataDir: string, file: string): T =>
   JSON.parse(readFileSync(path.join(dataDir, file), 'utf8')) as T;
 
-/** Number of metrics with a value, per entity index. */
-function metricCounts(values: ValuesFile): Uint32Array {
+/** Number of numeric, non-bookkeeping metrics with a value, per entity index. */
+function metricCounts(
+  values: ValuesFile,
+  metrics: readonly Metric[]
+): Uint32Array {
+  const rankable = new Set(
+    metrics.filter((m) => m.kind === 'num' && m.meta !== true).map((m) => m.id)
+  );
   const counts = new Uint32Array(values.entityCount);
-  for (const [, idx] of values.metrics) for (const i of idx) counts[i]++;
+  for (const [id, idx] of values.metrics) {
+    if (rankable.has(id)) for (const i of idx) counts[i]++;
+  }
   return counts;
 }
 
@@ -83,7 +96,8 @@ export function prerenderPages(dataDir: string): PrerenderPage[] {
     const type: EntityType = t.id;
     const entities = readJson<Entity[]>(dataDir, `${type}/entities.json`);
     const counts = metricCounts(
-      readJson<ValuesFile>(dataDir, `${type}/values.json`)
+      readJson<ValuesFile>(dataDir, `${type}/values.json`),
+      readJson<Metric[]>(dataDir, `${type}/metrics.json`)
     );
     entities.forEach((e, i) => {
       if (counts[i] < MIN_PLACE_METRICS) return;

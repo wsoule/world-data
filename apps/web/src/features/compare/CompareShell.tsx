@@ -39,7 +39,6 @@ import { TypeTabs } from '~/components/TypeTabs';
 import { Badge, cx, PageHeader } from '~/components/ui';
 import { useDataset } from '~/data/dataset';
 import type { EntityType } from '~/data/types';
-import { useTitle } from '~/lib/useTitle';
 
 const route = getRouteApi('/compare');
 
@@ -98,7 +97,6 @@ export function CompareShell() {
   const search = route.useSearch();
   const navigate = route.useNavigate();
   const dataset = useDataset(search.type);
-  useTitle('Compare');
 
   const update = useCallback<CompareViewProps['update']>(
     (patch) => {

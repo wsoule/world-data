@@ -39,7 +39,6 @@ import {
   type TopicTable,
 } from '~/data/types';
 import { formatValue, tickFormatter } from '~/lib/format';
-import { useTitle } from '~/lib/useTitle';
 
 const route = getRouteApi('/topics/$type/$slug');
 
@@ -59,7 +58,6 @@ function TopicView({ type, slug }: { type: EntityType; slug: string }) {
   const urlSearch = route.useSearch();
   const search = hydrated ? urlSearch : {};
   const navigate = route.useNavigate();
-  useTitle(topic.title);
 
   const tables = useMemo(
     () => displayTables(topic, (id) => dataset.metric(id) != null),

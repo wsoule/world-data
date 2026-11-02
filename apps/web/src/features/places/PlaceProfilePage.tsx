@@ -37,7 +37,6 @@ import { type Dataset, useDataset } from '~/data/dataset';
 import { type EntityType, isEntityType } from '~/data/types';
 import { formatInt, formatValue, ordinal, plural } from '~/lib/format';
 import { useTheme } from '~/lib/theme';
-import { useTitle } from '~/lib/useTitle';
 
 const route = getRouteApi('/places/$type/$slug');
 
@@ -75,7 +74,6 @@ function Profile({ dataset, index }: { dataset: Dataset; index: number }) {
   const [hideSize, setHideSize] = useState(true);
   const [category, setCategory] = useState('');
   const explorerRef = useRef<HTMLDivElement>(null);
-  useTitle(entity.name);
 
   const facts = datasetFacts(dataset);
   const rows = useMemo(

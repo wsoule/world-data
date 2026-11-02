@@ -3,6 +3,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { loadDataset } from '~/data/dataset';
 import { type EntityType, isEntityType } from '~/data/types';
 import { VersusPage } from '~/features/vs/VersusPage';
+import { pageHead } from '~/lib/seo';
 
 export interface VersusSearch {
   type: EntityType;
@@ -27,5 +28,12 @@ export const Route = createFileRoute('/vs')({
   loaderDeps: ({ search }) => ({ type: search.type }),
   loader: ({ context, deps }) =>
     loadDataset(context.queryClient, deps.type).then(() => null),
+  head: () =>
+    pageHead({
+      title: 'Head-to-head place comparison',
+      description:
+        'Put two to four countries, states, cities or counties side by side and see who wins on every shared statistic.',
+      path: '/vs',
+    }),
   component: VersusPage,
 });

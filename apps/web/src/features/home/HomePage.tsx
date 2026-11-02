@@ -24,14 +24,12 @@ import {
 } from '~/features/search/platform';
 import { TYPE_PLURAL, TYPE_SHORT } from '~/features/search/results';
 import { openSearch, openSearchWith } from '~/features/search/store';
-import { useTitle } from '~/lib/useTitle';
 
 const HERO_QUERIES = ['median income', 'crime', 'Japan', 'happiest', 'TX'];
 
 export function HomePage() {
   const { data: manifest } = useSuspenseQuery(manifestQuery);
   const { data: topics } = useSuspenseQuery(topicsIndexQuery);
-  useTitle('Search and compare world statistics');
 
   const totals = useMemo(
     () =>

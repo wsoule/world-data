@@ -28,7 +28,6 @@ import { type Dataset, useDataset } from '~/data/dataset';
 import { type EntityType, isEntityType } from '~/data/types';
 import { formatInt, formatValue, plural } from '~/lib/format';
 import { searchItems } from '~/lib/textSearch';
-import { useTitle } from '~/lib/useTitle';
 
 const route = getRouteApi('/places/$type/');
 
@@ -75,7 +74,6 @@ export function PlacesPage() {
   const type: EntityType = isEntityType(params.type) ? params.type : 'country';
   const dataset = useDataset(type);
   const navigate = useNavigate();
-  useTitle(dataset.type.label);
 
   return (
     <div className="space-y-6">

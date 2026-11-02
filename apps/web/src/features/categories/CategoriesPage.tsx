@@ -16,14 +16,12 @@ import { manifestQuery, topicsIndexQuery } from '~/data/api';
 import { ENTITY_TYPES } from '~/data/types';
 import { TYPE_SHORT } from '~/features/search/results';
 import { useTheme } from '~/lib/theme';
-import { useTitle } from '~/lib/useTitle';
 
 export function CategoriesPage() {
   const { data: manifest } = useSuspenseQuery(manifestQuery);
   const { data: topics } = useSuspenseQuery(topicsIndexQuery);
   const navigate = useNavigate();
   const theme = useTheme();
-  useTitle('Categories');
 
   const summaries = useMemo(
     () => summarizeCategories(manifest, topics),

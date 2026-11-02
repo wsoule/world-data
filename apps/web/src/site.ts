@@ -12,7 +12,7 @@ export const SITE = {
   name: 'Rankodex',
   tagline: 'Rank, overlay and compare any country, state, city or county',
   description:
-    'Rankodex ranks every country, US state, city and county on 5,600 statistics. Search any metric, overlay two, build a combined ranking and see what correlates.',
+    'Rankodex ranks every country, US state, city and county on over 6,000 statistics. Search any metric, overlay two, build a combined ranking and see what correlates.',
   locale: 'en_US',
   /** Data provenance shown in footers and structured data. */
   sourceName: 'World Population Review',
