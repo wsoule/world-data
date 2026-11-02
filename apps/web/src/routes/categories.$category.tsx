@@ -1,5 +1,6 @@
 import { createFileRoute, notFound } from '@tanstack/react-router';
 
+import { notFoundHead } from '~/components/feedback';
 import { manifestQuery, topicsIndexQuery } from '~/data/api';
 import { type EntityType, isEntityType } from '~/data/types';
 import { CategoryPage } from '~/features/categories/CategoryPage';
@@ -25,7 +26,7 @@ export const Route = createFileRoute('/categories/$category')({
   },
   head: ({ loaderData, params }) =>
     loaderData == null
-      ? {}
+      ? notFoundHead()
       : pageHead({
           title: `${loaderData.label} statistics by country, state and city`,
           description: `${loaderData.topics.toLocaleString('en-US')} ${loaderData.label.toLowerCase()} topics ranking countries, US states, cities and counties. Open any topic to rank, map, overlay and compare.`,
