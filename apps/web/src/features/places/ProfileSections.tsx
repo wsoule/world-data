@@ -5,6 +5,7 @@ import { type ReactNode, useState } from 'react';
 import { placeNoun } from './datasetFacts';
 import { pctText, PercentileBar, rankText } from './percentile';
 import type { NotableFact, PlaceMetric, SimilarPlace } from './profileModel';
+import { type PlaceGroup, shortPlaceName } from './relatedPlaces';
 import { EmptyState } from '~/components/feedback';
 import { Flag } from '~/components/Flag';
 import { PolarityIcon } from '~/components/MetricPicker';
@@ -313,6 +314,59 @@ export function SimilarPlaces({
           })}
         </ol>
       )}
+    </Card>
+  );
+}
+
+/** Links shown before "Show all"; the rest are in the HTML but hidden until expanded. */
+const RELATED_COLLAPSED = 20;
+
+/**
+ * "Cities in California" style card: every place inside the profiled one, largest first,
+ * each linking to its report card. All links render (so the prerendered page links every
+ * one), but long lists show only the first few until expanded.
+ */
+export function RelatedPlaceList({ group }: { group: PlaceGroup }) {
+  const [expanded, setExpanded] = useState(false);
+  const count = group.places.length;
+  const collapsible = count > RELATED_COLLAPSED;
+  const [one, many] =
+    group.type === 'county' ? ['county', 'counties'] : ['city', 'cities'];
+  return (
+    <Card
+      title={group.title}
+      subtitle={`${plural(count, one, many)} with a report card, largest first`}
+    >
+      <ul className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm sm:grid-cols-3 lg:grid-cols-5">
+        {group.places.map((p, k) => (
+          <li
+            key={p.slug}
+            className={cx(
+              'min-w-0',
+              collapsible && !expanded && k >= RELATED_COLLAPSED && 'hidden'
+            )}
+          >
+            <Link
+              to="/places/$type/$slug"
+              params={{ type: group.type, slug: p.slug }}
+              className="hover:text-accent-600 dark:hover:text-accent-300 block truncate hover:underline"
+              title={p.name}
+            >
+              {shortPlaceName(p.name)}
+            </Link>
+          </li>
+        ))}
+      </ul>
+      {collapsible ? (
+        <button
+          type="button"
+          onClick={() => setExpanded((e) => !e)}
+          aria-expanded={expanded}
+          className="text-accent-600 dark:text-accent-300 mt-3 text-xs font-medium hover:underline"
+        >
+          {expanded ? 'Show fewer' : `Show all ${formatInt(count)}`}
+        </button>
+      ) : null}
     </Card>
   );
 }

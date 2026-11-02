@@ -1,6 +1,6 @@
 import { getRouteApi, Link, useNavigate } from '@tanstack/react-router';
 import { BarChart3, ChevronRight } from 'lucide-react';
-import { useMemo, useRef, useState } from 'react';
+import { Fragment, useMemo, useRef, useState } from 'react';
 
 import { CategoryChart } from './CategoryChart';
 import {
@@ -26,18 +26,22 @@ import {
 import {
   HeaderStat,
   NotableFacts,
+  RelatedPlaceList,
   SimilarPlaces,
   StrengthList,
 } from './ProfileSections';
+import type { RelatedPlaces } from './relatedPlaces';
 import { Choropleth } from '~/charts/Choropleth';
 import { EntityPicker } from '~/components/EntityPicker';
 import { EmptyState } from '~/components/feedback';
 import { Flag } from '~/components/Flag';
+import { QuickAnswers } from '~/components/QuickAnswers';
 import { Card } from '~/components/ui';
 import { type Dataset, useDataset } from '~/data/dataset';
 import { type EntityType, isEntityType } from '~/data/types';
 import { formatInt, formatValue, ordinal, plural } from '~/lib/format';
 import { useTheme } from '~/lib/theme';
+import type { QA } from '~/seo/content';
 
 const route = getRouteApi('/places/$type/$slug');
 
@@ -50,7 +54,17 @@ const MAPPED: readonly EntityType[] = [
   'world-city',
 ];
 
-export function PlaceProfilePage() {
+/** Server-computed content from the route loader, embedded in the prerendered HTML. */
+interface ProfileContent {
+  /** Answer-first summary shown under the place name */
+  summary: string;
+  /** Quick answers, also emitted as FAQPage structured data */
+  faq: readonly QA[];
+  /** Parent place and the places inside this one */
+  related: RelatedPlaces;
+}
+
+export function PlaceProfilePage(content: ProfileContent) {
   const params = route.useParams();
   const type: EntityType = isEntityType(params.type) ? params.type : 'country';
   const dataset = useDataset(type);
@@ -63,11 +77,24 @@ export function PlaceProfilePage() {
         </Link>
       </EmptyState>
     );
-  return <Profile key={`${type}/${index}`} dataset={dataset} index={index} />;
+  return (
+    <Profile
+      key={`${type}/${index}`}
+      dataset={dataset}
+      index={index}
+      {...content}
+    />
+  );
 }
 
 /** The report card for one place. Keyed by place so local filters reset on navigation. */
-function Profile({ dataset, index }: { dataset: Dataset; index: number }) {
+function Profile({
+  dataset,
+  index,
+  summary,
+  faq,
+  related,
+}: { dataset: Dataset; index: number } & ProfileContent) {
   const entity = dataset.entities[index];
   const type = dataset.type.id;
   const theme = useTheme();
@@ -141,6 +168,8 @@ function Profile({ dataset, index }: { dataset: Dataset; index: number }) {
         dataset={dataset}
         index={index}
         metricCount={rows.length}
+        summary={summary}
+        parent={related.parent}
         workbenchMetrics={
           workbenchMetrics.length > 0 ? workbenchMetrics : [-1, -2]
         }
@@ -239,6 +268,15 @@ function Profile({ dataset, index }: { dataset: Dataset; index: number }) {
         </div>
       </div>
 
+      {related.children.map((group) => (
+        <RelatedPlaceList key={group.type} group={group} />
+      ))}
+
+      {/* QuickAnswers brings a top margin for standalone use; the stack spaces it here. */}
+      <div className="[&>section]:mt-0">
+        <QuickAnswers items={faq} />
+      </div>
+
       <div ref={explorerRef} className="scroll-mt-20">
         <MetricExplorer
           dataset={dataset}
@@ -262,12 +300,16 @@ function ProfileHeader({
   dataset,
   index,
   metricCount,
+  summary,
+  parent,
   workbenchMetrics,
 }: {
   dataset: Dataset;
   index: number;
   /** Metrics with a value for this place, as listed under Every metric */
   metricCount: number;
+  summary: string;
+  parent: RelatedPlaces['parent'];
   workbenchMetrics: number[];
 }) {
   const navigate = useNavigate();
@@ -304,7 +346,23 @@ function ProfileHeader({
             </h1>
             <p className="text-muted mt-0.5 text-sm">
               {dataset.type.singular}
-              {where.length > 0 ? ` in ${where.join(', ')}` : ''}
+              {where.length > 0 ? ' in ' : ''}
+              {where.map((part, k) => (
+                <Fragment key={part}>
+                  {k > 0 ? ', ' : ''}
+                  {parent != null && part === parent.name ? (
+                    <Link
+                      to="/places/$type/$slug"
+                      params={{ type: parent.type, slug: parent.slug }}
+                      className="hover:text-accent-600 dark:hover:text-accent-300 underline decoration-dotted underline-offset-2"
+                    >
+                      {part}
+                    </Link>
+                  ) : (
+                    part
+                  )}
+                </Fragment>
+              ))}
               {' · '}
               ranked on {plural(metricCount, 'metric')}
             </p>
@@ -335,6 +393,11 @@ function ProfileHeader({
           </Link>
         </div>
       </div>
+      {summary !== '' ? (
+        <p className="max-w-4xl text-sm leading-relaxed md:text-[15px]">
+          {summary}
+        </p>
+      ) : null}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {stats.map((s) => (
           <HeaderStat key={s.label} {...s} />
