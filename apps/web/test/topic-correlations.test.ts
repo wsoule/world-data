@@ -4,6 +4,7 @@ import {
   type CorrelationCandidate,
   findCorrelations,
   minOverlapFor,
+  readsAsRank,
 } from '../src/features/topic/correlations';
 
 // Deterministic pseudo-random noise so the expected ordering never flakes.
@@ -18,6 +19,43 @@ function noise(seed: number) {
 function column(n: number, f: (i: number) => number): Float64Array {
   return Float64Array.from({ length: n }, (_, i) => f(i));
 }
+
+describe('readsAsRank', () => {
+  test('treats rank formats and rank-labelled lower-is-better columns as positions', () => {
+    expect(readsAsRank({ fmt: 'ranking', pol: -1, label: 'Health Care' })).toBe(
+      true
+    );
+    expect(
+      readsAsRank({
+        fmt: 'numberWithCommas',
+        pol: -1,
+        label: 'GII Institutions Rank',
+      })
+    ).toBe(true);
+    expect(readsAsRank({ fmt: null, pol: -1, label: 'Rank' })).toBe(true);
+  });
+
+  test('leaves values, rank changes and percentile ranks alone', () => {
+    expect(readsAsRank({ fmt: null, pol: -1, label: 'Poverty Rate' })).toBe(
+      false
+    );
+    expect(
+      readsAsRank({
+        fmt: 'numberWithCommas',
+        pol: -1,
+        label: 'Change in DI Rank',
+      })
+    ).toBe(false);
+    expect(
+      readsAsRank({
+        fmt: 'floatNumberTenths',
+        pol: -1,
+        label: 'Percentile Rank',
+      })
+    ).toBe(false);
+    expect(readsAsRank({ fmt: null, pol: 0, label: 'Rank' })).toBe(false);
+  });
+});
 
 describe('minOverlapFor', () => {
   test('needs at least 10 places and 60% of the focus coverage', () => {
@@ -90,6 +128,31 @@ describe('findCorrelations', () => {
     const ids = res.positive.map((h) => h.id);
     expect(ids).toContain(1);
     expect(ids).not.toContain(2);
+  });
+
+  test('groups flipped candidates (ranks against values) by -r', () => {
+    // Candidate 3 falls as the focus rises; read as a rank, it ranks better.
+    const res = findCorrelations(
+      focus,
+      candidates,
+      get,
+      6,
+      undefined,
+      (id) => id === 3
+    );
+    const hit = res.positive.find((h) => h.id === 3);
+    // The raw r is kept for display.
+    expect(hit?.r).toBeLessThan(-0.9);
+    expect(res.negative.map((h) => h.id)).not.toContain(3);
+    // Strongest first within the group, by strength in the reading direction.
+    const strengths = res.positive.map((h) => Math.abs(h.r));
+    expect(strengths).toEqual([...strengths].sort((a, b) => b - a));
+    expect(
+      res.positive
+        .map((h) => h.id)
+        .slice(0, 2)
+        .sort((a, b) => a - b)
+    ).toEqual([1, 3]);
   });
 
   test('respects the limit', () => {

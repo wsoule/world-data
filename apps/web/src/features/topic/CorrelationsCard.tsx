@@ -7,6 +7,7 @@ import {
   type CorrelationHit,
   type CorrelationResult,
   findCorrelations,
+  readsAsRank,
 } from './correlations';
 import { placeNoun } from './model';
 import { EmptyState } from '~/components/feedback';
@@ -16,10 +17,18 @@ import type { Metric } from '~/data/types';
 import { formatInt } from '~/lib/format';
 import { chartColors, useTheme } from '~/lib/theme';
 
+/** True for rank positions (1 = best), whose number reads backwards. */
+function isRank(metric: Metric | undefined): boolean {
+  return metric != null && readsAsRank(metric);
+}
+
 /**
  * "What correlates with this?": the focus metric (at the selected year) against every other
- * numeric metric of the dataset that is not part of this topic. Shows the six strongest positive
- * and negative relationships with a strength bar and a link that opens the pair in the overlay.
+ * numeric metric of the dataset that is not part of this topic. Shows the six strongest
+ * relationships each way with a strength bar and a link that opens the pair in the overlay.
+ * Rank-format metrics are grouped by rank position rather than by their raw number, so a rank
+ * list where richer places rank better lands under "Higher together" for income, not under
+ * "Opposite directions".
  */
 export function CorrelationsCard({
   dataset,
@@ -45,18 +54,27 @@ export function CorrelationsCard({
         !skip.has(m.id) &&
         dataset.hasValues(m.id)
     );
+    const focusRank = isRank(focus);
     return findCorrelations(
       values,
       candidates,
       (id) => dataset.numeric(id),
       6,
-      (id) => dataset.metricFullLabel(id).toLowerCase()
+      (id) => dataset.metricFullLabel(id).toLowerCase(),
+      // A rank paired with a measured value runs backwards: group it by -r.
+      (id) => isRank(dataset.metric(id)) !== focusRank
     );
-  }, [dataset, values, exclude]);
+  }, [dataset, values, exclude, focus]);
 
   const nounMany = placeNoun(dataset.type.id);
   const nounOne = placeNoun(dataset.type.id, 1);
   const title = `What correlates with ${focus.label}${yearLabel != null ? ` (${yearLabel})` : ''}?`;
+  const focusHigher = isRank(focus)
+    ? `rank better on ${focus.label}`
+    : `have a higher ${focus.label}`;
+  const hasRankHit = [...result.positive, ...result.negative].some((h) =>
+    isRank(dataset.metric(h.id))
+  );
 
   if (result.coverage < result.minOverlap) {
     return (
@@ -81,8 +99,8 @@ export function CorrelationsCard({
             ? `, ${formatInt(result.duplicates)} near-identical series hidden`
             : ''}
           .
-          {focus.fmt === 'ranking'
-            ? ' For ranks a higher number is a worse position, so read the directions accordingly.'
+          {isRank(focus) || hasRankHit
+            ? ' Ranks (1 = best) are read by position: ranking better counts as higher.'
             : ''}{' '}
           Correlation is not causation.
         </>
@@ -97,17 +115,19 @@ export function CorrelationsCard({
         <div className="grid gap-6 md:grid-cols-2">
           <HitList
             title="Higher together"
-            hint={`Places with a higher ${focus.label} tend to score higher on these`}
+            hint={`Places that ${focusHigher} tend to score higher on these${hasRankHit ? ' (or rank better)' : ''}`}
             icon={<ArrowUpRight className="size-4" aria-hidden />}
             hits={result.positive}
+            together
             dataset={dataset}
             focus={focus}
           />
           <HitList
             title="Opposite directions"
-            hint={`Places with a higher ${focus.label} tend to score lower on these`}
+            hint={`Places that ${focusHigher} tend to score lower on these${hasRankHit ? ' (or rank worse)' : ''}`}
             icon={<ArrowDownRight className="size-4" aria-hidden />}
             hits={result.negative}
+            together={false}
             dataset={dataset}
             focus={focus}
           />
@@ -122,6 +142,7 @@ function HitList({
   hint,
   icon,
   hits,
+  together,
   dataset,
   focus,
 }: {
@@ -129,6 +150,8 @@ function HitList({
   hint: string;
   icon: ReactNode;
   hits: readonly CorrelationHit[];
+  /** The "Higher together" list (accent bars); otherwise "Opposite directions" */
+  together: boolean;
   dataset: Dataset;
   focus: Metric;
 }) {
@@ -179,6 +202,11 @@ function HitList({
                       {ctx}
                     </span>
                   ) : null}
+                  {isRank(m) ? (
+                    <span className="text-muted block text-xs">
+                      Rank: lower is better
+                    </span>
+                  ) : null}
                   <div className="mt-1 flex items-center gap-2">
                     <div
                       className="bg-surface-2 h-1.5 w-24 shrink-0 overflow-hidden rounded-full sm:w-32"
@@ -189,7 +217,7 @@ function HitList({
                         className="h-full rounded-full"
                         style={{
                           width: `${Math.round(Math.abs(h.r) * 100)}%`,
-                          background: positive
+                          background: together
                             ? colors.accent
                             : colors.highlight,
                         }}
