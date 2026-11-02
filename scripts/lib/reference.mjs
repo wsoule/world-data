@@ -43,10 +43,10 @@ export function guessPolarity(label, key, fmt, topics) {
   if (fmt === 'ranking' || /\brank(ing)?\b/i.test(label)) return -1
   const text = `${label} ${String(key).replace(/([a-z])([A-Z])/g, '$1 $2')}`
   const t = topics.join(' ').replace(/-/g, ' ')
-  const negated = NEGATOR.test(label)
-  if (LOWER.test(text)) return negated ? 1 : -1
-  if (HIGHER.test(text)) return negated ? -1 : 1
-  if (LOWER.test(t) && !HIGHER.test(t)) return -1
-  if (HIGHER.test(t) && !LOWER.test(t)) return 1
-  return 0
+  let pol = 0
+  if (LOWER.test(text)) pol = -1
+  else if (HIGHER.test(text)) pol = 1
+  else if (LOWER.test(t) && !HIGHER.test(t)) pol = -1
+  else if (HIGHER.test(t) && !LOWER.test(t)) pol = 1
+  return NEGATOR.test(label) ? -pol : pol
 }
