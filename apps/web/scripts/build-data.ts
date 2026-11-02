@@ -104,8 +104,6 @@ const PREFIX_LINK =
 
 /** Source formats whose cells are text even when they look numeric. */
 const TEXT_FORMATS = new Set<string | null>([
-  null,
-  '',
   'pipesToList',
   'csvToList',
   'link',
@@ -306,10 +304,46 @@ function parsePage(
   };
 }
 
+/**
+ * Converts values whose source format implies a different scale than the one
+ * the label reads in: populations stored in thousands, kilometres shown as
+ * miles, and "females per male" stored as males per female. Returns null when
+ * a value cannot be converted.
+ */
+function scaleByFormat(fmt: string | null, n: number): number | null {
+  switch (fmt) {
+    case 'abbreviateNumber1k':
+      return n * 1000;
+    case 'km2MiRound':
+      return Math.round(n * 0.621371);
+    case 'reciprocalRatio':
+      return n === 0 ? null : 1 / n;
+    default:
+      return n;
+  }
+}
+
+/** The display format to publish after scaleByFormat has converted the values. */
+function outputFormat(fmt: string | null): string | null {
+  switch (fmt) {
+    case 'abbreviateNumber1k':
+      return 'abbreviateNumber';
+    case 'km2MiRound':
+      return 'numberWithCommas';
+    case 'reciprocalRatio':
+      return 'floatNumber';
+    case '':
+      return null;
+    default:
+      return fmt;
+  }
+}
+
 /** Normalizes one cell, updating the metric's numeric/text tallies; null drops it. */
 function cellValue(m: MetricAcc, raw: unknown): Cell | null {
   if (raw == null || raw === '') return null;
-  const n = TEXT_FORMATS.has(m.fmt) ? undefined : toNumber(raw);
+  const parsed = TEXT_FORMATS.has(m.fmt) ? undefined : toNumber(raw);
+  const n = typeof parsed === 'number' ? scaleByFormat(m.fmt, parsed) : parsed;
   if (typeof n === 'number') {
     m.numeric++;
     return round(n);
@@ -318,9 +352,13 @@ function cellValue(m: MetricAcc, raw: unknown): Cell | null {
   const text = toText(raw);
   if (text == null) return null;
   const asNum = toNumber(text);
-  if (typeof asNum === 'number' && !TEXT_FORMATS.has(m.fmt)) {
+  const scaled =
+    typeof asNum === 'number' && !TEXT_FORMATS.has(m.fmt)
+      ? scaleByFormat(m.fmt, asNum)
+      : null;
+  if (scaled != null) {
     m.numeric++;
-    return round(asNum);
+    return round(scaled);
   }
   m.strings++;
   if (m.distinct.size < 50) m.distinct.add(text);
@@ -469,9 +507,54 @@ async function mergeCountryIndex(T: TypeAcc): Promise<void> {
   }
 }
 
-/** Labels that are bookkeeping ("Data Year", "As of") rather than comparable data. */
+/**
+ * Labels of bookkeeping columns ("Data Year", "Year Measured", "Most Recent
+ * Update") rather than comparable data. A label only counts when the column's
+ * values are actually years or text, so "Orphanhood Due to COVID as of 2022"
+ * (a count) stays a real metric.
+ */
 const META_LABEL =
-  /\b(data|source|survey|reference|latest|report|measurement)\s+year\b|\byear of (data|estimate)\b|^year$|\bdata date\b|\bas of\b/i;
+  /\b(data|source|survey|reference|latest|report|measurement|update|count)\s+year\b|\byear (measured|assessed|rate confirmed|of (data|estimate|population count|count))\b|^year$|\bdata date\b|\bas of\b|\bmost recent (update|status update|exit cohort)\b/i;
+
+/** True when every value is a whole number between 1800 and 2100. */
+function looksLikeYears(values: readonly Cell[]): boolean {
+  return (
+    values.length > 0 &&
+    values.every(
+      (v) =>
+        typeof v !== 'number' || (Number.isInteger(v) && v >= 1800 && v <= 2100)
+    )
+  );
+}
+
+/** Units that state a scale (the value is in millions, kilotonnes, …). */
+const SCALE_UNITS: Record<string, { factor: number; base: string | null }> = {
+  thousand: { factor: 1e3, base: null },
+  thousands: { factor: 1e3, base: null },
+  million: { factor: 1e6, base: null },
+  millions: { factor: 1e6, base: null },
+  mn: { factor: 1e6, base: null },
+  billion: { factor: 1e9, base: null },
+  billions: { factor: 1e9, base: null },
+  bn: { factor: 1e9, base: null },
+  kt: { factor: 1e3, base: 't' },
+  mt: { factor: 1e6, base: 't' },
+};
+
+/**
+ * Source units do not always match the stored scale: "Lithium Reserves (Mt)"
+ * holds 9,300,000 (tonnes) while "CO₂ Emissions (Mt)" holds 13,124 (Mt). When
+ * values are too large to be in the stated scale, they are already in base
+ * units, so the unit becomes the base unit (or none). "MT" means metric tons.
+ */
+function normalizeUnit(unit: string | null, maxAbs: number): string | null {
+  if (unit == null || unit.trim() === '') return null;
+  const u = unit.trim();
+  if (u === 'MT') return 't';
+  const scale = SCALE_UNITS[u.toLowerCase()];
+  if (scale == null) return u;
+  return maxAbs >= scale.factor ? scale.base : u;
+}
 
 /** Synthetic base metrics (negative ids) derived from entity attributes. */
 function baseMetricDefs(type: EntityType): {
@@ -522,7 +605,7 @@ function baseMetricDefs(type: EntityType): {
       id: -5,
       attr: 'area',
       key: 'area',
-      label: km ? 'Land Area (km²)' : 'Land Area (mi²)',
+      label: km ? 'Total Area (km²)' : 'Land Area (mi²)',
       fmt: 'numberWithCommas',
       cats: ['geography'],
     },
@@ -544,27 +627,111 @@ function kindOf(m: MetricAcc): MetricKind | null {
   return 'text';
 }
 
+/** Calendar year of the build; later years are projections, not data. */
+const BUILD_YEAR = new Date().getUTCFullYear();
+
 /**
- * Picks the default year: the latest year whose coverage is at least 60% of
- * the best-covered year, so a barely-started new year does not win.
+ * Picks the default year (null = the undated column):
+ * - projections (years after the build year) only count when nothing else
+ *   exists;
+ * - the latest year covering at least half as many places as the best year
+ *   wins, so a barely-started year does not;
+ * - if that year is more than five years older than the newest data, the
+ *   newest year covering at least 30% (and 5 places) wins instead, so a
+ *   decades-old series does not;
+ * - an undated column covering 1.5× as many places beats the dated choice.
  */
 function defaultYear(m: MetricAcc, kind: MetricKind): number | null {
-  const years = [...m.years.keys()]
-    .filter((y): y is number => y !== '_')
-    .sort((a, b) => a - b);
-  if (years.length === 0) return null;
-  const coverage = (y: number): number => {
+  const coverageOf = (key: YearKey): number => {
     let n = 0;
-    for (const v of m.years.get(y)?.values() ?? [])
+    for (const v of m.years.get(key)?.values() ?? [])
       if (kind !== 'num' || typeof v === 'number') n++;
     return n;
   };
-  const max = Math.max(...years.map(coverage));
-  return (
-    [...years].reverse().find((y) => coverage(y) >= max * 0.6) ??
-    years.at(-1) ??
-    null
+  const all = [...m.years.keys()]
+    .filter((y): y is number => y !== '_')
+    .sort((a, b) => a - b);
+  const current = all.filter((y) => y <= BUILD_YEAR);
+  const years = current.length > 0 ? current : all;
+  if (years.length === 0) return null;
+  const max = Math.max(...years.map(coverageOf));
+  const newestFirst = [...years].reverse();
+  let pick =
+    newestFirst.find((y) => coverageOf(y) >= max * 0.5) ?? years.at(-1) ?? null;
+  const newest = years.at(-1);
+  if (pick != null && newest != null && newest - pick > 5) {
+    pick =
+      newestFirst.find((y) => coverageOf(y) >= Math.max(5, max * 0.3)) ?? pick;
+  }
+  if (
+    m.years.has('_') &&
+    pick != null &&
+    coverageOf('_') >= coverageOf(pick) * 1.5
+  ) {
+    return null;
+  }
+  return pick;
+}
+
+const STOPWORDS = new Set([
+  'the',
+  'and',
+  'for',
+  'per',
+  'by',
+  'of',
+  'in',
+  'with',
+  'from',
+  'total',
+  'rate',
+  'number',
+  'average',
+  'avg',
+]);
+
+/** Lower-case word stems (trailing "s" dropped) used to match labels with topic slugs. */
+function stems(text: string): Set<string> {
+  return new Set(
+    text
+      .replace(/([a-z])([A-Z])/g, '$1 $2')
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((w) => w.length >= 3 && !STOPWORDS.has(w))
+      .map((w) => w.replace(/s$/, ''))
   );
+}
+
+const LISTICLE =
+  /^(best|worst|poorest|richest|most|least|safest|happiest|cheapest|top|largest|smallest|highest|lowest|coldest|hottest|dirtiest|cleanest|biggest|deadliest)-/;
+const BY_PAGE = /-(by-(state|country|city|county)|in-the-world)$/;
+
+/**
+ * How well a topic suits a metric as its primary page: share of the metric's
+ * label words found in the slug, plus a bonus for "…-by-state/-by-country"
+ * pages and a penalty for "best/worst/…" listicles.
+ */
+function topicFit(label: string, key: string, slug: string): number {
+  const want = stems(`${label} ${key}`);
+  const have = stems(slug);
+  let hit = 0;
+  for (const w of want) if (have.has(w)) hit++;
+  const match = want.size === 0 ? 0 : hit / want.size;
+  return (
+    match + (BY_PAGE.test(slug) ? 0.3 : 0) - (LISTICLE.test(slug) ? 0.3 : 0)
+  );
+}
+
+/** Suffix that tells apart two metrics sharing a label ("(°F)", "(mi²)", "($)"). */
+function disambiguator(m: Metric, key: string): string {
+  if (m.unit != null) return `(${m.unit})`;
+  if (m.fmt === 'degC') return '(°C)';
+  if (m.fmt === 'degF') return '(°F)';
+  if (m.fmt?.startsWith('money') === true) return '($)';
+  if (m.fmt === 'perc' || m.fmt === 'percAlt') return '(%)';
+  const labelWords = stems(m.label);
+  const extra = [...stems(key)].filter((w) => !labelWords.has(w)).slice(0, 3);
+  return extra.length > 0 ? `(${extra.join(' ')})` : `(#${m.id})`;
 }
 
 /** Writes every output file for one entity type and returns its manifest entry. */
@@ -635,10 +802,12 @@ async function writeType(
     if (pairs.length === 0) continue;
     pairs.sort((a, b) => a[0] - b[0]);
 
-    // Primary topic: the page covering the most places (global over regional
-    // subsets), then the most focused one.
+    // Primary topic: the page whose title best matches the metric (dedicated
+    // "…-by-country" pages over listicles), then the one covering the most
+    // places (global over regional subsets), then the most focused one.
     const topics = [...m.topics].sort((a, b) =>
       firstNonZero(
+        Math.sign(topicFit(label, m.key, b) - topicFit(label, m.key, a)),
         (topicRows.get(b) ?? 0) - (topicRows.get(a) ?? 0),
         (topicSizes.get(a) ?? 99) - (topicSizes.get(b) ?? 99),
         a.length - b.length,
@@ -652,8 +821,21 @@ async function writeType(
       id: m.id,
       key: m.key,
       label,
-      fmt: m.fmt === '' ? null : m.fmt,
-      unit: m.unit === '' ? null : m.unit,
+      fmt: outputFormat(m.fmt),
+      unit:
+        kind === 'num'
+          ? normalizeUnit(
+              m.unit,
+              Math.max(
+                0,
+                ...pairs.map((p) =>
+                  typeof p[1] === 'number' ? Math.abs(p[1]) : 0
+                )
+              )
+            )
+          : m.unit === ''
+            ? null
+            : m.unit,
       kind,
       pol: kind === 'num' ? guessPolarity(label, m.key, m.fmt, topics) : 0,
       year,
@@ -670,9 +852,10 @@ async function writeType(
         .sort((a, b) => a.localeCompare(b, 'en', { numeric: true }))
         .slice(0, 15);
     }
+    const yearish = kind !== 'num' || looksLikeYears(pairs.map((p) => p[1]));
     if (
-      META_LABEL.test(label) ||
-      (m.fmt === 'year' && /data|source|estimate|updated/i.test(label))
+      (META_LABEL.test(label) && yearish) ||
+      (m.fmt === 'year' && /data|source|estimate|updated|measured/i.test(label))
     ) {
       entry.meta = true;
     }
@@ -709,6 +892,28 @@ async function writeType(
       base: true,
     });
     values.push([b.id, idx, vals]);
+  }
+  // Metrics sharing a label inside one topic ("Land Area" in mi² and km²)
+  // get a suffix from their unit, format or key so pickers and tables can
+  // tell them apart.
+  const byId = new Map(metricsOut.map((m) => [m.id, m]));
+  const renamed = new Set<number>();
+  for (const t of D.topics) {
+    const groups = new Map<string, Metric[]>();
+    for (const id of t.metrics) {
+      const m = byId.get(id);
+      if (m == null || renamed.has(id)) continue;
+      const group = groups.get(m.label) ?? [];
+      group.push(m);
+      groups.set(m.label, group);
+    }
+    for (const group of groups.values()) {
+      if (group.length < 2) continue;
+      for (const m of group) {
+        m.label = `${m.label} ${disambiguator(m, m.key)}`;
+        renamed.add(m.id);
+      }
+    }
   }
   metricsOut.sort((a, b) => a.id - b.id);
 

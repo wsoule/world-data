@@ -19,9 +19,16 @@ export function pageTitle(html: string): string | null {
   return m?.[1] == null ? null : stripTags(m[1]);
 }
 
-/** Drops a trailing year or year range ("… by State 2026" → "… by State"). */
+/**
+ * Drops the edition year the source appends to titles ("… by State 2026" →
+ * "… by State"). Only recent years are edition years; "Population by Country
+ * in 1900" keeps its year because it is part of the subject.
+ */
 export function stripYear(title: string): string {
-  return title.replace(/\s+(19|20)\d{2}(\s*[-–]\s*(19|20)\d{2})?$/, '').trim();
+  const editionFrom = new Date().getUTCFullYear() - 1;
+  const m = /\s+((?:19|20)\d{2})(\s*[-–]\s*(?:19|20)\d{2})?$/.exec(title);
+  if (m?.[1] == null || Number(m[1]) < editionFrom) return title.trim();
+  return title.slice(0, m.index).trim();
 }
 
 /** Links inside the first list after the element with the given id. */

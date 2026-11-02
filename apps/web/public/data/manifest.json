@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-02T19:53:45.100Z",
+  "generatedAt": "2026-11-02T20:56:38.425Z",
   "source": "https://worldpopulationreview.com",
   "types": [
     {
@@ -9,7 +9,7 @@
       "prefix": "country-rankings",
       "entities": 235,
       "metrics": 4934,
-      "numericMetrics": 3026,
+      "numericMetrics": 3250,
       "topics": 1719
     },
     {
@@ -19,7 +19,7 @@
       "prefix": "state-rankings",
       "entities": 51,
       "metrics": 4177,
-      "numericMetrics": 2410,
+      "numericMetrics": 2606,
       "topics": 1258
     },
     {
@@ -29,7 +29,7 @@
       "prefix": "us-city-rankings",
       "entities": 477,
       "metrics": 81,
-      "numericMetrics": 75,
+      "numericMetrics": 76,
       "topics": 22
     },
     {
