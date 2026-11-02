@@ -21,7 +21,7 @@ import { formatInt, formatValue, ordinal, typeNoun } from '~/lib/format';
 import { breadcrumbs, faqPage, publisher } from '~/lib/seo';
 import { absoluteUrl, SITE } from '~/site';
 
-/** Places with fewer metrics than this are thin: not prerendered, marked noindex. */
+/** Places with fewer metrics than this are thin: marked noindex and left out of the sitemap. */
 export const MIN_PLACE_METRICS = 10;
 
 export interface QA {

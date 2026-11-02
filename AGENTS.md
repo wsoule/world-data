@@ -9,11 +9,12 @@ monorepo template (moon, pnpm catalog, TypeScript 7, oxlint/oxfmt, Bun tests).
 ## Projects
 
 - `apps/web` (`web`): the TanStack Start app (React 19, TanStack Router, Query,
-  Table v9, Virtual and Charts). Topic, place, category and home pages are
-  prerendered to static HTML at build time (`scripts/prerender-pages.ts` lists
-  them and feeds the sitemap); `/compare`, `/vs` and `/search` are `ssr: false`
-  and served by the SPA shell (`/_shell.html`). Deploy `apps/web/dist/client` as
-  a static site. `public/data` holds the generated dataset, which is committed.
+  Table v9, Virtual and Charts). Every page is prerendered to static HTML at
+  build time (`scripts/prerender-pages.ts` lists them and feeds the sitemap);
+  `/compare`, `/vs` and `/search` are `ssr: false`, so theirs is a
+  client-rendered shell. Unknown paths get `404.html` (the SPA shell retitled by
+  `scripts/seo-files.ts`). Deploy `apps/web/dist/client` as a static site.
+  `public/data` holds the generated dataset, which is committed.
   `moonx web:dev --ignore-ci-checks` starts it on port 5173 + worktree offset
   with server rendering.
 - `packages/stats` (`stats`): the statistics behind every comparison (ranks,

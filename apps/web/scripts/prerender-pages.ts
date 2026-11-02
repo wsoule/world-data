@@ -1,9 +1,10 @@
 // Builds the list of pages TanStack Start prerenders to static HTML, with
 // sitemap metadata. Read by vite.config.ts at build time.
 //
-// Every topic, category and place-type page is included. Places are included
-// only when they have enough data to be useful on their own (MIN_PLACE_METRICS);
-// thinner place pages still work in the browser but are marked noindex.
+// Every topic, category, place-type and place page is included, so every real
+// URL is a static file and anything else gets the host's 404 page. Places with
+// too little data to stand on their own (MIN_PLACE_METRICS) are still
+// prerendered, but kept out of the sitemap and marked noindex.
 
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -18,9 +19,9 @@ import type {
 } from '../src/data/types';
 
 /**
- * Places with fewer numeric metrics than this are not prerendered or listed in
- * the sitemap. Keep in sync with MIN_PLACE_METRICS in src/seo/content.ts,
- * which marks the same pages noindex.
+ * Places with fewer numeric metrics than this are left out of the sitemap.
+ * Keep in sync with MIN_PLACE_METRICS in src/seo/content.ts, which marks the
+ * same pages noindex.
  */
 export const MIN_PLACE_METRICS = 10;
 
@@ -101,13 +102,15 @@ export function prerenderPages(dataDir: string): PrerenderPage[] {
       readJson<Metric[]>(dataDir, `${type}/metrics.json`)
     );
     entities.forEach((e, i) => {
-      if (counts[i] < MIN_PLACE_METRICS) return;
       pages.push({
         path: `/places/${type}/${e.slug}`,
-        sitemap: {
-          priority: type === 'country' || type === 'state' ? 0.6 : 0.4,
-          lastmod: built,
-        },
+        sitemap:
+          counts[i] < MIN_PLACE_METRICS
+            ? { exclude: true }
+            : {
+                priority: type === 'country' || type === 'state' ? 0.6 : 0.4,
+                lastmod: built,
+              },
       });
     });
   }

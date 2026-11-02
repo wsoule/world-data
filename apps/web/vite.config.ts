@@ -17,8 +17,8 @@ export default defineConfig(({ command }) => ({
   plugins: [
     tailwindcss(),
     tanstackStart({
-      // Topic, place, category and home pages become static HTML at build
-      // time; everything else is served by the SPA shell (/_shell.html).
+      // Every page becomes static HTML at build time. /compare, /vs and
+      // /search are ssr: false, so theirs is the client-rendered shell.
       pages: command === 'build' ? prerenderPages(dataDir) : [],
       prerender: {
         enabled: true,
@@ -28,9 +28,9 @@ export default defineConfig(({ command }) => ({
         concurrency: 8,
       },
       sitemap: { enabled: true, host: siteUrl },
-      // The SPA shell (/_shell.html) serves non-prerendered routes in
-      // production. Only enable it for builds: in dev it would make every
-      // request render as the shell instead of the real page.
+      // The SPA shell (/_shell.html) is the base of 404.html (written by
+      // scripts/seo-files.ts). Only enable it for builds: in dev it would make
+      // every request render as the shell instead of the real page.
       // maskPath must not be a real page: on '/' the shell would replace the
       // prerendered home page.
       spa: { enabled: command === 'build', maskPath: '/app-shell' },

@@ -2,11 +2,15 @@
   "buildCommand": "cd ../.. && moon run web:build",
   "outputDirectory": "dist/client",
   "trailingSlash": false,
-  "rewrites": [{ "source": "/(.*)", "destination": "/_shell.html" }],
   "headers": [
     {
       "source": "/data/(.*)",
-      "headers": [{ "key": "Cache-Control", "value": "public, max-age=3600" }]
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=3600"
+        }
+      ]
     }
   ]
 }

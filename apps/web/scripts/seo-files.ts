@@ -5,6 +5,8 @@
 //   llms.txt        site summary and entry points for AI answer engines
 //   llms-full.txt   every topic with a one-line answer-first fact
 //   site.webmanifest
+//   404.html        the SPA shell titled "Page not found", which static hosts
+//                   serve with a 404 status for any path without a page
 //   data/<type>/topics/<slug>.csv   each topic's default-year table
 //
 // Run by the web:build moon task after `vite build`.
@@ -62,6 +64,21 @@ function robots(): string {
     `Sitemap: ${SITE_URL}/sitemap.xml`,
     '',
   ].join('\n');
+}
+
+/**
+ * The 404 page: the prerendered SPA shell (which already carries
+ * robots=noindex) with a "Page not found" title and description. Once its
+ * script loads, the router renders the not-found view for the requested URL.
+ */
+function notFoundPage(shell: string): string {
+  const title = `Page not found — ${SITE.name}`;
+  return shell
+    .replace(/<title>[^<]*<\/title>/, `<title>${title}</title>`)
+    .replace(
+      /<meta name="description" content="[^"]*"\/>/,
+      '<meta name="description" content="There is no page at this address."/>'
+    );
 }
 
 /** CSV-escapes one cell. */
@@ -225,6 +242,10 @@ async function main(): Promise<void> {
   };
 
   await writeFile(path.join(OUT, 'robots.txt'), robots());
+  await writeFile(
+    path.join(OUT, '404.html'),
+    notFoundPage(await readFile(path.join(OUT, '_shell.html'), 'utf8'))
+  );
   await writeFile(path.join(OUT, 'llms.txt'), llms.join('\n'));
   await writeFile(path.join(OUT, 'llms-full.txt'), full.join('\n'));
   await writeFile(
@@ -232,7 +253,7 @@ async function main(): Promise<void> {
     `${JSON.stringify(webManifest, null, 2)}\n`
   );
   console.log(
-    `seo-files: robots.txt, llms.txt, llms-full.txt (${topics.length} topics), site.webmanifest, ${csvCount} CSV files`
+    `seo-files: robots.txt, 404.html, llms.txt, llms-full.txt (${topics.length} topics), site.webmanifest, ${csvCount} CSV files`
   );
 }
 

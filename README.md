@@ -76,11 +76,12 @@ source site's prose.
 ## Deploy
 
 `moonx web:build` prerenders every topic, place, category and type page (about
-6,400 HTML files) plus `sitemap.xml` into `apps/web/dist/client`. Deploy that
-folder to any static host with a fallback to `/_shell.html` for other paths (the
-browser-only `/compare`, `/vs` and `/search`). `public/_redirects` (Netlify) and
-`vercel.json` already do this. Set `VITE_SITE_URL` to the public origin at build
-time so canonical URLs and the sitemap point at it.
+8,200 HTML files) plus `sitemap.xml` into `apps/web/dist/client`. The
+browser-only `/compare`, `/vs` and `/search` are prerendered as client-rendered
+shells, so no rewrites are needed. Deploy that folder to any static host that
+serves `404.html` for unknown paths (Netlify, Cloudflare Pages, Vercel and
+GitHub Pages all do). Set `VITE_SITE_URL` to the public origin at build time so
+canonical URLs and the sitemap point at it.
 
 ## License
 
