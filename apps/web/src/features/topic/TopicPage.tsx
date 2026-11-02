@@ -83,24 +83,34 @@ function TopicView({ type, slug }: { type: EntityType; slug: string }) {
     focus == null ? null : resolveYear(years, search.year, focus.year, undated);
   const [selected, setSelected] = useState<number | null>(null);
 
+  // Metric and year switches are discrete steps, so each gets a history entry
+  // that Back undoes. A new metric also resets the data table to its tab and order.
   const setFocus = useCallback(
-    (id: number) =>
+    (id: number) => {
+      if (id === focus?.id) return;
       void navigate({
-        search: (prev) => ({ ...prev, m: id, year: undefined }),
-        replace: true,
+        search: (prev) => ({
+          ...prev,
+          m: id,
+          year: undefined,
+          tab: undefined,
+          tsort: undefined,
+        }),
         resetScroll: false,
-      }),
-    [navigate]
+      });
+    },
+    [navigate, focus]
   );
   // The metric's default year (or undated series) stays out of the URL.
   const setYear = useCallback(
-    (choice: number | null) =>
+    (choice: number | null) => {
+      if (choice === year) return;
       void navigate({
         search: (prev) => ({ ...prev, year: yearParam(choice, defaultYear) }),
-        replace: true,
         resetScroll: false,
-      }),
-    [navigate, defaultYear]
+      });
+    },
+    [navigate, defaultYear, year]
   );
   // Clicking the same place again clears the selection.
   const toggleSelected = useCallback(

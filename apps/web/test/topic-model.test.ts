@@ -7,12 +7,14 @@ import {
   directionOf,
   displayTables,
   focusableMetrics,
+  formatSort,
   hasUndated,
   isSkewed,
   LATEST,
   logTicks,
   median,
   numericColumn,
+  parseSort,
   rankColumn,
   rankEntries,
   rankWindow,
@@ -166,6 +168,22 @@ describe('years', () => {
     );
     expect(tableYear(topic, metric(5, 'num'), undefined)).toBeNull();
     expect(tableYear(topic, metric(5, 'num'), 2022)).toBe(2022);
+  });
+});
+
+describe('table sort in the URL', () => {
+  const ids = new Set(['place', 'm1', 'm2']);
+  test('round-trips ascending and descending sorts', () => {
+    expect(formatSort({ id: 'm1', desc: true })).toBe('-m1');
+    expect(formatSort({ id: 'place', desc: false })).toBe('place');
+    expect(parseSort('-m1', ids)).toEqual({ id: 'm1', desc: true });
+    expect(parseSort('place', ids)).toEqual({ id: 'place', desc: false });
+  });
+
+  test('ignores missing sorts and columns of another table', () => {
+    expect(parseSort(undefined, ids)).toBeNull();
+    expect(parseSort('', ids)).toBeNull();
+    expect(parseSort('-m99', ids)).toBeNull();
   });
 });
 

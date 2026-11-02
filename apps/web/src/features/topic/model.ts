@@ -325,6 +325,28 @@ export function trendPicks(
   return out;
 }
 
+/** One column sort, the shape TanStack Table uses. */
+export interface ColumnSort {
+  id: string;
+  desc: boolean;
+}
+
+/** URL form of a table sort: the column id, prefixed with "-" when descending ("-m12610"). */
+export function formatSort(sort: ColumnSort): string {
+  return `${sort.desc ? '-' : ''}${sort.id}`;
+}
+
+/** Reads a table sort from the URL, or null when it is missing or names no column of this table. */
+export function parseSort(
+  param: string | undefined,
+  columnIds: ReadonlySet<string>
+): ColumnSort | null {
+  if (param == null || param === '') return null;
+  const desc = param.startsWith('-');
+  const id = desc ? param.slice(1) : param;
+  return columnIds.has(id) ? { id, desc } : null;
+}
+
 /** Split a source pipe list ("A | B | C") into trimmed items. */
 export function splitList(value: string): string[] {
   return value

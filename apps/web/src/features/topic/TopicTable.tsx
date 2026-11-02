@@ -1,4 +1,4 @@
-import { Link } from '@tanstack/react-router';
+import { getRouteApi, Link, useHydrated } from '@tanstack/react-router';
 import {
   columnFilteringFeature,
   createColumnHelper,
@@ -15,11 +15,21 @@ import {
 } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ArrowDown, ArrowUp, ChevronsUpDown, Search } from 'lucide-react';
-import { type KeyboardEvent, useMemo, useRef, useState } from 'react';
+import {
+  type KeyboardEvent,
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import {
   directionOf,
+  formatSort,
   numericColumn,
+  parseSort,
   placeNoun,
   rankColumn,
   rawColumn,
@@ -38,6 +48,9 @@ import type {
 } from '~/data/types';
 import { formatInt, formatValue } from '~/lib/format';
 import { chartColors, useTheme } from '~/lib/theme';
+import type { TopicSearch } from '~/routes/topics.$type.$slug';
+
+const route = getRouteApi('/topics/$type/$slug');
 
 /** One place in a topic table, with the raw value of every metric in that table. */
 interface TopicRow {
@@ -60,6 +73,8 @@ const helper = createColumnHelper<typeof features, TopicRow>();
 
 /** Rows beyond which only the visible window is rendered. */
 const VIRTUALIZE_ABOVE = 150;
+/** Typing pause before the table filter is written to the URL. */
+const FILTER_DEBOUNCE_MS = 250;
 const ROW_HEIGHT = 40;
 const RANK_WIDTH = 52;
 const NUM_WIDTH = 136;
@@ -80,9 +95,14 @@ interface MetricColumn {
   latest: boolean;
 }
 
+/** URL params of the data table (see TopicSearch). */
+type TableSearch = Pick<TopicSearch, 'tab' | 'tq' | 'tsort'>;
+
 /**
  * Every topic table as a sortable, filterable data table, one tab per source table. The tab that
- * holds the focus metric opens first.
+ * holds the focus metric opens first. The open tab, filter and sort live in the URL (replaced,
+ * not pushed) so coming Back from a place page, a reload or a shared link restores them; like
+ * every search param they apply after hydration, since prerendered HTML has none.
  */
 export function TopicTables({
   dataset,
@@ -102,11 +122,39 @@ export function TopicTables({
   selected: number | null;
   onSelect: (entityIndex: number) => void;
 }) {
+  const hydrated = useHydrated();
+  const urlSearch = route.useSearch();
+  const search: TableSearch = hydrated ? urlSearch : {};
+  const navigate = route.useNavigate();
+  const setSearch = useCallback(
+    (patch: TableSearch) =>
+      void navigate({
+        search: (prev) => ({ ...prev, ...patch }),
+        replace: true,
+        resetScroll: false,
+      }),
+    [navigate]
+  );
+  const onFilter = useCallback(
+    (tq: string) => setSearch({ tq: tq === '' ? undefined : tq }),
+    [setSearch]
+  );
+  const onSort = useCallback(
+    (tsort: string | undefined) => setSearch({ tsort }),
+    [setSearch]
+  );
+
   const focusTable = Math.max(
     0,
     tables.findIndex((t) => focusId != null && t.metrics.includes(focusId))
   );
-  const [picked, setPicked] = useState<number | null>(null);
+  const picked =
+    search.tab != null &&
+    Number.isInteger(search.tab) &&
+    search.tab >= 0 &&
+    search.tab < tables.length
+      ? search.tab
+      : null;
   const active = Math.min(picked ?? focusTable, tables.length - 1);
   const table = tables[active];
   if (table == null) return null;
@@ -138,7 +186,12 @@ export function TopicTables({
               id={`topic-tab-${k}`}
               aria-selected={k === active}
               aria-controls="topic-tabpanel"
-              onClick={() => setPicked(k)}
+              onClick={() =>
+                setSearch({
+                  tab: k === focusTable ? undefined : k,
+                  tsort: undefined,
+                })
+              }
               className={cx(
                 'shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors',
                 k === active
@@ -166,6 +219,10 @@ export function TopicTables({
           table={table}
           focusId={focusId}
           year={year}
+          filterParam={search.tq ?? ''}
+          sortParam={search.tsort}
+          onFilter={onFilter}
+          onSort={onSort}
           selected={selected}
           onSelect={onSelect}
         />
@@ -174,12 +231,44 @@ export function TopicTables({
   );
 }
 
+/**
+ * The filter box's text, kept locally so typing never waits for the router, and written to
+ * the URL once typing pauses. URL changes this box did not make (Back/Forward, a shared link
+ * applied after hydration) replace the text.
+ */
+function useUrlFilter(
+  param: string,
+  write: (value: string) => void
+): [string, (value: string) => void] {
+  const [draft, setDraft] = useState(param);
+  // The value last written to (or read from) the URL.
+  const synced = useRef(param);
+  useEffect(() => {
+    if (draft === synced.current) return;
+    const timer = setTimeout(() => {
+      synced.current = draft;
+      write(draft);
+    }, FILTER_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [draft, write]);
+  useEffect(() => {
+    if (param === synced.current) return;
+    synced.current = param;
+    setDraft(param);
+  }, [param]);
+  return [draft, setDraft];
+}
+
 function DataTable({
   dataset,
   topic,
   table: source,
   focusId,
   year,
+  filterParam,
+  sortParam,
+  onFilter,
+  onSort,
   selected,
   onSelect,
 }: {
@@ -188,6 +277,13 @@ function DataTable({
   table: SourceTable;
   focusId: number | null;
   year: number | null | undefined;
+  /** Filter text from the URL */
+  filterParam: string;
+  /** Sort from the URL ("-m123"); ignored when it names no column of this table */
+  sortParam: string | undefined;
+  onFilter: (value: string) => void;
+  /** Writes a sort to the URL, undefined for the default order */
+  onSort: (value: string | undefined) => void;
   selected: number | null;
   onSelect: (entityIndex: number) => void;
 }) {
@@ -251,9 +347,14 @@ function DataTable({
       ? [{ id: `m${lead.metric.id}`, desc: directionOf(lead.metric) === 1 }]
       : [{ id: 'place', desc: false }];
   }, [cols, focusId]);
-  const [userSorting, setUserSorting] = useState<SortingState | null>(null);
-  const sorting = userSorting ?? defaultSorting;
-  const [filter, setFilter] = useState('');
+  const columnIds = useMemo(
+    () => new Set(['place', ...cols.map((c) => `m${c.metric.id}`)]),
+    [cols]
+  );
+  const urlSort = parseSort(sortParam, columnIds);
+  const sorting: SortingState = urlSort != null ? [urlSort] : defaultSorting;
+  const [draft, setDraft] = useUrlFilter(filterParam, onFilter);
+  const filter = useDeferredValue(draft);
 
   // The rank column follows the sorted numeric metric, else the default lead metric.
   const sortedK = cols.findIndex((c) => `m${c.metric.id}` === sorting[0]?.id);
@@ -348,8 +449,15 @@ function DataTable({
       sorting,
       columnFilters: filter === '' ? [] : [{ id: 'place', value: filter }],
     },
-    onSortingChange: (u) =>
-      setUserSorting((prev) => functionalUpdate(u, prev ?? defaultSorting)),
+    onSortingChange: (u) => {
+      const next = functionalUpdate(u, sorting)[0];
+      const base = defaultSorting[0];
+      onSort(
+        next == null || (next.id === base.id && next.desc === base.desc)
+          ? undefined
+          : formatSort(next)
+      );
+    },
     enableSortingRemoval: false,
   });
 
@@ -391,8 +499,8 @@ function DataTable({
           <Search className="text-muted size-3.5 shrink-0" aria-hidden />
           <input
             type="search"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
             placeholder={`Filter ${noun}…`}
             aria-label={`Filter ${noun} by name`}
             className="w-full min-w-0 bg-transparent text-sm outline-none sm:w-44"
