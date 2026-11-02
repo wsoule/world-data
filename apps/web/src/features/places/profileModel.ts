@@ -348,10 +348,23 @@ export interface NotableFact {
 const factMargin = (f: NotableFact) =>
   f.end === 'first' ? f.row.standing.aheadOfNext : f.row.standing.behindNext;
 
+/** Largest share of a ranking that may share a place's value for it to count as notable. */
+const MAX_FACT_TIE_SHARE = 0.1;
+
+/**
+ * Most places that may share a value for being first or last on it to be a notable fact:
+ * one in ten (at least one). Being "last" on the $7.25 federal minimum wage alongside 20 other
+ * states, or "lowest" on a value 43 states share, says nothing about the place.
+ */
+export function maxNotableTie(n: number): number {
+  return Math.max(1, Math.floor(n * MAX_FACT_TIE_SHARE));
+}
+
 /**
  * Metrics where the place is at the very top or bottom of a ranking with enough coverage,
- * skipping `exclude`d metric ids. Directional metrics come first, then broader rankings, then
- * the widest margins over the nearest rival, one per topic before any topic repeats.
+ * skipping `exclude`d metric ids and values shared by many places (see `maxNotableTie`).
+ * Directional metrics come first, then broader rankings, then the widest margins over the
+ * nearest rival, one per topic before any topic repeats.
  */
 export function notableFacts(
   rows: readonly PlaceMetric[],
@@ -361,7 +374,13 @@ export function notableFacts(
   const facts: NotableFact[] = [];
   for (const row of rows) {
     const s = row.standing;
-    if (s.n < cut.minN || s.n <= s.tied || exclude.has(row.metric.id)) continue;
+    if (
+      s.n < cut.minN ||
+      s.n <= s.tied ||
+      s.tied > maxNotableTie(s.n) ||
+      exclude.has(row.metric.id)
+    )
+      continue;
     if (s.better === 0) facts.push({ row, end: 'first' });
     else if (s.worse === 0) facts.push({ row, end: 'last' });
   }

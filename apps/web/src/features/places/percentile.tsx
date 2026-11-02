@@ -40,8 +40,14 @@ export function neutralColor(theme: Theme): string {
   return stops(theme).neutral;
 }
 
-/** "3rd of 50" (with "tied" when others share the value). */
+/**
+ * "3rd of 50", with "tied" when others share the value. A tie that runs to the bottom of the
+ * ranking reads "tied last of 51": its competition rank (the top of the tie, say 32nd) would
+ * place it mid-table although nobody ranks below it.
+ */
 export function rankText(s: Pick<Standing, 'rank' | 'n' | 'tied'>): string {
+  if (s.tied > 1 && s.rank > 1 && s.rank + s.tied - 1 >= s.n)
+    return `tied last of ${formatInt(s.n)}`;
   return `${s.tied > 1 ? 'tied ' : ''}${ordinal(s.rank)} of ${formatInt(s.n)}`;
 }
 

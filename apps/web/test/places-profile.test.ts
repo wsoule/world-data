@@ -2,12 +2,14 @@ import { competitionRank, percentile } from '@world-data/stats';
 import { describe, expect, test } from 'bun:test';
 
 import type { Metric } from '../src/data/types';
+import { rankText } from '../src/features/places/percentile';
 import {
   categoryScores,
   coverageCut,
   dedupeKey,
   diversifyByTopic,
   isPolar,
+  maxNotableTie,
   metricsWithData,
   notableFacts,
   placeStandings,
@@ -101,6 +103,15 @@ describe('isPolar', () => {
     expect(isPolar({ pol: 1, fmt: 'year' })).toBe(false);
     expect(isPolar({ pol: -1, fmt: 'ranking' })).toBe(true);
     expect(isPolar({ pol: 0, fmt: null })).toBe(false);
+  });
+});
+
+describe('rankText', () => {
+  test('reads a tie at the bottom as tied last, not by its top rank', () => {
+    expect(rankText({ rank: 32, n: 51, tied: 20 })).toBe('tied last of 51');
+    expect(rankText({ rank: 51, n: 51, tied: 1 })).toBe('51st of 51');
+    expect(rankText({ rank: 3, n: 51, tied: 2 })).toBe('tied 3rd of 51');
+    expect(rankText({ rank: 1, n: 3, tied: 3 })).toBe('tied 1st of 3');
   });
 });
 
@@ -236,6 +247,23 @@ describe('profile sections', () => {
     expect(
       notableFacts(rows, cut, new Set([4])).map((f) => f.row.metric.label)
     ).not.toContain('Tax');
+  });
+
+  test('notable facts skip values that many places share', () => {
+    const names20 = Array.from({ length: 20 }, (_, i) => `p${i}`);
+    // Place 0 ties for last with two others (3 of 20 > 10%), and for first with one other.
+    const wage = metric(1, 'Minimum Wage', 1);
+    const rent = metric(2, 'Rent', -1);
+    const tied = fixture(names20, [
+      [wage, names20.map((_, i) => (i < 3 ? 7.25 : 8 + i))],
+      [rent, names20.map((_, i) => (i < 2 ? 500 : 600 + i))],
+    ]);
+    const facts = notableFacts(placeStandings(tied, 0), cut);
+    expect(facts.map((f) => [f.row.metric.label, f.end])).toEqual([
+      ['Rent', 'first'],
+    ]);
+    expect(maxNotableTie(20)).toBe(2);
+    expect(maxNotableTie(5)).toBe(1);
   });
 
   test('metricsWithData counts rankable values per place', () => {
