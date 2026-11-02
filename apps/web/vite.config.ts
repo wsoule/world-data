@@ -31,7 +31,9 @@ export default defineConfig(({ command }) => ({
       // The SPA shell (/_shell.html) serves non-prerendered routes in
       // production. Only enable it for builds: in dev it would make every
       // request render as the shell instead of the real page.
-      spa: { enabled: command === 'build' },
+      // maskPath must not be a real page: on '/' the shell would replace the
+      // prerendered home page.
+      spa: { enabled: command === 'build', maskPath: '/app-shell' },
     }),
     react(),
   ],

@@ -73,6 +73,7 @@ export function prerenderPages(dataDir: string): PrerenderPage[] {
     { path: '/compare', sitemap: { exclude: true } },
     { path: '/vs', sitemap: { exclude: true } },
     { path: '/search', sitemap: { exclude: true } },
+    { path: '/app-shell', sitemap: { exclude: true } },
   ];
   for (const c of manifest.categories) {
     pages.push({

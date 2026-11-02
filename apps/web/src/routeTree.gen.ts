@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AppShellRouteImport } from './routes/app-shell'
 import { Route as CompareRouteImport } from './routes/compare'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as VsRouteImport } from './routes/vs'
@@ -22,6 +23,11 @@ import { Route as TopicsTypeSlugRouteImport } from './routes/topics.$type.$slug'
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppShellRoute = AppShellRouteImport.update({
+  id: '/app-shell',
+  path: '/app-shell',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CompareRoute = CompareRouteImport.update({
@@ -67,6 +73,7 @@ const TopicsTypeSlugRoute = TopicsTypeSlugRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/app-shell': typeof AppShellRoute
   '/compare': typeof CompareRoute
   '/search': typeof SearchRoute
   '/vs': typeof VsRoute
@@ -78,6 +85,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/app-shell': typeof AppShellRoute
   '/compare': typeof CompareRoute
   '/search': typeof SearchRoute
   '/vs': typeof VsRoute
@@ -90,6 +98,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/app-shell': typeof AppShellRoute
   '/compare': typeof CompareRoute
   '/search': typeof SearchRoute
   '/vs': typeof VsRoute
@@ -103,6 +112,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/app-shell'
     | '/compare'
     | '/search'
     | '/vs'
@@ -114,6 +124,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/app-shell'
     | '/compare'
     | '/search'
     | '/vs'
@@ -125,6 +136,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/app-shell'
     | '/compare'
     | '/search'
     | '/vs'
@@ -137,6 +149,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AppShellRoute: typeof AppShellRoute
   CompareRoute: typeof CompareRoute
   SearchRoute: typeof SearchRoute
   VsRoute: typeof VsRoute
@@ -154,6 +167,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/app-shell': {
+      id: '/app-shell'
+      path: '/app-shell'
+      fullPath: '/app-shell'
+      preLoaderRoute: typeof AppShellRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/compare': {
@@ -217,6 +237,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AppShellRoute: AppShellRoute,
   CompareRoute: CompareRoute,
   SearchRoute: SearchRoute,
   VsRoute: VsRoute,
