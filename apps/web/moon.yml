@@ -7,8 +7,10 @@ language: 'typescript'
 layer: 'application'
 
 tasks:
+  # vite build prerenders the content pages and writes sitemap.xml; then
+  # seo-files.ts adds robots.txt, llms.txt, the web manifest and topic CSVs.
   build:
-    command: 'vite build'
+    script: 'vite build && bun scripts/seo-files.ts'
     deps:
       - '^:build'
     inputs:
