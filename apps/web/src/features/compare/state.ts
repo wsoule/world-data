@@ -51,6 +51,15 @@ export interface CompareSearch {
   fl?: Record<string, boolean>;
 }
 
+/**
+ * How a URL change lands in the browser history. Discrete choices (a view tab, adding or removing
+ * a metric, a highlight, an axis) push an entry so Back undoes them; continuous inputs (sliders,
+ * typing) and automatic URL normalisation replace the current entry so Back is not flooded.
+ */
+export interface UpdateOptions {
+  replace?: boolean;
+}
+
 const NORMS: Normalization[] = ['percentile', 'zscore', 'minmax'];
 
 const numArray = (v: unknown): number[] =>
@@ -144,11 +153,12 @@ export interface CompareViewProps {
   direction: (id: number) => 1 | -1;
   /** Effective weight for a metric (default 1) */
   weight: (id: number) => number;
-  /** Patch the URL state (merged) */
+  /** Patch the URL state (merged). Pushes a history entry unless `options.replace` is set. */
   update: (
     patch:
       | Partial<CompareSearch>
-      | ((s: CompareSearch) => Partial<CompareSearch>)
+      | ((s: CompareSearch) => Partial<CompareSearch>),
+    options?: UpdateOptions
   ) => void;
   addMetric: (id: number) => void;
   removeMetric: (id: number) => void;
@@ -162,6 +172,31 @@ export function effectiveDirection(
   const o = search.d?.[String(metric.id)];
   if (o != null) return o;
   return metric.pol === -1 ? -1 : 1;
+}
+
+/**
+ * Direction overrides after one click on a metric's direction button. Metrics with a natural
+ * direction toggle between higher and lower is better, keeping an override only when it differs
+ * from the catalog. Neutral metrics (population, area…) cycle through no side → higher is
+ * better → lower is better → no side, so a reader can always return to "neither".
+ */
+export function cycleDirection(
+  d: CompareSearch['d'],
+  metric: Metric
+): CompareSearch['d'] {
+  const key = String(metric.id);
+  const cur = d?.[key];
+  const next = { ...d };
+  if (metric.pol === 0) {
+    if (cur == null) next[key] = 1;
+    else if (cur === 1) next[key] = -1;
+    else delete next[key];
+  } else {
+    const flipped = (cur ?? metric.pol) === 1 ? -1 : 1;
+    if (flipped === metric.pol) delete next[key];
+    else next[key] = flipped;
+  }
+  return Object.keys(next).length > 0 ? next : undefined;
 }
 
 export function effectiveWeight(search: CompareSearch, id: number): number {

@@ -1,6 +1,7 @@
 import { getRouteApi, Link } from '@tanstack/react-router';
 import {
   ArrowDownWideNarrow,
+  ArrowUpDown,
   ArrowUpWideNarrow,
   BarChart3,
   ChevronDown,
@@ -13,15 +14,16 @@ import {
   Trophy,
   X,
 } from 'lucide-react';
-import { type ReactNode, useCallback, useMemo } from 'react';
+import { type ReactNode, useCallback, useId, useMemo, useState } from 'react';
 
-import { typeNoun } from './polarity';
+import { directionHint, typeNoun } from './polarity';
 import { PopularMetricChips, PresetCards } from './QuickStart';
 import { ShareButton } from './ShareButton';
 import {
   type CompareSearch,
   type CompareView,
   type CompareViewProps,
+  cycleDirection,
   effectiveDirection,
   effectiveWeight,
   filteredEntities,
@@ -98,14 +100,16 @@ export function CompareShell() {
   const navigate = route.useNavigate();
   const dataset = useDataset(search.type);
 
+  // Discrete changes push a history entry so Back undoes them; callers pass `replace` for
+  // sliders, typing and automatic URL normalisation.
   const update = useCallback<CompareViewProps['update']>(
-    (patch) => {
+    (patch, options) => {
       void navigate({
         search: (prev) => ({
           ...prev,
           ...(typeof patch === 'function' ? patch(prev) : patch),
         }),
-        replace: true,
+        replace: options?.replace === true,
         resetScroll: false,
       });
     },
@@ -170,6 +174,11 @@ export function CompareShell() {
   };
   const active = VIEWS.find((v) => v.id === search.view) ?? VIEWS[0];
   const View = active.component;
+  // Below the lg breakpoint the metric, filter and highlight cards collapse behind a summary
+  // bar so the chart comes first; they stay open while the basket is empty (nothing to show).
+  const [panelOpen, setPanelOpen] = useState(false);
+  const panelId = useId();
+  const showPanel = panelOpen || metrics.length === 0;
 
   // A new place type has different metric ids, so start a fresh basket.
   const switchType = (type: EntityType) => {
@@ -189,8 +198,22 @@ export function CompareShell() {
           </>
         }
       />
-      <div className="grid gap-6 lg:grid-cols-[20rem_minmax(0,1fr)]">
-        <aside className="grid content-start gap-4 sm:grid-cols-2 lg:grid-cols-1">
+      <div className="grid gap-4 lg:grid-cols-[20rem_minmax(0,1fr)] lg:gap-6">
+        {metrics.length > 0 ? (
+          <PanelToggle
+            {...props}
+            open={panelOpen}
+            controls={panelId}
+            onToggle={() => setPanelOpen((o) => !o)}
+          />
+        ) : null}
+        <aside
+          id={panelId}
+          className={cx(
+            'content-start gap-4 sm:grid-cols-2 lg:grid lg:grid-cols-1',
+            showPanel ? 'grid' : 'hidden'
+          )}
+        >
           <Basket {...props} />
           <GroupFilter {...props} />
           <Highlights {...props} />
@@ -268,6 +291,64 @@ function Onboarding({ dataset, addMetric }: CompareViewProps) {
   );
 }
 
+/**
+ * Phone and tablet summary of the side panel: which metrics, filters and highlights are active,
+ * and a button that shows or hides the full cards. Hidden from the lg breakpoint up, where the
+ * cards always sit beside the chart.
+ */
+function PanelToggle({
+  metrics,
+  search,
+  open,
+  controls,
+  onToggle,
+}: CompareViewProps & {
+  open: boolean;
+  controls: string;
+  onToggle: () => void;
+}) {
+  const extras = [
+    search.g != null && search.g.length > 0
+      ? `only ${search.g.join(', ')}`
+      : null,
+    search.hl != null && search.hl.length > 0
+      ? `${search.hl.length} highlighted`
+      : null,
+  ].filter((s) => s != null);
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={open}
+      aria-controls={controls}
+      className="card hover:bg-surface-2 flex w-full items-center gap-3 px-4 py-3 text-left lg:hidden"
+    >
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-semibold">
+          Metrics{' '}
+          <span className="text-muted font-normal">({metrics.length})</span>
+          {extras.length > 0 ? (
+            <span className="text-muted font-normal">
+              {' '}
+              · {extras.join(' · ')}
+            </span>
+          ) : null}
+        </span>
+        <span className="text-muted line-clamp-2 text-xs">
+          {metrics.map((m) => m.label).join(' · ')}
+        </span>
+      </span>
+      <span className="text-accent-700 dark:text-accent-300 inline-flex shrink-0 items-center gap-1 text-xs font-medium">
+        {open ? 'Hide' : 'Edit'}
+        <ChevronDown
+          className={cx('size-4 transition-transform', open && 'rotate-180')}
+          aria-hidden
+        />
+      </span>
+    </button>
+  );
+}
+
 /** Share of the filtered places with a value for each basket metric. */
 function useCoverage(
   dataset: CompareViewProps['dataset'],
@@ -291,7 +372,6 @@ function Basket({
   search,
   metrics,
   entityIdx,
-  direction,
   addMetric,
   removeMetric,
   update,
@@ -346,7 +426,7 @@ function Basket({
       {metrics.length > 0 ? (
         <ul className="mb-3 space-y-2">
           {metrics.map((m, i) => {
-            const dir = direction(m.id);
+            const hint = directionHint(search, m);
             const covered = coverage.get(m.id) ?? 0;
             const share = total > 0 ? covered / total : 0;
             return (
@@ -356,27 +436,14 @@ function Basket({
               >
                 <button
                   type="button"
-                  title={
-                    dir === 1
-                      ? 'Higher is better (click to flip)'
-                      : 'Lower is better (click to flip)'
-                  }
-                  aria-label={
-                    dir === 1
-                      ? `${m.label}: higher is better, click to flip`
-                      : `${m.label}: lower is better, click to flip`
-                  }
-                  onClick={() =>
-                    update((s) => ({
-                      d: {
-                        ...(s.d ?? {}),
-                        [String(m.id)]: dir === 1 ? -1 : 1,
-                      },
-                    }))
-                  }
+                  title={`${hint.label} (${hint.action})`}
+                  aria-label={`${m.label}: ${hint.label.toLowerCase()}, ${hint.action}`}
+                  onClick={() => update((s) => ({ d: cycleDirection(s.d, m) }))}
                   className="hover:bg-surface-2 mt-0.5 shrink-0 rounded p-0.5"
                 >
-                  {dir === 1 ? (
+                  {hint.side === 0 ? (
+                    <ArrowUpDown className="text-muted size-4" />
+                  ) : hint.side === 1 ? (
                     <ArrowUpWideNarrow className="text-good size-4" />
                   ) : (
                     <ArrowDownWideNarrow className="text-bad size-4" />

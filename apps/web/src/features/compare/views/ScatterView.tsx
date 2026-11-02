@@ -155,7 +155,8 @@ function Overlay(props: CompareViewProps) {
 
   // Persist the default axes so the URL always describes what is on screen.
   useEffect(() => {
-    if (search.x !== xId || search.y !== yId) update({ x: xId, y: yId });
+    if (search.x !== xId || search.y !== yId)
+      update({ x: xId, y: yId }, { replace: true });
   }, [search.x, search.y, xId, yId, update]);
 
   const xMetric = dataset.metric(xId) ?? metrics[0];

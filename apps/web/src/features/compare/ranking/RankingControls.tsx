@@ -2,13 +2,15 @@ import { Link } from '@tanstack/react-router';
 import type { Normalization } from '@world-data/stats';
 import {
   ArrowDownWideNarrow,
+  ArrowUpDown,
   ArrowUpWideNarrow,
   Download,
   RotateCcw,
 } from 'lucide-react';
 import { useId, useState } from 'react';
 
-import { type CompareViewProps, effectiveDirection } from '../state';
+import { directionHint } from '../polarity';
+import { type CompareViewProps, cycleDirection } from '../state';
 import { BundleMenu } from './BundlePicker';
 import { PlaceLink } from './PlaceLink';
 import { DEFAULT_COVERAGE, type RankingModel } from './useRanking';
@@ -47,7 +49,7 @@ export function RankingControls({
   model: RankingModel;
   onExport: () => void;
 }) {
-  const { dataset, search, update, weight, direction } = props;
+  const { dataset, search, update, weight } = props;
   const { metrics, base, stats, entityIdx, method, minCoverage } = model;
   const [expanded, setExpanded] = useState(false);
   const normId = useId();
@@ -62,23 +64,20 @@ export function RankingControls({
       ? metrics
       : metrics.slice(0, COLLAPSED_ROWS);
 
+  // Weight sliders replace the history entry: dragging should not leave dozens of Back steps.
   const setWeight = (id: number, v: number) =>
-    update((s) => {
-      const w = { ...(s.w ?? {}) };
-      if (v === 1) delete w[String(id)];
-      else w[String(id)] = v;
-      return { w: Object.keys(w).length > 0 ? w : undefined };
-    });
+    update(
+      (s) => {
+        const w = { ...(s.w ?? {}) };
+        if (v === 1) delete w[String(id)];
+        else w[String(id)] = v;
+        return { w: Object.keys(w).length > 0 ? w : undefined };
+      },
+      { replace: true }
+    );
 
-  // Flip a metric's direction; store an override only when it differs from the catalog polarity.
-  const flip = (m: Metric) =>
-    update((s) => {
-      const next = effectiveDirection(s, m) === 1 ? -1 : 1;
-      const d = { ...(s.d ?? {}) };
-      if (next === (m.pol === -1 ? -1 : 1)) delete d[String(m.id)];
-      else d[String(m.id)] = next;
-      return { d: Object.keys(d).length > 0 ? d : undefined };
-    });
+  // One click moves a metric to its next direction (see cycleDirection).
+  const flip = (m: Metric) => update((s) => ({ d: cycleDirection(s.d, m) }));
 
   return (
     <Card
@@ -153,7 +152,10 @@ export function RankingControls({
             aria-valuetext={`${Math.round(minCoverage * 100)}% of total weight`}
             onChange={(e) => {
               const v = Number(e.target.value);
-              update({ cov: v === DEFAULT_COVERAGE ? undefined : v });
+              update(
+                { cov: v === DEFAULT_COVERAGE ? undefined : v },
+                { replace: true }
+              );
             }}
             className="accent-accent-600 dark:accent-accent-400 mt-2 w-full"
           />
@@ -190,7 +192,7 @@ export function RankingControls({
           {visible.map((m) => {
             const k = metrics.indexOf(m);
             const w = weight(m.id);
-            const dir = direction(m.id);
+            const hint = directionHint(search, m);
             const s = stats[k];
             const bestIdx = s.best >= 0 ? entityIdx[s.best] : null;
             const ctx = dataset.metricContext(m.id);
@@ -208,15 +210,13 @@ export function RankingControls({
                 <button
                   type="button"
                   onClick={() => flip(m)}
-                  aria-label={`${m.label}: ${dir === 1 ? 'higher' : 'lower'} is better. Click to flip.`}
-                  title={
-                    dir === 1
-                      ? 'Higher is better (click to flip)'
-                      : 'Lower is better (click to flip)'
-                  }
+                  aria-label={`${m.label}: ${hint.label.toLowerCase()}, ${hint.action}`}
+                  title={`${hint.label} (${hint.action})`}
                   className="border-app hover:bg-surface-2 focus-visible:outline-accent-500 grid size-8 place-items-center rounded-lg border focus-visible:outline-2"
                 >
-                  {dir === 1 ? (
+                  {hint.side === 0 ? (
+                    <ArrowUpDown className="text-muted size-4" aria-hidden />
+                  ) : hint.side === 1 ? (
                     <ArrowUpWideNarrow
                       className="text-good size-4"
                       aria-hidden
@@ -247,7 +247,9 @@ export function RankingControls({
                     className="text-muted truncate text-xs"
                     title={ctx ?? undefined}
                   >
-                    {dir === 1 ? 'Higher is better' : 'Lower is better'}
+                    {hint.side === 0
+                      ? 'No better side · higher values score higher'
+                      : hint.label}
                     {ctx != null ? ` · ${ctx}` : ''}
                     {m.year != null ? ` · ${m.year}` : ''}
                   </div>
