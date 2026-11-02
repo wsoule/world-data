@@ -37,15 +37,18 @@ function updatedOf(topic: TopicFile, dataset: Dataset): string | null {
 }
 
 /**
- * Title block of a topic page: type and categories, freshness, coverage, the original page and
- * cited sources, and links to related topics.
+ * Title block of a topic page: type and categories, the answer-first summary, freshness,
+ * coverage, the original page and cited sources, and links to related topics.
  */
 export function TopicHeader({
   topic,
   dataset,
+  summary,
 }: {
   topic: TopicFile;
   dataset: Dataset;
+  /** One or two sentences answering the page's main question (top, bottom, runner-ups) */
+  summary: string;
 }) {
   const { data: manifest } = useSuspenseQuery(manifestQuery);
   const { data: index } = useSuspenseQuery(topicsIndexQuery);
@@ -69,6 +72,9 @@ export function TopicHeader({
         <h1 className="text-2xl font-semibold tracking-tight text-balance md:text-3xl">
           {topic.title}
         </h1>
+        <p className="mt-2 max-w-3xl text-base leading-relaxed text-pretty">
+          {summary}
+        </p>
       </div>
 
       <div className="text-muted flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">

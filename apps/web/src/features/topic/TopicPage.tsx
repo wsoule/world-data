@@ -30,6 +30,7 @@ import {
 import { useNarrow } from './useNarrow';
 import { Choropleth } from '~/charts/Choropleth';
 import { EmptyState, NotFound } from '~/components/feedback';
+import { QuickAnswers } from '~/components/QuickAnswers';
 import { Card } from '~/components/ui';
 import { topicQuery } from '~/data/api';
 import { type Dataset, useDataset } from '~/data/dataset';
@@ -42,6 +43,8 @@ import {
 } from '~/data/types';
 import { formatValue, tickFormatter } from '~/lib/format';
 import type { TopicSearch } from '~/routes/topics.$type.$slug';
+import { leadMetric } from '~/seo/content';
+import { topicAnswers, type TopicAnswers } from '~/seo/topic-content';
 
 const route = getRouteApi('/topics/$type/$slug');
 
@@ -55,6 +58,7 @@ export function TopicPage() {
 function TopicView({ type, slug }: { type: EntityType; slug: string }) {
   const { data: topic } = useSuspenseQuery(topicQuery(type, slug));
   const dataset = useDataset(type);
+  const { seo } = route.useLoaderData();
   // Prerendered HTML is built without search params, so the first (hydrating)
   // render uses the defaults and ?m / ?year apply right after hydration.
   const hydrated = useHydrated();
@@ -70,8 +74,12 @@ function TopicView({ type, slug }: { type: EntityType; slug: string }) {
     () => focusableMetrics(tables, (id) => dataset.metric(id)),
     [tables, dataset]
   );
-  const focus =
-    focusables.find((m) => m.id === search.m) ?? focusables[0] ?? null;
+  // The page opens on the lead metric, the one the build-time summary and FAQ describe.
+  const lead = useMemo(() => {
+    const id = leadMetric(topic, dataset)?.id;
+    return focusables.find((m) => m.id === id) ?? focusables[0] ?? null;
+  }, [topic, dataset, focusables]);
+  const focus = focusables.find((m) => m.id === search.m) ?? lead;
   const years = useMemo(
     () => (focus == null ? [] : seriesYears(topic, focus.id)),
     [topic, focus]
@@ -81,6 +89,15 @@ function TopicView({ type, slug }: { type: EntityType; slug: string }) {
     focus == null ? null : resolveYear(years, undefined, focus.year, undated);
   const year =
     focus == null ? null : resolveYear(years, search.year, focus.year, undated);
+  // The default view shows the loader's text, which is also the page's FAQPage
+  // JSON-LD; any other metric or year gets the same sentences recomputed.
+  const answers = useMemo<TopicAnswers>(
+    () =>
+      focus == null || (focus.id === lead?.id && year === defaultYear)
+        ? seo
+        : topicAnswers(topic, dataset, focus, year),
+    [seo, topic, dataset, focus, lead, year, defaultYear]
+  );
   const [selected, setSelected] = useState<number | null>(null);
 
   // Metric and year switches are discrete steps, so each gets a history entry
@@ -91,7 +108,7 @@ function TopicView({ type, slug }: { type: EntityType; slug: string }) {
       void navigate({
         search: (prev) => ({
           ...prev,
-          m: id,
+          m: id === lead?.id ? undefined : id,
           year: undefined,
           tab: undefined,
           tsort: undefined,
@@ -99,7 +116,7 @@ function TopicView({ type, slug }: { type: EntityType; slug: string }) {
         resetScroll: false,
       });
     },
-    [navigate, focus]
+    [navigate, lead, focus]
   );
   // The metric's default year (or undated series) stays out of the URL.
   const setYear = useCallback(
@@ -121,7 +138,7 @@ function TopicView({ type, slug }: { type: EntityType; slug: string }) {
   const hasData = tables.length > 0;
   return (
     <div className="space-y-6">
-      <TopicHeader topic={topic} dataset={dataset} />
+      <TopicHeader topic={topic} dataset={dataset} summary={answers.summary} />
       {!hasData ? (
         <EmptyState
           title="No data on this page"
@@ -155,6 +172,7 @@ function TopicView({ type, slug }: { type: EntityType; slug: string }) {
           onSelect={toggleSelected}
         />
       )}
+      <QuickAnswers items={answers.faq} />
     </div>
   );
 }

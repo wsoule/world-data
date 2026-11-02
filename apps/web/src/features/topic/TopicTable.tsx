@@ -71,8 +71,13 @@ const features = tableFeatures({
 });
 const helper = createColumnHelper<typeof features, TopicRow>();
 
-/** Rows beyond which only the visible window is rendered. */
+/** Rows beyond which only the visible window is rendered (after hydration). */
 const VIRTUALIZE_ABOVE = 150;
+/**
+ * Rows in the server-rendered (prerendered) HTML and the hydrating render, so crawlers and
+ * no-JS readers get real rows with place links. Longer tables are cut to the top rows.
+ */
+const STATIC_ROWS = 300;
 /** Typing pause before the table filter is written to the URL. */
 const FILTER_DEBOUNCE_MS = 250;
 const ROW_HEIGHT = 40;
@@ -287,6 +292,7 @@ function DataTable({
   selected: number | null;
   onSelect: (entityIndex: number) => void;
 }) {
+  const hydrated = useHydrated();
   const entityCount = dataset.entities.length;
   const noun = placeNoun(dataset.type.id);
   const colors = chartColors(useTheme());
@@ -463,7 +469,10 @@ function DataTable({
 
   const rows = table.getRowModel().rows;
   const scrollRef = useRef<HTMLDivElement>(null);
-  const virtual = rows.length > VIRTUALIZE_ABOVE;
+  // Server and hydrating renders print real rows (the top STATIC_ROWS); the
+  // virtual window needs measured sizes, so it takes over after hydration.
+  const virtual = hydrated && rows.length > VIRTUALIZE_ABOVE;
+  const clipped = !hydrated && rows.length > STATIC_ROWS;
   const virtualizer = useVirtualizer({
     count: virtual ? rows.length : 0,
     getScrollElement: () => scrollRef.current,
@@ -477,7 +486,11 @@ function DataTable({
     items.length > 0
       ? virtualizer.getTotalSize() - items[items.length - 1].end
       : 0;
-  const visibleRows = virtual ? items.map((it) => rows[it.index]) : rows;
+  const visibleRows = virtual
+    ? items.map((it) => rows[it.index])
+    : clipped
+      ? rows.slice(0, STATIC_ROWS)
+      : rows;
 
   const widthOf = (c: MetricColumn) =>
     c.ranks != null ? NUM_WIDTH : c.long ? LONG_TEXT_WIDTH : TEXT_WIDTH;
@@ -626,9 +639,18 @@ function DataTable({
             ) : null}
           </tbody>
         </table>
+        {clipped ? (
+          <p className="text-muted p-3 text-center text-xs">
+            Showing the first {formatInt(STATIC_ROWS)} of{' '}
+            {formatInt(rows.length)} {noun}
+            {rankCol != null ? `, ranked by ${rankCol.metric.label}` : ''}.
+          </p>
+        ) : null}
         {rows.length === 0 ? (
           <p className="text-muted p-6 text-center text-sm">
-            No {noun} match “{filter}”.
+            {data.length === 0
+              ? 'This table has no values.'
+              : `No ${noun} match “${filter}”.`}
           </p>
         ) : null}
       </div>

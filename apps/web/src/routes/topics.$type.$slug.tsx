@@ -1,6 +1,5 @@
 import { createFileRoute, notFound } from '@tanstack/react-router';
 
-import { QuickAnswers } from '~/components/QuickAnswers';
 import { manifestQuery, topicQuery } from '~/data/api';
 import { loadDataset } from '~/data/dataset';
 import { isEntityType } from '~/data/types';
@@ -67,15 +66,5 @@ export const Route = createFileRoute('/topics/$type/$slug')({
           ...loaderData.seo,
           path: `/topics/${params.type}/${params.slug}`,
         }),
-  component: TopicRoute,
+  component: TopicPage,
 });
-
-function TopicRoute() {
-  const { seo } = Route.useLoaderData();
-  return (
-    <>
-      <TopicPage />
-      <QuickAnswers items={seo.faq} />
-    </>
-  );
-}
