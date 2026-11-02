@@ -3,11 +3,14 @@ import { createFileRoute, notFound } from '@tanstack/react-router';
 import { loadDataset } from '~/data/dataset';
 import { isEntityType } from '~/data/types';
 import { PlacesPage } from '~/features/places/PlacesPage';
+import { parsePlacesSearch, type PlacesSearch } from '~/features/places/search';
 import { typeNoun } from '~/lib/format';
 import { breadcrumbs, pageHead } from '~/lib/seo';
 import { SITE } from '~/site';
 
 export const Route = createFileRoute('/places/$type/')({
+  validateSearch: (raw: Record<string, unknown>): PlacesSearch =>
+    parsePlacesSearch(raw),
   loader: async ({ context, params }) => {
     if (!isEntityType(params.type)) throw notFound();
     const ds = await loadDataset(context.queryClient, params.type);

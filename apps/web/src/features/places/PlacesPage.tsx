@@ -1,4 +1,9 @@
-import { getRouteApi, Link, useNavigate } from '@tanstack/react-router';
+import {
+  getRouteApi,
+  Link,
+  useHydrated,
+  useNavigate,
+} from '@tanstack/react-router';
 import {
   createColumnHelper,
   createSortedRowModel,
@@ -12,7 +17,9 @@ import {
 import { ArrowDown, ArrowUp, ChevronsUpDown, Search, X } from 'lucide-react';
 import {
   type ReactNode,
+  useCallback,
   useDeferredValue,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -20,6 +27,7 @@ import {
 
 import { growthMetricId, metricCountsFor, placeNoun } from './datasetFacts';
 import { useVirtualRows } from './hooks';
+import { formatPlaceSort, parsePlaceSort, type PlacesSearch } from './search';
 import { Choropleth } from '~/charts/Choropleth';
 import { Flag } from '~/components/Flag';
 import { TypeTabs } from '~/components/TypeTabs';
@@ -63,7 +71,8 @@ const features = tableFeatures({
 const helper = createColumnHelper<typeof features, PlaceRow>();
 
 const ROW_HEIGHT = 48;
-const DEFAULT_SORT: SortingState = [{ id: 'pop', desc: true }];
+/** Typing settles for this long before the text filter is written to the URL. */
+const QUERY_URL_DELAY = 300;
 /** Group chips shown before "Show all" for types with many groups (world cities by country). */
 const CHIP_LIMIT = 12;
 
@@ -233,14 +242,53 @@ function buildRecords(dataset: Dataset): RecordRow[] {
   return out;
 }
 
-/** Searchable, sortable, virtualized table of every place of the type. */
+/**
+ * Searchable, sortable, virtualized table of every place of the type. The filter, group chips
+ * and sort live in the URL (replacing the history entry), so they survive Back from a place.
+ * The server and the hydrating render use the defaults; URL state applies once hydrated.
+ */
 function PlacesTable({ dataset }: { dataset: Dataset }) {
   const type = dataset.type.id;
-  const [query, setQuery] = useState('');
+  const hydrated = useHydrated();
+  const urlSearch = route.useSearch();
+  const search: PlacesSearch = hydrated ? urlSearch : {};
+  const navigate = route.useNavigate();
+  const setSearch = useCallback(
+    (patch: Partial<PlacesSearch>) =>
+      void navigate({
+        search: (prev) => ({ ...prev, ...patch }),
+        replace: true,
+        resetScroll: false,
+      }),
+    [navigate]
+  );
+
+  // What the user is typing; null until they type, so the box shows the URL's query.
+  const [draft, setDraft] = useState<string | null>(null);
+  const query = draft ?? search.q ?? '';
   const deferredQuery = useDeferredValue(query);
-  const [groups, setGroups] = useState<ReadonlySet<string>>(new Set());
+  const queryTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(queryTimer.current), []);
+  const changeQuery = (value: string) => {
+    setDraft(value);
+    clearTimeout(queryTimer.current);
+    queryTimer.current = setTimeout(
+      () => setSearch({ q: value.trim() === '' ? undefined : value }),
+      QUERY_URL_DELAY
+    );
+  };
+
+  const groups = useMemo<ReadonlySet<string>>(
+    () => new Set(search.g ?? []),
+    [search.g]
+  );
+  const setGroups = (next: ReadonlySet<string>) =>
+    setSearch({ g: next.size > 0 ? [...next] : undefined });
+  const sorting = useMemo<SortingState>(() => {
+    const s = parsePlaceSort(search.sort);
+    return [{ id: s.id, desc: s.desc }];
+  }, [search.sort]);
   const [showAllGroups, setShowAllGroups] = useState(false);
-  const [sorting, setSorting] = useState<SortingState>(DEFAULT_SORT);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const allRows = useMemo<PlaceRow[]>(() => {
@@ -405,7 +453,16 @@ function PlacesTable({ dataset }: { dataset: Dataset }) {
     data,
     getRowId: (r) => r.id,
     state: { sorting },
-    onSortingChange: setSorting,
+    onSortingChange: (updater) => {
+      const next = typeof updater === 'function' ? updater(sorting) : updater;
+      const first = next.at(0);
+      if (first != null)
+        setSearch({
+          sort: formatPlaceSort(
+            parsePlaceSort(`${first.desc ? '-' : ''}${first.id}`)
+          ),
+        });
+    },
     enableSortingRemoval: false,
   });
   const rows = table.getRowModel().rows;
@@ -416,13 +473,12 @@ function PlacesTable({ dataset }: { dataset: Dataset }) {
     getKey: (i) => rows[i]?.id ?? String(i),
   });
 
-  const toggleGroup = (g: string) =>
-    setGroups((prev) => {
-      const next = new Set(prev);
-      if (next.has(g)) next.delete(g);
-      else next.add(g);
-      return next;
-    });
+  const toggleGroup = (g: string) => {
+    const next = new Set(groups);
+    if (next.has(g)) next.delete(g);
+    else next.add(g);
+    setGroups(next);
+  };
   const visibleChips = showAllGroups
     ? groupCounts
     : groupCounts.slice(0, CHIP_LIMIT);
@@ -442,7 +498,7 @@ function PlacesTable({ dataset }: { dataset: Dataset }) {
           <input
             type="search"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => changeQuery(e.target.value)}
             placeholder={`Search ${noun}…`}
             aria-label={`Search ${noun}`}
             className="placeholder:text-muted min-w-0 flex-1 bg-transparent text-sm outline-none"
