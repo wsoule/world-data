@@ -1,10 +1,49 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
 node_modules
 dist
-.cache
+.next
+dist-ssr
 *.local
+tsconfig.tsbuildinfo
+*.tsbuildinfo
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/settings.json
+!.vscode/tasks.json
+.idea
 .DS_Store
-.vite
-coverage
-test-results
-playwright-report
-.claude/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.vercel
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
+!.claude/skills/
+.codemogger/*
+.omx/
+.agents/ignore/
+.env.worktree
+
+# moon (generated per-clone/worktree state)
+.moon/cache/
+.moon/hooks/
+
+# world-data
+.cache/
+.tanstack/
+test-results/
+playwright-report/

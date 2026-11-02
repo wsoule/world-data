@@ -1,0 +1,158 @@
+{
+  "generatedAt": "2026-11-02T17:56:47.911Z",
+  "source": "https://worldpopulationreview.com",
+  "types": [
+    {
+      "id": "country",
+      "label": "Countries",
+      "singular": "Country",
+      "prefix": "country-rankings",
+      "entities": 235,
+      "metrics": 4934,
+      "numericMetrics": 3026,
+      "topics": 1719
+    },
+    {
+      "id": "state",
+      "label": "US States",
+      "singular": "State",
+      "prefix": "state-rankings",
+      "entities": 51,
+      "metrics": 4177,
+      "numericMetrics": 2410,
+      "topics": 1258
+    },
+    {
+      "id": "city",
+      "label": "US Cities",
+      "singular": "US City",
+      "prefix": "us-city-rankings",
+      "entities": 477,
+      "metrics": 81,
+      "numericMetrics": 75,
+      "topics": 22
+    },
+    {
+      "id": "world-city",
+      "label": "World Cities",
+      "singular": "World City",
+      "prefix": "world-city-rankings",
+      "entities": 1103,
+      "metrics": 65,
+      "numericMetrics": 58,
+      "topics": 21
+    },
+    {
+      "id": "county",
+      "label": "US Counties",
+      "singular": "County",
+      "prefix": "us-county-rankings",
+      "entities": 3094,
+      "metrics": 28,
+      "numericMetrics": 27,
+      "topics": 14
+    }
+  ],
+  "categories": [
+    {
+      "id": "agriculture",
+      "label": "Agriculture",
+      "topics": 203
+    },
+    {
+      "id": "crime-safety",
+      "label": "Crime & Safety",
+      "topics": 102
+    },
+    {
+      "id": "culture",
+      "label": "Culture",
+      "topics": 475
+    },
+    {
+      "id": "economics",
+      "label": "Economics",
+      "topics": 385
+    },
+    {
+      "id": "education",
+      "label": "Education",
+      "topics": 74
+    },
+    {
+      "id": "environment",
+      "label": "Environment",
+      "topics": 259
+    },
+    {
+      "id": "facts-trivia",
+      "label": "Facts & Trivia",
+      "topics": 128
+    },
+    {
+      "id": "flags",
+      "label": "Flags",
+      "topics": 27
+    },
+    {
+      "id": "geography",
+      "label": "Geography",
+      "topics": 195
+    },
+    {
+      "id": "health",
+      "label": "Health",
+      "topics": 323
+    },
+    {
+      "id": "history",
+      "label": "History",
+      "topics": 76
+    },
+    {
+      "id": "infrastructure-energy",
+      "label": "Infrastructure & Energy",
+      "topics": 111
+    },
+    {
+      "id": "law",
+      "label": "Law",
+      "topics": 545
+    },
+    {
+      "id": "manufacturing-mining",
+      "label": "Manufacturing & Mining",
+      "topics": 99
+    },
+    {
+      "id": "military",
+      "label": "Military",
+      "topics": 49
+    },
+    {
+      "id": "politics-government",
+      "label": "Politics & Government",
+      "topics": 377
+    },
+    {
+      "id": "population",
+      "label": "Population",
+      "topics": 192
+    },
+    {
+      "id": "sports",
+      "label": "Sports",
+      "topics": 79
+    },
+    {
+      "id": "tech-business",
+      "label": "Tech & Business",
+      "topics": 240
+    },
+    {
+      "id": "travel",
+      "label": "Travel",
+      "topics": 88
+    }
+  ]
+}

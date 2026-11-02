@@ -1,2 +1,2 @@
-public/data/** linguist-generated=true -diff
-src/routeTree.gen.ts linguist-generated=true
+apps/web/public/data/** linguist-generated=true -diff
+apps/web/src/routeTree.gen.ts linguist-generated=true

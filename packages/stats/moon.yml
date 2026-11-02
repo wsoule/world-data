@@ -1,0 +1,9 @@
+$schema: 'https://moonrepo.dev/schemas/project.json'
+
+# Statistics used by the web app's comparisons: ranks, percentiles,
+# correlations with p-values, regression and weighted composite scores.
+# Inherits build/dev from the tsdown tag and test/typecheck from the shared
+# bun-common tasks.
+language: 'typescript'
+layer: 'library'
+tags: ['tsdown']
