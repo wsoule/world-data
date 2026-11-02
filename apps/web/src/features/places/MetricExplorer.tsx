@@ -351,7 +351,7 @@ function MetricRow({
           {tracksPopulation ? (
             <span
               className="border-app shrink-0 rounded border px-1 text-[10px] leading-4"
-              title="Mostly tracks population size (Spearman ρ ≥ 0.75), so big places rank high or low regardless"
+              title="Mostly tracks population size (Spearman ρ ≥ 0.75, or a count whose per-resident figure no longer does), so big places rank high or low regardless"
             >
               tracks population
             </span>

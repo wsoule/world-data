@@ -20,6 +20,7 @@ import {
   sizeDrivenMetrics,
   standingAt,
   strengthsAndWeaknesses,
+  tracksPopulation,
 } from '../src/features/places/profileModel';
 
 const metric = (
@@ -126,6 +127,28 @@ describe('sizeDrivenMetrics', () => {
       [metric(3, 'Total Area', 0), pop],
     ]);
     expect([...sizeDrivenMetrics(data, data.metrics)]).toEqual([1]);
+  });
+
+  test('also flags raw counts whose per-resident figure no longer tracks population', () => {
+    const names = 'abcdefghij'.split('');
+    const pop = [1e6, 5e5, 2e5, 1e5, 5e4, 2e4, 1e4, 5e3, 2e3, 1e3];
+    // Murders per resident vary a lot, so the count's ρ with population is only ~0.68.
+    const perResident = [2, 100, 1, 30, 50, 3, 80, 4, 400, 10];
+    const data = fixture(names, [
+      [metric(-1, 'Population', 0, ['population'], { base: true }), pop],
+      [metric(1, 'Murders', -1), pop.map((p, i) => p * perResident[i])],
+      // An average that rises with population (ρ ~0.58) but is no count.
+      [metric(2, 'Avg Salary', 1), [52, 58, 45, 55, 43, 60, 41, 47, 44, 40]],
+    ]);
+    expect(tracksPopulation(data, 1)).toBe(true);
+    expect(tracksPopulation(data, 1, { countThreshold: 0.9 })).toBe(false);
+    expect(tracksPopulation(data, 2)).toBe(false);
+    expect([...sizeDrivenMetrics(data, data.metrics)]).toEqual([1]);
+  });
+
+  test('nothing tracks population when the type has no population column', () => {
+    const data = fixture(['a', 'b'], [[metric(1, 'Murders', -1), [1, 2]]]);
+    expect(tracksPopulation(data, 1)).toBe(false);
   });
 });
 

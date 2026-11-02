@@ -151,7 +151,7 @@ function Profile({ dataset, index }: { dataset: Dataset; index: number }) {
           {facts.sizeDriven.size > 0 ? (
             <label
               className="text-muted inline-flex cursor-pointer items-center gap-2 text-xs"
-              title="Totals such as “# of burglaries” mostly reflect how many people live in a place (Spearman ρ ≥ 0.75 with population)."
+              title="Totals such as “# of burglaries” or murders mostly reflect how many people live in a place: they rise with population (Spearman ρ ≥ 0.75, or ≥ 0.5 when the per-resident figure no longer does)."
             >
               <input
                 type="checkbox"

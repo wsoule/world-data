@@ -196,24 +196,108 @@ function uniqueRows(rows: readonly PlaceMetric[]): PlaceMetric[] {
   return out;
 }
 
+/** How closely one metric follows population, as measured by `populationLink`. */
+interface PopulationLink {
+  /** Spearman ρ between the metric and population */
+  r: number;
+  /** Spearman ρ between the metric per resident (value ÷ population) and population */
+  perCapita: number;
+  /** Places with both values */
+  n: number;
+}
+
+/** Population links per dataset and metric; datasets are immutable, so these never go stale. */
+const populationLinks = new WeakMap<ProfileData, Map<string, PopulationLink>>();
+
+/**
+ * Rank correlation of a metric with population, both as given and divided by population.
+ * Cached per dataset object, because profiles, head-to-heads and every prerendered summary of
+ * a place type ask about the same metrics.
+ */
+function populationLink(
+  data: ProfileData,
+  id: number,
+  populationId: number
+): PopulationLink {
+  let cache = populationLinks.get(data);
+  if (cache == null) {
+    cache = new Map();
+    populationLinks.set(data, cache);
+  }
+  const key = `${populationId}:${id}`;
+  const hit = cache.get(key);
+  if (hit != null) return hit;
+  const population = data.numeric(populationId);
+  const col = data.numeric(id);
+  const perResident = new Float64Array(col.length).fill(Number.NaN);
+  for (let i = 0; i < col.length; i++)
+    if (population[i] > 0 && isFiniteNumber(col[i]))
+      perResident[i] = col[i] / population[i];
+  const c = spearman(col, population);
+  const link = {
+    r: c.r,
+    perCapita: spearman(perResident, population).r,
+    n: c.n,
+  };
+  cache.set(key, link);
+  return link;
+}
+
+export interface PopulationTrackingOptions {
+  /** |ρ| with population at or above which any metric counts as tracking it */
+  threshold?: number;
+  /**
+   * Lower ρ at or above which a metric still counts when its per-resident version follows
+   * population much less (see `perCapitaRatio`): the signature of a raw count.
+   */
+  countThreshold?: number;
+  /** A count's per-resident |ρ| must be at most this share of its raw ρ */
+  perCapitaRatio?: number;
+  populationId?: number;
+}
+
+/**
+ * Whether a metric mostly reflects how many people live in a place. Either it follows
+ * population closely (|ρ| ≥ 0.75), or it rises with population (ρ ≥ 0.5) and dividing it by
+ * population takes most of that link away. The second test catches raw counts such as
+ * murders, whose ρ is modest because small places vary a lot, while leaving out rates and
+ * averages: dividing a rate by population ties it to population more, not less.
+ */
+export function tracksPopulation(
+  data: ProfileData,
+  id: number,
+  {
+    threshold = 0.75,
+    countThreshold = 0.5,
+    perCapitaRatio = 0.8,
+    populationId = -1,
+  }: PopulationTrackingOptions = {}
+): boolean {
+  if (id === populationId || !data.hasValues(populationId)) return false;
+  const link = populationLink(data, id, populationId);
+  if (link.n < 8 || Number.isNaN(link.r)) return false;
+  if (Math.abs(link.r) >= threshold) return true;
+  return (
+    link.r >= countThreshold &&
+    Math.abs(link.perCapita) <= perCapitaRatio * link.r
+  );
+}
+
 /**
  * Directional metrics whose values mostly track how many people live in a place: raw totals
- * such as "# of burglaries" or "# of electoral votes", where |Spearman ρ| with population is at
- * least `threshold`. Calling the biggest place "best" or "worst" at these says little, so
- * profiles and head-to-heads can leave them out.
+ * such as "# of burglaries", "murders" or "# of electoral votes" (see `tracksPopulation`).
+ * Calling the biggest place "best" or "worst" at these says little, so profiles and
+ * head-to-heads can leave them out.
  */
 export function sizeDrivenMetrics(
   data: ProfileData,
   metrics: readonly Metric[],
-  { threshold = 0.75, populationId = -1 } = {}
+  options: PopulationTrackingOptions = {}
 ): Set<number> {
   const out = new Set<number>();
-  if (!data.hasValues(populationId)) return out;
-  const population = data.numeric(populationId);
   for (const m of metrics) {
-    if (!isPolar(m) || m.id === populationId || m.base === true) continue;
-    const c = spearman(data.numeric(m.id), population);
-    if (c.n >= 8 && Math.abs(c.r) >= threshold) out.add(m.id);
+    if (!isPolar(m) || m.base === true) continue;
+    if (tracksPopulation(data, m.id, options)) out.add(m.id);
   }
   return out;
 }
