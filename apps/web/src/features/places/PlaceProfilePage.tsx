@@ -1,4 +1,393 @@
-// Placeholder — replaced by the feature implementation.
+import { getRouteApi, Link, useNavigate } from '@tanstack/react-router';
+import { BarChart3, ChevronRight } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
+
+import { CategoryChart } from './CategoryChart';
+import {
+  datasetFacts,
+  growthMetricId,
+  metricCountsFor,
+  placeNoun,
+  similarityBasisFor,
+} from './datasetFacts';
+import { useCategoryLabels } from './hooks';
+import { MetricExplorer } from './MetricExplorer';
+import { GROUP_LABEL } from './PlacesPage';
+import {
+  categoryScores,
+  notableFacts,
+  placeStandings,
+  qualifyingRows,
+  similarPlaces,
+  standingAt,
+  strengthsAndWeaknesses,
+} from './profileModel';
+import {
+  HeaderStat,
+  NotableFacts,
+  SimilarPlaces,
+  StrengthList,
+} from './ProfileSections';
+import { Choropleth } from '~/charts/Choropleth';
+import { EntityPicker } from '~/components/EntityPicker';
+import { EmptyState } from '~/components/feedback';
+import { Flag } from '~/components/Flag';
+import { Card } from '~/components/ui';
+import { type Dataset, useDataset } from '~/data/dataset';
+import { type EntityType, isEntityType } from '~/data/types';
+import { formatInt, formatValue, ordinal, plural } from '~/lib/format';
+import { useTheme } from '~/lib/theme';
+import { useTitle } from '~/lib/useTitle';
+
+const route = getRouteApi('/places/$type/$slug');
+
+/** Place types drawn on a map (cities as dots, counties and the rest as regions). */
+const MAPPED: readonly EntityType[] = [
+  'country',
+  'state',
+  'county',
+  'city',
+  'world-city',
+];
+
 export function PlaceProfilePage() {
-  return <div className="text-muted">PlaceProfilePage — coming soon</div>;
+  const params = route.useParams();
+  const type: EntityType = isEntityType(params.type) ? params.type : 'country';
+  const dataset = useDataset(type);
+  const index = dataset.entityBySlug.get(params.slug);
+  if (index == null)
+    return (
+      <EmptyState title="Place not found">
+        <Link to="/places/$type" params={{ type }} className="underline">
+          Browse all {dataset.type.label}
+        </Link>
+      </EmptyState>
+    );
+  return <Profile key={`${type}/${index}`} dataset={dataset} index={index} />;
+}
+
+/** The report card for one place. Keyed by place so local filters reset on navigation. */
+function Profile({ dataset, index }: { dataset: Dataset; index: number }) {
+  const entity = dataset.entities[index];
+  const type = dataset.type.id;
+  const theme = useTheme();
+  const categoryLabel = useCategoryLabels();
+  const [hideSize, setHideSize] = useState(true);
+  const [category, setCategory] = useState('');
+  const explorerRef = useRef<HTMLDivElement>(null);
+  useTitle(entity.name);
+
+  const facts = datasetFacts(dataset);
+  const rows = useMemo(
+    () => placeStandings(dataset, index, facts.rankable),
+    [dataset, index, facts]
+  );
+  const exclude = useMemo(
+    () => (hideSize ? facts.sizeDriven : new Set<number>()),
+    [hideSize, facts]
+  );
+  const qualifying = useMemo(
+    () => qualifyingRows(rows, facts.cut, exclude),
+    [rows, facts, exclude]
+  );
+  const strengths = useMemo(
+    () => strengthsAndWeaknesses(qualifying, 10),
+    [qualifying]
+  );
+  const categories = useMemo(() => categoryScores(qualifying, 3), [qualifying]);
+  const notable = useMemo(
+    () => notableFacts(rows, facts.cut, exclude),
+    [rows, facts, exclude]
+  );
+  const basis = similarityBasisFor(dataset);
+  const similar = useMemo(
+    () => similarPlaces(basis, index, dataset.entities.length),
+    [basis, index, dataset]
+  );
+  // Size-driven metrics this place actually has, for the toggle label.
+  const sizeCount = useMemo(
+    () =>
+      rows.filter(
+        (r) =>
+          facts.sizeDriven.has(r.metric.id) && r.standing.n >= facts.cut.minN
+      ).length,
+    [rows, facts]
+  );
+
+  const pickCategory = (c: string) => {
+    setCategory((prev) => (prev === c ? '' : c));
+    explorerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const workbenchMetrics = [
+    ...strengths.best.slice(0, 3),
+    ...strengths.worst.slice(0, 2),
+  ].map((r) => r.metric.id);
+  const coverageNote =
+    facts.cut.share >= 0.5
+      ? `at least half of all ${placeNoun(dataset)}`
+      : `at least ${formatInt(facts.cut.minN)} places`;
+
+  return (
+    <div className="space-y-6">
+      <ProfileHeader
+        dataset={dataset}
+        index={index}
+        metricCount={metricCountsFor(dataset)[index]}
+        workbenchMetrics={
+          workbenchMetrics.length > 0 ? workbenchMetrics : [-1, -2]
+        }
+      />
+
+      <section aria-labelledby="strengths-heading" className="space-y-3">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 id="strengths-heading" className="text-lg font-semibold">
+              Strengths and weak spots
+            </h2>
+            <p className="text-muted text-sm">
+              Percentile on {plural(qualifying.length, 'metric')} that rank{' '}
+              {coverageNote}, given whether higher or lower is better.
+            </p>
+          </div>
+          {facts.sizeDriven.size > 0 ? (
+            <label
+              className="text-muted inline-flex cursor-pointer items-center gap-2 text-xs"
+              title="Totals such as “# of burglaries” mostly reflect how many people live in a place (Spearman ρ ≥ 0.75 with population)."
+            >
+              <input
+                type="checkbox"
+                checked={hideSize}
+                onChange={(e) => setHideSize(e.target.checked)}
+                className="accent-accent-600"
+              />
+              Leave out totals that track population
+              {sizeCount > 0 ? (
+                <span className="tabular opacity-70">({sizeCount})</span>
+              ) : null}
+            </label>
+          ) : null}
+        </div>
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <StrengthList
+            dataset={dataset}
+            rows={strengths.best}
+            tone="good"
+            theme={theme}
+          />
+          <StrengthList
+            dataset={dataset}
+            rows={strengths.worst}
+            tone="bad"
+            theme={theme}
+          />
+        </div>
+      </section>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_24rem]">
+        <div className="min-w-0 space-y-6">
+          <Card
+            title="Profile by category"
+            subtitle={
+              categories.length > 0
+                ? 'Average percentile per category, from the median line. Select a category to list its metrics.'
+                : undefined
+            }
+          >
+            {categories.length > 0 ? (
+              <CategoryChart
+                scores={categories}
+                label={categoryLabel}
+                selected={category}
+                onSelect={pickCategory}
+              />
+            ) : (
+              <p className="text-muted py-6 text-center text-sm">
+                No category has three or more widely ranked metrics for this
+                place.
+              </p>
+            )}
+          </Card>
+          <NotableFacts dataset={dataset} facts={notable} />
+        </div>
+        <div className="min-w-0 space-y-6">
+          {MAPPED.includes(type) ? (
+            <Locator dataset={dataset} index={index} />
+          ) : null}
+          <SimilarPlaces
+            dataset={dataset}
+            entity={entity}
+            similar={similar}
+            basisSize={basis.metricIds.length}
+          />
+        </div>
+      </div>
+
+      <div ref={explorerRef} className="scroll-mt-20">
+        <MetricExplorer
+          dataset={dataset}
+          rows={rows}
+          category={category}
+          onCategory={setCategory}
+          categoryLabel={categoryLabel}
+          theme={theme}
+          sizeDriven={facts.sizeDriven}
+        />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Name, place in the hierarchy, headline numbers with ranks, and the two ways out: a
+ * head-to-head with another place and the compare workbench with this place highlighted.
+ */
+function ProfileHeader({
+  dataset,
+  index,
+  metricCount,
+  workbenchMetrics,
+}: {
+  dataset: Dataset;
+  index: number;
+  metricCount: number;
+  workbenchMetrics: number[];
+}) {
+  const navigate = useNavigate();
+  const entity = dataset.entities[index];
+  const type = dataset.type.id;
+  const stats = useMemo(() => headerStats(dataset, index), [dataset, index]);
+  const where = [entity.sub, entity.group]
+    .filter((p): p is string => p != null && p !== '')
+    .filter((p, i, all) => all.indexOf(p) === i);
+
+  return (
+    <header className="space-y-5">
+      <nav
+        aria-label="Breadcrumb"
+        className="text-muted flex items-center gap-1 text-xs"
+      >
+        <Link to="/places/$type" params={{ type }} className="hover:text-app">
+          {dataset.type.label}
+        </Link>
+        <ChevronRight className="size-3" aria-hidden />
+        <span className="text-app truncate">{entity.name}</span>
+      </nav>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex min-w-0 items-center gap-4">
+          <Flag
+            entity={entity}
+            type={type}
+            size={56}
+            className="rounded-md shadow-sm"
+          />
+          <div className="min-w-0">
+            <h1 className="truncate text-2xl font-semibold tracking-tight md:text-3xl">
+              {entity.name}
+            </h1>
+            <p className="text-muted mt-0.5 text-sm">
+              {dataset.type.singular}
+              {where.length > 0 ? ` in ${where.join(', ')}` : ''}
+              {' · '}
+              data on {plural(metricCount, 'metric')}
+            </p>
+          </div>
+        </div>
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+          <EntityPicker
+            dataset={dataset}
+            exclude={[entity.id]}
+            placeholder="Compare with…"
+            className="min-w-0 flex-1 sm:w-56 sm:flex-none"
+            onSelect={(id) =>
+              void navigate({ to: '/vs', search: { type, e: [entity.id, id] } })
+            }
+          />
+          <Link
+            to="/compare"
+            search={{
+              type,
+              view: 'table',
+              m: workbenchMetrics,
+              hl: [entity.id],
+            }}
+            className="bg-accent-600 hover:bg-accent-700 inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-white"
+          >
+            <BarChart3 className="size-4" aria-hidden />
+            Open in workbench
+          </Link>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        {stats.map((s) => (
+          <HeaderStat key={s.label} {...s} />
+        ))}
+        <HeaderStat
+          label={GROUP_LABEL[type]}
+          value={entity.group ?? '—'}
+          rank={
+            entity.sub != null && entity.sub !== entity.group
+              ? entity.sub
+              : undefined
+          }
+        />
+      </div>
+    </header>
+  );
+}
+
+// Headline tiles: population, density, growth and area (whichever the type has), each with the
+// place's rank among all places of the type.
+function headerStats(dataset: Dataset, index: number) {
+  const ids = [-1, -2, growthMetricId(dataset), -5].filter(
+    (id): id is number => id != null && dataset.hasValues(id)
+  );
+  const labels: Record<number, string> = {
+    [-1]: 'Population',
+    [-2]: 'Density',
+    [-3]: 'Growth rate',
+    [-4]: 'Growth since 2020',
+    [-5]: 'Area',
+  };
+  const out: { label: string; value: string; rank?: string }[] = [];
+  for (const id of ids) {
+    const metric = dataset.metric(id);
+    const s = standingAt(dataset.numeric(id), index, 1);
+    if (metric == null || s == null) continue;
+    out.push({
+      label: labels[id] ?? metric.label,
+      value: formatValue(metric, s.value, { compact: id === -1 }),
+      rank: `${s.rank === 1 ? 'Highest' : `${ordinal(s.rank)} highest`} of ${formatInt(s.n)}`,
+    });
+  }
+  return out;
+}
+
+/** Small map with this place outlined (dot for cities), coloured by population for context. */
+function Locator({ dataset, index }: { dataset: Dataset; index: number }) {
+  const navigate = useNavigate();
+  const entity = dataset.entities[index];
+  const popMetric = dataset.metric(-1);
+  const highlight = useMemo(() => [entity.id], [entity.id]);
+  return (
+    <Card
+      title="Where it is"
+      subtitle="Shaded by population; select a place to open it"
+    >
+      <Choropleth
+        dataset={dataset}
+        values={dataset.numeric(-1)}
+        format={(v) => formatValue(popMetric, v, { compact: true })}
+        label="Population"
+        highlight={highlight}
+        height={260}
+        onSelect={(i) =>
+          void navigate({
+            to: '/places/$type/$slug',
+            params: { type: dataset.type.id, slug: dataset.entities[i].slug },
+          })
+        }
+      />
+    </Card>
+  );
 }
