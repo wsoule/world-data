@@ -272,10 +272,7 @@ function Profile({
         <RelatedPlaceList key={group.type} group={group} />
       ))}
 
-      {/* QuickAnswers brings a top margin for standalone use; the stack spaces it here. */}
-      <div className="[&>section]:mt-0">
-        <QuickAnswers items={faq} />
-      </div>
+      <QuickAnswers items={faq} />
 
       <div ref={explorerRef} className="scroll-mt-20">
         <MetricExplorer
