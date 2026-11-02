@@ -3,7 +3,12 @@ import { geoShape } from '@tanstack/charts/geo';
 import { decorative } from '@tanstack/charts/mark/decorative';
 import { Chart } from '@tanstack/charts/react';
 import { tooltip } from '@tanstack/charts/tooltip';
-import { geoAlbersUsa, geoEqualEarth } from 'd3-geo';
+import {
+  geoAlbersUsa,
+  geoCentroid,
+  geoEqualEarth,
+  type GeoProjection,
+} from 'd3-geo';
 import { scaleQuantile, scaleSequential } from 'd3-scale';
 import {
   interpolateBlues,
@@ -13,7 +18,7 @@ import {
   interpolateYlOrRd,
 } from 'd3-scale-chromatic';
 import type { Feature, FeatureCollection, Point } from 'geojson';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { type GeoKind, type PlaceFeature, useGeo } from './geo/useGeo';
 import { Spinner } from '~/components/feedback';
@@ -150,15 +155,25 @@ export function Choropleth({
   const theme = useTheme();
   const colors = chartColors(theme);
   const isPoints = type === 'city' || type === 'world-city';
+  // Parents often rebuild these on every render with the same contents;
+  // keeping their identity stops the map from re-projecting every shape.
+  const stable = useStableValues(values);
+  const highlightKey = (highlight ?? []).join('\u0000');
+  // Tooltips read the latest format and label at hover time, so a parent
+  // passing a new inline format function does not rebuild the map.
+  const latest = useRef({ format, label });
+  useEffect(() => {
+    latest.current = { format, label };
+  });
 
   const model = useMemo(() => {
     const vals: number[] = [];
-    for (let i = 0; i < values.length; i++) {
-      const v = values[i];
+    for (let i = 0; i < stable.length; i++) {
+      const v = stable[i];
       if (v != null && Number.isFinite(v)) vals.push(v);
     }
     return buildColor(vals, scheme, polarity, scale);
-  }, [values, scheme, polarity, scale]);
+  }, [stable, scheme, polarity, scale]);
 
   /** joinKey -> entity index */
   const join = useMemo(() => {
@@ -180,12 +195,15 @@ export function Choropleth({
   const valueOf = useMemo(
     () => (i: number | undefined) => {
       if (i == null) return null;
-      const v = values[i];
+      const v = stable[i];
       return v != null && Number.isFinite(v) ? v : null;
     },
-    [values]
+    [stable]
   );
-  const hl = useMemo(() => new Set(highlight ?? []), [highlight]);
+  const hl = useMemo(
+    () => new Set(highlightKey === '' ? [] : highlightKey.split('\u0000')),
+    [highlightKey]
+  );
 
   if (!kind) return null;
   if (geo.isError)
@@ -209,7 +227,7 @@ export function Choropleth({
     colors,
     hl,
     label,
-    format,
+    latest,
     height,
     onSelect,
   };
@@ -236,15 +254,109 @@ interface ChartPartProps {
   colors: ReturnType<typeof chartColors>;
   hl: Set<string>;
   label: string;
-  format: (v: number) => string;
+  /** Current format and label, read by tooltips at hover time. */
+  latest: { current: { format: (v: number) => string; label: string } };
   height: number;
   onSelect?: (entityIndex: number) => void;
 }
 
+/**
+ * Returns the previous array while the new one has the same elements, so a
+ * parent that recomputes an identical values array does not invalidate the
+ * memoized map definition. Comparing a few thousand numbers costs far less
+ * than re-projecting a few thousand shapes.
+ */
+function useStableValues<T>(next: ArrayLike<T>): ArrayLike<T> {
+  const [stable, setStable] = useState(next);
+  const changed = stable !== next && !sameElements(stable, next);
+  if (changed) setStable(next);
+  return changed ? next : stable;
+}
+
+/** Reads a ref when called. Tooltip callbacks use it on hover, never during render. */
+function readRef<T>(ref: { readonly current: T }): T {
+  return ref.current;
+}
+
+function sameElements<T>(a: ArrayLike<T>, b: ArrayLike<T>): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (!Object.is(a[i], b[i])) return false;
+  return true;
+}
+
+/**
+ * Fitted projections per geometry collection and plot extent. Fitting walks
+ * every feature (all 3,000 counties), and the map would otherwise refit on
+ * every render, once per mark.
+ */
+const fittedProjections = new WeakMap<object, Map<string, GeoProjection>>();
+
+/** Projection fitted to the plot area: the globe for world maps, the drawn features for US maps. */
 function projectionFor(kind: GeoKind, fitTo: FeatureCollection) {
-  return kind === 'world'
-    ? { type: geoEqualEarth, fit: 'sphere' as const, inset: 4 }
-    : { type: geoAlbersUsa, fit: fitTo, inset: 4 };
+  return ({
+    chart,
+  }: {
+    chart: { x: number; y: number; width: number; height: number };
+  }): GeoProjection => {
+    const key = `${kind}:${chart.x},${chart.y},${chart.width},${chart.height}`;
+    let byExtent = fittedProjections.get(fitTo);
+    if (byExtent == null) {
+      byExtent = new Map();
+      fittedProjections.set(fitTo, byExtent);
+    }
+    const cached = byExtent.get(key);
+    if (cached != null) return cached;
+    const inset = Math.min(
+      4,
+      Math.max(0, (Math.min(chart.width, chart.height) - 1) / 2)
+    );
+    const extent: [[number, number], [number, number]] = [
+      [chart.x + inset, chart.y + inset],
+      [chart.x + chart.width - inset, chart.y + chart.height - inset],
+    ];
+    const projection =
+      kind === 'world'
+        ? geoEqualEarth().fitExtent(extent, { type: 'Sphere' })
+        : geoAlbersUsa().fitExtent(extent, fitTo);
+    byExtent.set(key, projection);
+    return projection;
+  };
+}
+
+/**
+ * Longitude/latitude centroid per feature, computed once. geoShape otherwise
+ * recomputes the spherical centroid of every shape on every render to place
+ * its hover point.
+ */
+const centroids = new WeakMap<object, readonly [number, number]>();
+function centroidOf(f: Feature): readonly [number, number] {
+  let c = centroids.get(f);
+  if (c == null) {
+    c = geoCentroid(f);
+    centroids.set(f, c);
+  }
+  return c;
+}
+
+/** Map features without Antarctica (and, for dot maps on US states, the territories), as a stable collection. */
+function useDrawable(
+  features: PlaceFeature[],
+  kind: GeoKind,
+  dropTerritories: boolean
+): { drawable: PlaceFeature[]; collection: FeatureCollection } {
+  return useMemo(() => {
+    const drawable = features.filter(
+      (f) =>
+        f.properties.name !== 'Antarctica' &&
+        (!dropTerritories ||
+          kind !== 'us-states' ||
+          !['72', '78', '66', '60', '69'].includes(f.joinKey ?? ''))
+    );
+    return {
+      drawable,
+      collection: { type: 'FeatureCollection', features: drawable },
+    };
+  }, [features, kind, dropTerritories]);
 }
 
 function RegionChart({
@@ -256,17 +368,13 @@ function RegionChart({
   colors,
   hl,
   label,
-  format,
+  latest,
   height,
   onSelect,
   join,
 }: ChartPartProps & { join: Map<string, number> }) {
+  const { drawable, collection } = useDrawable(features, kind, false);
   const definition = useMemo(() => {
-    const drawable = features.filter((f) => f.properties.name !== 'Antarctica');
-    const collection: FeatureCollection = {
-      type: 'FeatureCollection',
-      features: drawable,
-    };
     const projection = projectionFor(kind, collection);
     const entityIdOf = (f: PlaceFeature): string => {
       const i = f.joinKey ? join.get(f.joinKey) : undefined;
@@ -278,6 +386,7 @@ function RegionChart({
         geoShape(drawable, {
           key: (f) => f.key,
           projection,
+          anchor: centroidOf,
           fill: (f) => {
             const v = valueOf(f.joinKey ? join.get(f.joinKey) : undefined);
             return v != null && model != null ? model.color(v) : colors.missing;
@@ -289,6 +398,7 @@ function RegionChart({
           geoShape(highlighted, {
             key: (f) => `hl-${f.key}`,
             projection,
+            anchor: centroidOf,
             fill: 'none',
             stroke: colors.highlight,
             strokeWidth: 2,
@@ -304,15 +414,17 @@ function RegionChart({
           if (f == null) return { rows: [] };
           const i = f.joinKey ? join.get(f.joinKey) : undefined;
           const v = valueOf(i);
+          const { format, label: name } = readRef(latest);
           return {
             title: i != null ? dataset.entities[i].name : f.properties.name,
-            rows: [{ label, value: v == null ? 'No data' : format(v) }],
+            rows: [{ label: name, value: v == null ? 'No data' : format(v) }],
           };
         },
       },
     });
   }, [
-    features,
+    drawable,
+    collection,
     kind,
     valueOf,
     model,
@@ -320,8 +432,7 @@ function RegionChart({
     hl,
     join,
     dataset,
-    label,
-    format,
+    latest,
   ]);
 
   return (
@@ -348,21 +459,12 @@ function PointChart({
   colors,
   hl,
   label,
-  format,
+  latest,
   height,
   onSelect,
 }: ChartPartProps) {
+  const { drawable: base, collection } = useDrawable(features, kind, true);
   const definition = useMemo(() => {
-    const base = features.filter(
-      (f) =>
-        f.properties.name !== 'Antarctica' &&
-        (kind !== 'us-states' ||
-          !['72', '78', '66', '60', '69'].includes(f.joinKey ?? ''))
-    );
-    const collection: FeatureCollection = {
-      type: 'FeatureCollection',
-      features: base,
-    };
     const projection = projectionFor(kind, collection);
     const pts: PointFeature[] = [];
     dataset.entities.forEach((e, i) => {
@@ -382,6 +484,7 @@ function PointChart({
           geoShape(base, {
             key: (f) => f.key,
             projection,
+            anchor: centroidOf,
             fill: colors.missing,
             stroke: colors.border,
             strokeWidth: 0.5,
@@ -390,6 +493,7 @@ function PointChart({
         geoShape(pts, {
           key: (f) => f.key,
           projection,
+          anchor: (f) => f.geometry.coordinates as [number, number],
           r: (f) => (hl.has(dataset.entities[f.idx].id) ? 9 : 4),
           fill: (f) => {
             const v = valueOf(f.idx);
@@ -410,14 +514,15 @@ function PointChart({
           const f = points[0]?.datum;
           if (f == null) return { rows: [] };
           const v = valueOf(f.idx);
+          const { format, label: name } = readRef(latest);
           return {
             title: dataset.entities[f.idx].name,
-            rows: [{ label, value: v == null ? 'No data' : format(v) }],
+            rows: [{ label: name, value: v == null ? 'No data' : format(v) }],
           };
         },
       },
     });
-  }, [features, kind, valueOf, model, colors, hl, dataset, label, format]);
+  }, [base, collection, kind, valueOf, model, colors, hl, dataset, latest]);
 
   return (
     <Chart
