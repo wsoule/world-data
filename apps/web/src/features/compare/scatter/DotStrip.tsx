@@ -8,9 +8,10 @@ import { competitionRank } from '@world-data/stats';
 import { useMemo } from 'react';
 
 import { baseRadius } from './colorModel';
+import { axisTickFormat } from './ticks';
 import type { Dataset } from '~/data/dataset';
 import type { Metric } from '~/data/types';
-import { formatValue, ordinal, tickFormatter } from '~/lib/format';
+import { formatValue, ordinal } from '~/lib/format';
 import { chartColors, useTheme } from '~/lib/theme';
 
 interface StripDatum {
@@ -64,6 +65,16 @@ export function DotStrip({
       });
     }
     const r = Math.min(5, baseRadius(rows.length));
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (const row of rows) {
+      if (row.value < lo) lo = row.value;
+      if (row.value > hi) hi = row.value;
+    }
+    const tickFormat = axisTickFormat(
+      metric,
+      rows.length > 0 ? [lo, hi] : [0, 1]
+    );
     return {
       count: rows.length,
       definition: defineChart({
@@ -87,7 +98,7 @@ export function DotStrip({
             grid: { stroke: colors.grid, strokeOpacity: 1 },
             axis: {
               label: metric.label,
-              ticks: { format: tickFormatter(metric) },
+              ticks: { format: tickFormat },
             },
           },
           y: null,

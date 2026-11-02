@@ -20,9 +20,10 @@ import { isRankMetric } from '../polarity';
 import { groupLabel } from '../presets';
 import { logTicks, rankTicks, type ScatterAnalysis } from './analysis';
 import { baseRadius, type ColorModel, radiusMapper } from './colorModel';
+import { axisTickFormat, linearAxisDomain } from './ticks';
 import type { Dataset } from '~/data/dataset';
 import type { Metric } from '~/data/types';
-import { formatValue, tickFormatter } from '~/lib/format';
+import { formatValue } from '~/lib/format';
 import { chartColors, useTheme } from '~/lib/theme';
 
 export interface ScatterChartProps {
@@ -77,7 +78,8 @@ interface AxisSpec {
 /**
  * Axis domain and ticks: the data extent padded so edge dots and bubbles are
  * not cut off by the clipped plot. Log axes get decade ticks; rank axes start
- * at 1st (never 0th) and are not "niced" past it.
+ * at 1st (never 0th) and are not "niced" past it; other linear axes never
+ * reach below zero for data that has no negative values (linearAxisDomain).
  */
 function axisSpec(
   values: readonly number[],
@@ -107,8 +109,11 @@ function axisSpec(
   }
   // Nice here rather than in the chart so label placement (which works in
   // fractions of this domain) matches the rendered plot.
-  const niced = scaleLinear().domain(domain).nice(6).domain();
-  return { domain: [niced[0], niced[1]], ticks: undefined, nice: false };
+  return {
+    domain: linearAxisDomain(lo, hi, pad),
+    ticks: undefined,
+    nice: false,
+  };
 }
 
 /**
@@ -396,7 +401,7 @@ export function ScatterChart({
             label: label(xMetric, logX),
             ticks: {
               values: xAxis.ticks,
-              format: tickFormatter(xMetric),
+              format: axisTickFormat(xMetric, xDomain),
             },
           },
         },
@@ -411,7 +416,7 @@ export function ScatterChart({
             label: label(yMetric, logY),
             ticks: {
               values: yAxis.ticks,
-              format: tickFormatter(yMetric),
+              format: axisTickFormat(yMetric, yDomain),
             },
           },
         },
