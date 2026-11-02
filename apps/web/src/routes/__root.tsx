@@ -6,6 +6,7 @@ import {
   Link,
   Outlet,
   Scripts,
+  useHydrated,
   useMatch,
   useRouterState,
 } from '@tanstack/react-router';
@@ -156,11 +157,12 @@ function showsNotFound(matches: readonly AnyRouteMatch[]): boolean {
 
 /**
  * Which main-nav item the current URL belongs to. /compare counts as Rankings only on the
- * combined-ranking view and as Compare on every other view. A not-found view belongs to none,
- * whatever its URL: the static 404.html is rendered once for an unmatched path and served for
- * every unknown URL, so the chrome around it must not depend on the address.
+ * combined-ranking view and as Compare on every other view; the view is a search param, which
+ * prerendered HTML does not have, so it is read only once `hydrated`. A not-found view belongs
+ * to none, whatever its URL: the static 404.html is rendered once for an unmatched path and
+ * served for every unknown URL, so the chrome around it must not depend on the address.
  */
-function useActiveNav(): NavId | null {
+function useActiveNav(hydrated: boolean): NavId | null {
   return useRouterState({
     select: (s): NavId | null => {
       if (showsNotFound(s.matches)) return null;
@@ -169,7 +171,9 @@ function useActiveNav(): NavId | null {
       if (path.startsWith('/places')) return 'places';
       if (path.startsWith('/vs')) return 'vs';
       if (path.startsWith('/compare'))
-        return s.location.search.view === 'ranking' ? 'rankings' : 'compare';
+        return hydrated && s.location.search.view === 'ranking'
+          ? 'rankings'
+          : 'compare';
       return null;
     },
   });
@@ -177,16 +181,20 @@ function useActiveNav(): NavId | null {
 
 /** Main navigation links; shared by the desktop bar and the mobile tab row. */
 function NavLinks({ variant }: { variant: 'desktop' | 'mobile' }) {
-  const active = useActiveNav();
-  // Switching between Compare and Rankings keeps the current metric basket (only while the
-  // workbench itself is showing, so a not-found view never depends on its URL).
+  const hydrated = useHydrated();
+  const active = useActiveNav(hydrated);
+  // Switching between Compare and Rankings keeps the current metric basket. The basket is in the
+  // search params, so the first (hydrating) render links the defaults like the prerendered HTML,
+  // and a not-found view never takes it from its URL.
   const compare = useMatch({
     from: '/compare',
     shouldThrow: false,
     select: (m) => m.search,
   });
   const base: CompareSearch =
-    compare != null && (active === 'compare' || active === 'rankings')
+    hydrated &&
+    compare != null &&
+    (active === 'compare' || active === 'rankings')
       ? compare
       : { type: 'state', view: 'scatter', m: [] };
   const compareSearch: CompareSearch =
