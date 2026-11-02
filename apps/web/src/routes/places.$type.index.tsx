@@ -1,5 +1,6 @@
 import { createFileRoute, notFound } from '@tanstack/react-router';
 
+import { notFoundHead } from '~/components/feedback';
 import { loadDataset } from '~/data/dataset';
 import { isEntityType } from '~/data/types';
 import { PlacesPage } from '~/features/places/PlacesPage';
@@ -22,7 +23,7 @@ export const Route = createFileRoute('/places/$type/')({
   },
   head: ({ loaderData, params }) =>
     loaderData == null
-      ? {}
+      ? notFoundHead()
       : pageHead({
           title: `${loaderData.label}: every place ranked`,
           description: `All ${loaderData.count.toLocaleString('en-US')} ${typeNoun(loaderData.label)} with population and density, each with a report card ranking it on up to ${loaderData.metrics.toLocaleString('en-US')} statistics.`,

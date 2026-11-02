@@ -45,19 +45,29 @@ export function EmptyState({
 /** Document title of every not-found view ("Page not found — Rankodex"). */
 export const NOT_FOUND_TITLE = `Page not found — ${SITE.name}`;
 
+/** Meta description of every not-found view. */
+export const NOT_FOUND_DESCRIPTION = 'There is no page at this address.';
+
 /**
  * Route `head()` result for a route whose loader threw notFound(), so the server-rendered page
- * already carries the not-found title. NotFound itself adds the robots tag.
+ * already carries the not-found title and description. NotFound itself adds the robots tag.
  */
-export function notFoundHead(): { meta: { title: string }[] } {
-  return { meta: [{ title: NOT_FOUND_TITLE }] };
+export function notFoundHead(): {
+  meta: ({ title: string } | { name: string; content: string })[];
+} {
+  return {
+    meta: [
+      { title: NOT_FOUND_TITLE },
+      { name: 'description', content: NOT_FOUND_DESCRIPTION },
+    ],
+  };
 }
 
 /**
- * Shows NOT_FOUND_TITLE in the tab and history while mounted. Routes without a not-found head (an
- * unknown path renders under the root route's generic head) only get it in the browser. On unmount
- * the previous title comes back only if nothing else has replaced it, so the next page's own title
- * is never overwritten.
+ * Shows NOT_FOUND_TITLE in the tab and history while mounted. Route heads already set it (the
+ * root route for unknown paths, notFoundHead() where a loader threw notFound()); this covers a
+ * NotFound rendered inside a page component. On unmount the previous title comes back only if
+ * nothing else has replaced it, so the next page's own title is never overwritten.
  */
 function useNotFoundTitle() {
   useEffect(() => {

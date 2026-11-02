@@ -1,5 +1,6 @@
 import { createFileRoute, notFound } from '@tanstack/react-router';
 
+import { notFoundHead } from '~/components/feedback';
 import { loadDataset } from '~/data/dataset';
 import { isEntityType } from '~/data/types';
 import { PlaceProfilePage } from '~/features/places/PlaceProfilePage';
@@ -23,7 +24,7 @@ export const Route = createFileRoute('/places/$type/$slug')({
   },
   head: ({ loaderData, params }) =>
     loaderData == null
-      ? {}
+      ? notFoundHead()
       : pageHead({
           ...loaderData.seo,
           path: `/places/${params.type}/${params.slug}`,

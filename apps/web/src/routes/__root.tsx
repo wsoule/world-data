@@ -21,7 +21,11 @@ import {
 import { type ReactNode, Suspense } from 'react';
 
 import { BrandMark } from '~/components/BrandMark';
-import { PageSpinner } from '~/components/feedback';
+import {
+  NOT_FOUND_DESCRIPTION,
+  NOT_FOUND_TITLE,
+  PageSpinner,
+} from '~/components/feedback';
 import { cx } from '~/components/ui';
 import { manifestQuery } from '~/data/api';
 import type { CompareSearch } from '~/features/compare/state';
@@ -38,12 +42,23 @@ import appCss from '~/styles.css?url';
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   {
     loader: ({ context }) => context.queryClient.ensureQueryData(manifestQuery),
-    head: () => ({
+    // An unknown path renders the not-found view under this route (the router flags the root
+    // match), so the server-rendered page carries the not-found title.
+    head: ({ match }) => ({
       meta: [
         { charSet: 'utf-8' },
         { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-        { title: `${SITE.name} — ${SITE.tagline}` },
-        { name: 'description', content: SITE.description },
+        {
+          title:
+            match._notFound === true
+              ? NOT_FOUND_TITLE
+              : `${SITE.name} — ${SITE.tagline}`,
+        },
+        {
+          name: 'description',
+          content:
+            match._notFound === true ? NOT_FOUND_DESCRIPTION : SITE.description,
+        },
         { name: 'theme-color', content: '#4f46e5' },
         { property: 'og:site_name', content: SITE.name },
         { property: 'og:locale', content: SITE.locale },
