@@ -32,7 +32,7 @@ import type {
 } from '../src/data/types';
 import { parseInlineData, parseIslands } from './lib/astro';
 import { dedupeBy, round, slugify, toNumber, toText } from './lib/clean';
-import { looksLikeRanks } from './lib/columns';
+import { copiedCountFields, looksLikeRanks } from './lib/columns';
 import {
   baseAttributes,
   type BaseAttributes,
@@ -421,7 +421,16 @@ function ingestPage(
 
   const topicMetrics: number[] = [];
   const series: TopicAcc['series'] = new Map();
+  // Count fields that only repeat another column (see copiedCountFields).
+  const copies = copiedCountFields(page.columns, page.rows);
+  for (const [field, of] of copies) {
+    warn(
+      'count-copies-another-column',
+      `${page.type} ${page.slug}: ${field} repeats ${of}`
+    );
+  }
   for (const c of page.columns) {
+    if (copies.has(c.field)) continue;
     let m = T.metrics.get(c.id);
     if (m == null) {
       m = {

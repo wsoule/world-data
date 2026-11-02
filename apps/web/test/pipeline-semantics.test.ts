@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { looksLikeRanks } from '../scripts/lib/columns';
+import { copiedCountFields, looksLikeRanks } from '../scripts/lib/columns';
 import { guessPolarity, keyText } from '../scripts/lib/reference';
 
 describe('looksLikeRanks', () => {
@@ -27,6 +27,34 @@ describe('looksLikeRanks', () => {
     expect(looksLikeRanks('Fishing Rank', null, [1.5, 3, 4])).toBe(false);
     expect(looksLikeRanks('Fishing Rank', null, [1, 1, 1, 1, 2])).toBe(false);
     expect(looksLikeRanks('Population', null, ranks)).toBe(false);
+  });
+});
+
+describe('copiedCountFields', () => {
+  const columns = [
+    { id: 1, field: 'Rate_2024', year: 2024, format: 'floatNumberSmart' },
+    { id: 2, field: 'Count_2024', year: 2024, format: 'numberWithCommas' },
+    { id: 2, field: 'Count_2020', year: 2020, format: 'numberWithCommas' },
+    { id: 1, field: 'Rate_2020', year: 2020, format: 'floatNumberSmart' },
+  ];
+
+  test('flags a count field that repeats the rate of the same year', () => {
+    const rows = [1542.67524, 1466.59773, 1234.92018, 432.52201, 108.39574].map(
+      (rate, i) => ({
+        Rate_2024: rate,
+        Count_2024: rate,
+        Rate_2020: 943.9 + i,
+        Count_2020: 6774 + i,
+      })
+    );
+    expect(copiedCountFields(columns, rows)).toEqual(
+      new Map([['Count_2024', 'Rate_2024']])
+    );
+  });
+
+  test('keeps counts that only coincide on whole numbers', () => {
+    const rows = [1, 2, 3, 4, 5].map((n) => ({ Rate_2024: n, Count_2024: n }));
+    expect(copiedCountFields(columns, rows).size).toBe(0);
   });
 });
 
