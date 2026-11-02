@@ -49,6 +49,11 @@ export interface CompareSearch {
    * the best value sits right / up. Unset means the default (ranks flipped).
    */
   fl?: Record<string, boolean>;
+  /**
+   * Table sort: a column id ("avg", "place", "group" or "m<metric id>"), with a leading "-" for
+   * descending. Unset means the default, average percentile descending.
+   */
+  ts?: string;
 }
 
 /**
@@ -138,6 +143,7 @@ export function validateCompareSearch(
         : undefined,
     f: optNum(raw.f),
     fl: record(raw.fl, (x) => (typeof x === 'boolean' ? x : undefined)),
+    ts: typeof raw.ts === 'string' && raw.ts !== '' ? raw.ts : undefined,
   };
 }
 

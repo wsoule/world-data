@@ -34,14 +34,20 @@ import {
   useState,
 } from 'react';
 
-import { isNeutral, placeNoun } from '../insights/shared';
+import { placeNoun } from '../insights/shared';
 import {
   averagePercentile,
+  coverageFloor,
   type CsvCell,
+  csvMetricHeaders,
+  csvValue,
+  formatTableSort,
+  parseTableSort,
   standing,
   toCsv,
 } from '../insights/tableModel';
 import { useBasket } from '../insights/useBasket';
+import { DEFAULT_COVERAGE } from '../ranking/useRanking';
 import type { CompareViewProps } from '../state';
 import { EmptyState } from '~/components/feedback';
 import { Flag } from '~/components/Flag';
@@ -81,7 +87,6 @@ const helper = createColumnHelper<typeof features, TableRow>();
 /** Rows beyond which only the visible window is rendered. */
 const VIRTUALIZE_ABOVE = 150;
 const ROW_HEIGHT = 41;
-const DEFAULT_SORT: SortingState = [{ id: 'avg', desc: true }];
 
 const GROUP_LABEL: Record<EntityType, string> = {
   country: 'Continent',
@@ -142,7 +147,11 @@ function ComparisonTable(props: CompareViewProps) {
   const { dataset, search, update } = props;
   const basket = useBasket(props);
   const noun = placeNoun(dataset.type.id);
-  const [sorting, setSorting] = useState<SortingState>(DEFAULT_SORT);
+  // The sort lives in the URL (`ts`) so it survives a trip to a place page and back.
+  const sorting = useMemo<SortingState>(
+    () => [parseTableSort(search.ts)],
+    [search.ts]
+  );
   const [filter, setFilter] = useState('');
   const hl = useMemo(() => new Set(search.hl ?? []), [search.hl]);
 
@@ -150,12 +159,22 @@ function ComparisonTable(props: CompareViewProps) {
     () => basket.columns.map((c, k) => standing(c, basket.directions[k])),
     [basket]
   );
+  // The average percentile only uses metrics with a better side, and a place needs data for the
+  // same share of them as the combined ranking's coverage setting (half by default).
+  const directional = useMemo(
+    () => standings.filter((_, k) => !basket.neutral[k]),
+    [standings, basket]
+  );
+  const floor = coverageFloor(
+    directional.length,
+    search.cov ?? DEFAULT_COVERAGE
+  );
 
   const data = useMemo<TableRow[]>(
     () =>
       basket.rows.map((e, p) => {
         const entity = dataset.entities[e];
-        const { mean, covered } = averagePercentile(standings, p);
+        const { mean, covered } = averagePercentile(directional, p, floor);
         return {
           id: entity.id,
           slug: entity.slug,
@@ -169,7 +188,7 @@ function ComparisonTable(props: CompareViewProps) {
           covered,
         };
       }),
-    [basket, standings, dataset]
+    [basket, standings, directional, floor, dataset]
   );
 
   const toggleHighlight = useCallback(
@@ -247,15 +266,16 @@ function ComparisonTable(props: CompareViewProps) {
           cell: (info) => (
             <AverageCell
               row={info.row.original}
-              total={basket.metrics.length}
+              total={directional.length}
+              floor={floor}
             />
           ),
         }),
       ]),
-    [basket, dataset, hl, toggleHighlight]
+    [basket, dataset, hl, toggleHighlight, directional, floor]
   );
 
-  // Drop sorts on columns that left the basket.
+  // Fall back to the default sort when the sorted column left the basket.
   const ids = new Set(columns.map((c) => c.id));
   const activeSorting = sorting.filter((s) => ids.has(s.id));
 
@@ -265,10 +285,15 @@ function ComparisonTable(props: CompareViewProps) {
     data,
     getRowId: (r) => r.id,
     state: {
-      sorting: activeSorting.length > 0 ? activeSorting : DEFAULT_SORT,
+      sorting:
+        activeSorting.length > 0 ? activeSorting : [parseTableSort(undefined)],
       globalFilter: filter,
     },
-    onSortingChange: setSorting,
+    // Re-sorting is a view preference, not a step worth a Back press: replace the entry.
+    onSortingChange: (u) => {
+      const next = typeof u === 'function' ? u(activeSorting) : u;
+      update({ ts: formatTableSort(next[0]) }, { replace: true });
+    },
     onGlobalFilterChange: (u) =>
       setFilter((prev) => {
         const next: unknown = typeof u === 'function' ? u(prev) : u;
@@ -280,24 +305,67 @@ function ComparisonTable(props: CompareViewProps) {
   });
 
   const rows = table.getRowModel().rows;
+  // Highlighted ("pinned") places sit at the top in their sorted order, so a place opened from
+  // its profile with "Open in workbench" is in view straight away. The rest follow, virtualized
+  // when long.
+  const pinnedRows = hl.size > 0 ? rows.filter((r) => hl.has(r.id)) : [];
+  const centerRows =
+    pinnedRows.length > 0 ? rows.filter((r) => !hl.has(r.id)) : rows;
   const metricIndex = new Map(basket.metrics.map((m, k) => [`m${m.id}`, k]));
-  const neutral = basket.metrics.map((m) => isNeutral(search, m));
+  const neutral = basket.neutral;
   const scrollRef = useRef<HTMLDivElement>(null);
-  const virtual = rows.length > VIRTUALIZE_ABOVE;
+  const virtual = centerRows.length > VIRTUALIZE_ABOVE;
   const virtualizer = useVirtualizer({
-    count: virtual ? rows.length : 0,
+    count: virtual ? centerRows.length : 0,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => ROW_HEIGHT,
-    getItemKey: (i) => rows[i]?.id ?? i,
+    getItemKey: (i) => centerRows[i]?.id ?? i,
     overscan: 12,
+    scrollMargin: pinnedRows.length * ROW_HEIGHT,
   });
   const items = virtual ? virtualizer.getVirtualItems() : [];
-  const padTop = items.length > 0 ? items[0].start : 0;
+  // Item offsets include the pinned rows (scrollMargin); the spacer rows must not.
+  const margin = virtualizer.options.scrollMargin;
+  const padTop = items.length > 0 ? items[0].start - margin : 0;
   const padBottom =
     items.length > 0
-      ? virtualizer.getTotalSize() - items[items.length - 1].end
+      ? virtualizer.getTotalSize() - (items[items.length - 1].end - margin)
       : 0;
-  const visibleRows = virtual ? items.map((it) => rows[it.index]) : rows;
+  const visibleRows = virtual
+    ? items.map((it) => centerRows[it.index])
+    : centerRows;
+  const renderRow = (row: (typeof rows)[number], last: boolean) => {
+    const on = hl.has(row.original.id);
+    return (
+      <tr
+        key={row.id}
+        className={cx(
+          'group/row',
+          on && 'bg-accent-50 dark:bg-accent-900/30',
+          last && '[&>td]:border-b-accent-300 dark:[&>td]:border-b-accent-700'
+        )}
+        style={{ height: ROW_HEIGHT }}
+      >
+        {row.getAllCells().map((cell) => (
+          <BodyCell
+            key={cell.id}
+            cell={cell}
+            metricIndex={metricIndex.get(cell.column.id) ?? -1}
+            neutral={neutral[metricIndex.get(cell.column.id) ?? -1] ?? false}
+            highlighted={on}
+            render={<table.FlexRender cell={cell} />}
+          />
+        ))}
+      </tr>
+    );
+  };
+  const neutralLabels = basket.metrics
+    .filter((_, k) => basket.neutral[k])
+    .map((m) => m.label);
+  const averageHint =
+    directional.length === 0
+      ? 'No metric here has a better or worse side, so there is nothing to average.'
+      : `Mean of each place’s percentiles on the ${directional.length === 1 ? 'metric' : `${directional.length} metrics`} with a better side; needs data for ${floor} of ${directional.length}.${neutralLabels.length > 0 ? ` Left out (no better side): ${neutralLabels.join(', ')}.` : ''}`;
 
   const coverage = basket.columns.map((c) => {
     let n = 0;
@@ -305,16 +373,27 @@ function ComparisonTable(props: CompareViewProps) {
     return n;
   });
 
+  // CSV in the table's current order. Headers name each metric with topic context, unit and
+  // year; percentages are written as shown (8.0, not 0.08).
   const download = () => {
+    const names = csvMetricHeaders(
+      basket.metrics.map((m) => ({
+        id: m.id,
+        fullLabel: dataset.metricFullLabel(m.id),
+        fmt: m.fmt,
+        unit: m.unit,
+        year: m.year,
+      }))
+    );
     const header: CsvCell[] = [
       dataset.type.singular,
       'ID',
       GROUP_LABEL[dataset.type.id],
-      ...basket.metrics.flatMap((m) => [
-        m.label + (m.year != null ? ` (${m.year})` : ''),
-        `${m.label} rank`,
+      ...names.flatMap((name, k) => [
+        name,
+        `${name} - rank (1 = ${basket.neutral[k] ? 'highest' : 'best'})`,
       ]),
-      'Average percentile',
+      'Average percentile (0-100, metrics with a better side)',
       'Metrics with data',
     ];
     const body = rows.map((row) => {
@@ -323,9 +402,12 @@ function ComparisonTable(props: CompareViewProps) {
         r.name,
         r.id,
         r.group,
-        ...r.values.flatMap((v, k) => [v, r.ranks[k]]),
+        ...r.values.flatMap((v, k) => [
+          csvValue(basket.metrics[k].fmt, v),
+          r.ranks[k],
+        ]),
         Number.isNaN(r.avg) ? null : Math.round(r.avg * 1000) / 10,
-        r.covered,
+        r.values.filter((v) => !Number.isNaN(v)).length,
       ];
     });
     const blob = new Blob([toCsv([header, ...body])], {
@@ -351,7 +433,7 @@ function ComparisonTable(props: CompareViewProps) {
   return (
     <Card
       title={`${formatInt(total)} ${total === 1 ? noun.one : noun.many} × ${basket.metrics.length} ${basket.metrics.length === 1 ? 'metric' : 'metrics'}`}
-      subtitle="Cell colour shows how each value compares: green is better and red is worse given each metric’s direction (blue just means higher when a metric has none). # is the rank."
+      subtitle={`Cell colour shows how each value compares: green is better and red is worse given each metric’s direction (blue just means higher when a metric has none). # is the rank. Pinned places stay at the top.${neutralLabels.length > 0 ? ` Avg. percentile leaves out ${neutralLabels.join(', ')} (no better side).` : ''}`}
       actions={
         <>
           <label className="border-app bg-surface focus-within:border-accent-400 flex items-center gap-1.5 rounded-lg border px-2 py-1">
@@ -407,44 +489,27 @@ function ComparisonTable(props: CompareViewProps) {
                       }
                       coverage={coverageFor(header.column.id, basket, coverage)}
                       total={total}
+                      hint={
+                        header.column.id === 'avg' ? averageHint : undefined
+                      }
                     />
                   ))}
                 </tr>
               ))}
             </thead>
             <tbody>
+              {pinnedRows.map((row, i) =>
+                renderRow(
+                  row,
+                  i === pinnedRows.length - 1 && centerRows.length > 0
+                )
+              )}
               {padTop > 0 ? (
                 <tr aria-hidden>
                   <td style={{ height: padTop }} colSpan={columns.length} />
                 </tr>
               ) : null}
-              {visibleRows.map((row) => {
-                const on = hl.has(row.original.id);
-                return (
-                  <tr
-                    key={row.id}
-                    className={cx(
-                      'group/row',
-                      on && 'bg-accent-50 dark:bg-accent-900/30'
-                    )}
-                    style={{ height: ROW_HEIGHT }}
-                  >
-                    {row.getAllCells().map((cell) => (
-                      <BodyCell
-                        key={cell.id}
-                        cell={cell}
-                        metricIndex={metricIndex.get(cell.column.id) ?? -1}
-                        neutral={
-                          neutral[metricIndex.get(cell.column.id) ?? -1] ??
-                          false
-                        }
-                        highlighted={on}
-                        render={<table.FlexRender cell={cell} />}
-                      />
-                    ))}
-                  </tr>
-                );
-              })}
+              {visibleRows.map((row) => renderRow(row, false))}
               {padBottom > 0 ? (
                 <tr aria-hidden>
                   <td style={{ height: padBottom }} colSpan={columns.length} />
@@ -465,7 +530,9 @@ function ComparisonTable(props: CompareViewProps) {
               : `${formatInt(rows.length)} of ${formatInt(total)} ${noun.many}`}
             {hl.size > 0 ? ` · ${hl.size} highlighted` : ''}
           </span>
-          <span>Pin a row to highlight it in every view.</span>
+          <span>
+            Pin a row to keep it at the top and highlight it in every view.
+          </span>
         </div>
       </div>
     </Card>
@@ -502,6 +569,7 @@ function HeaderCell({
   neutral,
   coverage,
   total,
+  hint,
 }: {
   header: Header<typeof features, TableRow, unknown>;
   metric: Metric | undefined;
@@ -509,6 +577,8 @@ function HeaderCell({
   neutral: boolean;
   coverage: number | null;
   total: number;
+  /** Tooltip for non-metric columns (what the average covers) */
+  hint?: string;
 }) {
   const sorted = header.column.getIsSorted();
   const sticky = header.column.id === 'place';
@@ -540,7 +610,7 @@ function HeaderCell({
         title={
           metric != null
             ? `${metric.label}${metric.year != null ? ` (${metric.year})` : ''} — ${neutral ? 'no better or worse direction' : direction === 1 ? 'higher is better' : 'lower is better'}. Click to sort.`
-            : `Sort by ${label}`
+            : `${hint != null ? `${hint} ` : ''}Click to sort by ${label}.`
         }
         className={cx(
           'hover:text-app group inline-flex w-full items-end gap-1',
@@ -662,8 +732,37 @@ function PlaceCell({
   );
 }
 
-function AverageCell({ row, total }: { row: TableRow; total: number }) {
-  if (Number.isNaN(row.avg)) return <span className="text-muted">—</span>;
+/**
+ * Average percentile over the metrics with a better side. `total` is how many such metrics the
+ * basket has and `floor` how many a place needs data for; below it the cell shows a dash.
+ */
+function AverageCell({
+  row,
+  total,
+  floor,
+}: {
+  row: TableRow;
+  total: number;
+  floor: number;
+}) {
+  if (Number.isNaN(row.avg))
+    return (
+      <span
+        className="text-muted"
+        title={
+          total === 0
+            ? 'No metric here has a better or worse side to average'
+            : `Has data for ${row.covered} of ${total} metrics; needs ${floor} for an average`
+        }
+      >
+        {total > 0 && row.covered > 0 ? (
+          <span className="tabular mr-2 text-[10px]">
+            {row.covered}/{total}
+          </span>
+        ) : null}
+        —
+      </span>
+    );
   const pct = Math.round(row.avg * 100);
   return (
     <span className="flex items-center justify-end gap-2">

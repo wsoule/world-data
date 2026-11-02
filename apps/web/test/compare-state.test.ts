@@ -56,3 +56,11 @@ describe('directionHint', () => {
     expect(hint.action).toBe('click to set no side');
   });
 });
+
+describe('validateCompareSearch', () => {
+  test('keeps the table sort and drops an empty one', () => {
+    expect(validateCompareSearch({ ts: '-m24419' }).ts).toBe('-m24419');
+    expect(validateCompareSearch({ ts: '' }).ts).toBeUndefined();
+    expect(validateCompareSearch({ ts: 5 }).ts).toBeUndefined();
+  });
+});
