@@ -23,7 +23,6 @@ import { useSearchIndex } from './useSearchIndex';
 import { EmptyState } from '~/components/feedback';
 import { Badge, cx, PageHeader } from '~/components/ui';
 import { ENTITY_TYPES, type EntityType } from '~/data/types';
-import { useTitle } from '~/lib/useTitle';
 
 const route = getRouteApi('/search');
 
@@ -90,7 +89,6 @@ export function SearchPage() {
   const { index, version, loading, loaded, total, error } = useSearchIndex();
   const query = useDeferredValue(text.trim());
   const urlTimer = useRef<number | undefined>(undefined);
-  useTitle(query !== '' ? `Search: ${query}` : 'Search');
 
   // Take the URL's query when it changes from elsewhere (palette "See all", back button). Typing
   // writes the URL only after a pause, so this does not fight the keyboard.
