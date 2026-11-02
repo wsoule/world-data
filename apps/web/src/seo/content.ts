@@ -11,9 +11,12 @@ import type {
   Metric,
   TopicFile,
 } from '~/data/types';
+import { rankText } from '~/features/places/percentile';
 import {
+  byKeys,
   coverageCut,
   isPolar,
+  type PlaceMetric,
   placeStandings,
   rankableMetrics,
   sizeDrivenMetrics,
@@ -182,6 +185,32 @@ export function topicSummary(
 const HEADLINE =
   /\b(income|gdp|wages?|salar(y|ies)|poverty|unemployment|life expectancy|infant mortality|mortality|homicide|murder|crime|violent|literacy|education|graduation|bachelor|happiness|happiest|obesity|smoking|cost of living|home value|safety|peace|democracy|corruption|human development|hdi|internet|broadband|uninsured|health ?care|suicide|overdose|air quality|pollution|renewable|commute|tax burden|freedom)\b/i;
 
+/**
+ * Up to `limit` metrics a place summary calls its best and its lowest. A metric counts as a
+ * strength only when the place is above the median place on it (percentile above 0.5) and as a
+ * weak spot only below it, so the two lists never name the same metric: a place with a single
+ * headline metric gets one list, not that metric on both. Higher percentiles go first among
+ * strengths and lower among weak spots; equal percentiles go to the better (or worse) rank.
+ */
+export function summaryExtremes(
+  rows: readonly PlaceMetric[],
+  limit = 3
+): { best: PlaceMetric[]; worst: PlaceMetric[] } {
+  const best = rows
+    .filter((p) => p.standing.pct > 0.5)
+    .sort((a, b) =>
+      byKeys(b.standing.pct - a.standing.pct, a.standing.rank - b.standing.rank)
+    )
+    .slice(0, limit);
+  const worst = rows
+    .filter((p) => p.standing.pct < 0.5)
+    .sort((a, b) =>
+      byKeys(a.standing.pct - b.standing.pct, b.standing.rank - a.standing.rank)
+    )
+    .slice(0, limit);
+  return { best, worst };
+}
+
 /** schema.org type for a place. */
 const PLACE_TYPE: Record<EntityType, string> = {
   country: 'Country',
@@ -217,22 +246,9 @@ export function placeSummary(ds: Dataset, index: number): PageSummary {
     candidates.map((p) => p.metric)
   );
   const polar = candidates.filter((p) => !sized.has(p.metric.id));
-  const best = [...polar]
-    .sort((a, b) =>
-      b.standing.pct - a.standing.pct !== 0
-        ? b.standing.pct - a.standing.pct
-        : a.standing.rank - b.standing.rank
-    )
-    .slice(0, 3);
-  const worst = [...polar]
-    .sort((a, b) =>
-      a.standing.pct - b.standing.pct !== 0
-        ? a.standing.pct - b.standing.pct
-        : b.standing.rank - a.standing.rank
-    )
-    .slice(0, 3);
-  const describe = (p: (typeof polar)[number]): string =>
-    `${p.metric.label} (${ordinal(p.standing.rank)} of ${formatInt(p.standing.n)})`;
+  const { best, worst } = summaryExtremes(polar);
+  const describe = (p: PlaceMetric): string =>
+    `${p.metric.label} (${rankText(p.standing)})`;
 
   const popRank =
     e.pop == null
