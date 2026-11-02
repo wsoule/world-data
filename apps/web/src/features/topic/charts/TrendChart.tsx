@@ -13,6 +13,8 @@ export interface TrendSeries {
   color: string;
   /** The median line is drawn dashed and listed first */
   median?: boolean;
+  /** The selected place: drawn thicker, on top of the other lines */
+  highlight?: boolean;
 }
 
 /** About six readable year ticks: every year when few, otherwise a round step. */
@@ -61,8 +63,14 @@ export function TrendChart({
     const medianNames = new Set(
       series.filter((s) => s.median === true).map((s) => s.name)
     );
+    const highlightNames = new Set(
+      series.filter((s) => s.highlight === true).map((s) => s.name)
+    );
     const medianRows = points.filter((p) => medianNames.has(p.series));
-    const placeRows = points.filter((p) => !medianNames.has(p.series));
+    const placeRows = points.filter(
+      (p) => !medianNames.has(p.series) && !highlightNames.has(p.series)
+    );
+    const highlightRows = points.filter((p) => highlightNames.has(p.series));
     const showPoints = years.length <= 12;
     let lo = Infinity;
     let hi = -Infinity;
@@ -94,6 +102,15 @@ export function TrendChart({
           key: (d) => `${d.series}-${d.year}`,
           stroke: (d) => colorOf.get(d.series) ?? colors.accent,
           strokeWidth: 2.25,
+          points: showPoints,
+        }),
+        lineY(highlightRows, {
+          x: 'year',
+          y: 'value',
+          z: 'series',
+          key: (d) => `${d.series}-${d.year}`,
+          stroke: (d) => colorOf.get(d.series) ?? colors.highlight,
+          strokeWidth: 3.5,
           points: showPoints,
         }),
       ],

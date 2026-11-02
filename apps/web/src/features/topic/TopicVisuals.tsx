@@ -10,6 +10,7 @@ import {
   placeNoun,
   type RankedEntry,
   rankWindow,
+  trendPicks,
   trendPoints,
 } from './model';
 import { Button, Card, Segmented, Stat } from '~/components/ui';
@@ -269,12 +270,22 @@ export function DistributionCard({
   );
 }
 
-/** Places drawn on the trend chart besides the median. */
+/** Top places drawn on the trend chart besides the median (plus the selected place). */
 const TREND_PLACES = 5;
 
 /**
+ * Line colours for the top places: the group palette without the highlight colours of either
+ * theme, so the selected place's line is never confused with another.
+ */
+const TREND_PALETTE = GROUP_PALETTE.filter(
+  (c) =>
+    c !== chartColors('light').highlight && c !== chartColors('dark').highlight
+);
+
+/**
  * Year-by-year lines: the median across all places (not for ranks, whose median is constant)
- * plus the selected place and the top places of the selected year.
+ * plus the top places of the selected year and the selected place. Top places keep their colour
+ * by rank; the selected place is drawn in the highlight colour with a thicker line.
  */
 export function TrendCard({
   topic,
@@ -300,16 +311,11 @@ export function TrendCard({
 }) {
   const colors = chartColors(useTheme());
   const isRank = focus.fmt === 'ranking';
-  const { points, series } = useMemo(() => {
-    const picks: number[] = [];
-    if (selected != null) picks.push(selected);
-    for (const e of ranked) {
-      if (picks.length >= TREND_PLACES) break;
-      if (!picks.includes(e.index)) picks.push(e.index);
-    }
-    const places = picks.map((index) => ({
-      index,
-      name: dataset.entities[index].name,
+  const { points, series, extra } = useMemo(() => {
+    const picks = trendPicks(ranked, selected, TREND_PLACES);
+    const places = picks.map((p) => ({
+      index: p.index,
+      name: dataset.entities[p.index].name,
     }));
     const medianLabel = `Median of all ${placeNoun(dataset.type.id)}`;
     const pts = trendPoints(
@@ -326,23 +332,26 @@ export function TrendCard({
         : []),
       ...places.map((p, k) => ({
         name: p.name,
-        color:
-          p.index === selected
-            ? colors.highlight
-            : GROUP_PALETTE[k % GROUP_PALETTE.length],
+        color: picks[k].selected
+          ? colors.highlight
+          : TREND_PALETTE[picks[k].slot % TREND_PALETTE.length],
+        highlight: picks[k].selected,
       })),
     ];
     return {
       points: withMedian ? pts : pts.filter((p) => p.series !== medianLabel),
       series: s,
+      // The selection is drawn on top of the top places rather than replacing one.
+      extra: picks.some((p) => p.slot < 0),
     };
   }, [topic, dataset, focus, years, ranked, selected, withMedian, colors]);
 
   const top = Math.min(TREND_PLACES, ranked.length);
+  const when = year != null ? `in ${year}` : 'on the latest figures';
   return (
     <Card
       title={`Over time · ${years[0]}–${years[years.length - 1]}`}
-      subtitle={`${selected != null ? 'The highlighted place and the' : 'The'} top ${top} in ${year ?? 'the selected year'}${isRank ? '; rank 1 at the top' : withMedian ? ', against the median' : ''}.`}
+      subtitle={`The top ${top} ${when}${extra ? ' and the highlighted place' : ''}${isRank ? '; rank 1 at the top' : withMedian ? ', against the median' : ''}.`}
     >
       <TrendChart
         points={points}
@@ -365,10 +374,14 @@ export function TrendCard({
             <span
               className="inline-block w-4"
               style={{
-                borderTop: `2px ${s.median === true ? 'dashed' : 'solid'} ${s.color}`,
+                borderTop: `${s.highlight === true ? 3 : 2}px ${s.median === true ? 'dashed' : 'solid'} ${s.color}`,
               }}
             />
-            {s.name}
+            <span
+              className={s.highlight === true ? 'text-app font-medium' : ''}
+            >
+              {s.name}
+            </span>
           </li>
         ))}
       </ul>

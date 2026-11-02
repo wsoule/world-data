@@ -265,6 +265,33 @@ export function trendPoints(
   return out;
 }
 
+/** One place drawn on the trend chart. `slot` is its position in the top places, -1 when it is only there because it is selected. */
+export interface TrendPick {
+  index: number;
+  slot: number;
+  selected: boolean;
+}
+
+/**
+ * Places for the trend chart: the top `limit` of the ranking in rank order, then the selected
+ * place when it is not among them. Each top place keeps its slot (and so its colour) whatever is
+ * selected, so highlighting a place never recolours the other lines.
+ */
+export function trendPicks(
+  ranked: readonly RankedEntry[],
+  selected: number | null,
+  limit: number
+): TrendPick[] {
+  const out: TrendPick[] = [];
+  for (let k = 0; k < ranked.length && k < limit; k++) {
+    const index = ranked[k].index;
+    out.push({ index, slot: k, selected: index === selected });
+  }
+  if (selected != null && !out.some((p) => p.selected))
+    out.push({ index: selected, slot: -1, selected: true });
+  return out;
+}
+
 /** Split a source pipe list ("A | B | C") into trimmed items. */
 export function splitList(value: string): string[] {
   return value

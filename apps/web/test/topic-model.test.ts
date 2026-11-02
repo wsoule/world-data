@@ -19,6 +19,7 @@ import {
   seriesYears,
   splitList,
   tableYear,
+  trendPicks,
   trendPoints,
   valueCounts,
 } from '../src/features/topic/model';
@@ -211,6 +212,30 @@ describe('trend and counts', () => {
       10,
       12,
       null,
+    ]);
+  });
+
+  test('trend places keep their slot whatever is selected', () => {
+    const ranked = rankEntries([50, 40, 30, 20, 10, 5], 1);
+    const slots = (sel: number | null) =>
+      trendPicks(ranked, sel, 3).map((p) => [p.index, p.slot, p.selected]);
+    expect(slots(null)).toEqual([
+      [0, 0, false],
+      [1, 1, false],
+      [2, 2, false],
+    ]);
+    // A top place is highlighted in place; the others keep their slots.
+    expect(slots(1)).toEqual([
+      [0, 0, false],
+      [1, 1, true],
+      [2, 2, false],
+    ]);
+    // A place outside the top is appended, so the top stays complete.
+    expect(slots(5)).toEqual([
+      [0, 0, false],
+      [1, 1, false],
+      [2, 2, false],
+      [5, -1, true],
     ]);
   });
 
