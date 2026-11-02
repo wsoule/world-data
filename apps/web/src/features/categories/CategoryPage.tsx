@@ -173,7 +173,7 @@ export function CategoryPage() {
   // Prerendered without ?type, so apply it only after hydration.
   const hydrated = useHydrated();
   const urlSearch = route.useSearch();
-  const type = hydrated ? urlSearch.type : undefined;
+  const requestedType = hydrated ? urlSearch.type : undefined;
   const navigate = route.useNavigate();
   const { data: manifest } = useSuspenseQuery(manifestQuery);
   const { data: topics } = useSuspenseQuery(topicsIndexQuery);
@@ -190,6 +190,14 @@ export function CategoryPage() {
     () => summarizeCategories(manifest, topics).find((s) => s.id === category),
     [manifest, topics, category]
   );
+  // A ?type the category has no topics for (an old or hand-edited link) shows every type instead.
+  const missingType =
+    requestedType != null &&
+    summary != null &&
+    !summary.byType.some((b) => b.type === requestedType)
+      ? requestedType
+      : undefined;
+  const type = missingType == null ? requestedType : undefined;
   const inCategory = useMemo(
     () => topics.filter((t) => t.cats.includes(category)),
     [topics, category]
@@ -325,6 +333,16 @@ export function CategoryPage() {
         ))}
       </div>
 
+      {missingType != null ? (
+        <p
+          className="border-app bg-surface-2/60 text-muted mb-5 rounded-xl border px-4 py-2.5 text-sm"
+          role="status"
+        >
+          {info.label} has no topics about {TYPE_NOUNS[missingType]} yet, so
+          topics for every place type are shown.
+        </p>
+      ) : null}
+
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <section className="card min-w-0 overflow-hidden" aria-label="Topics">
           <div className="border-app flex flex-wrap items-center gap-3 border-b px-4 py-3">
@@ -369,7 +387,9 @@ export function CategoryPage() {
 
           {rows.length === 0 ? (
             <p className="text-muted p-8 text-center text-sm">
-              No topics match “{text}”.
+              {text.trim() !== ''
+                ? `No topics match “${text.trim()}”.`
+                : 'No topics to show.'}
             </p>
           ) : (
             <div className="overflow-x-auto">
