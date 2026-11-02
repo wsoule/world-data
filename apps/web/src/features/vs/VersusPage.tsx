@@ -93,11 +93,12 @@ export function VersusPage() {
   const navigate = route.useNavigate();
   const dataset = useDataset(search.type);
 
+  // Every change here is a discrete step (add or remove a place, pick a category), so each
+  // gets its own history entry and Back undoes it instead of leaving the page.
   const update = useCallback(
     (patch: Partial<VersusSearch>) =>
       void navigate({
         search: (prev) => ({ ...prev, ...patch }),
-        replace: true,
         resetScroll: false,
       }),
     [navigate]
