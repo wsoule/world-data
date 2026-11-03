@@ -11,10 +11,14 @@ import type {
   TopicSummary,
   ValuesFile,
 } from '../src/data/types';
+import { datasetFacts } from '../src/features/places/datasetFacts';
 import {
+  notableFacts,
   type PlaceMetric,
   placeStandings,
+  qualifyingRows,
   standingAt,
+  strengthsAndWeaknesses,
 } from '../src/features/places/profileModel';
 import { faqPage } from '../src/lib/seo';
 import { placeSummary, summaryExtremes } from '../src/seo/content';
@@ -120,6 +124,42 @@ describe('placeSummary', () => {
       expect(seo.jsonLd.at(-1)).toEqual(faqPage(seo.faq));
     });
     expect(tied).toBeGreaterThan(0);
+  });
+
+  test('top-N county lists never make a county best or worst', () => {
+    const counties = dataset('county');
+    const facts = datasetFacts(counties);
+    // "The 1,000 most violent counties" and its siblings are flagged.
+    for (const id of [25523, 25524, 25528]) {
+      expect(counties.metric(id)?.n).toBeGreaterThanOrEqual(facts.cut.minN);
+      expect(facts.selectedLists.has(id)).toBe(true);
+    }
+    // Median income covers most counties and still counts.
+    expect(facts.selectedLists.has(25455)).toBe(false);
+    const la = counties.entities.findIndex((e) =>
+      e.name.startsWith('Los Angeles County')
+    );
+    const rows = placeStandings(counties, la, facts.rankable);
+    const exclude = new Set([...facts.selectedLists, ...facts.sizeDriven]);
+    const { best, worst } = strengthsAndWeaknesses(
+      qualifyingRows(rows, facts.cut, exclude)
+    );
+    const named = [...best, ...worst].map((r) => r.metric.id);
+    expect(named).not.toContain(25523);
+    expect(named.every((id) => !facts.selectedLists.has(id))).toBe(true);
+    const notable = notableFacts(rows, facts.cut, exclude);
+    expect(
+      notable.every((f) => !facts.selectedLists.has(f.row.metric.id))
+    ).toBe(true);
+  });
+
+  test('size samples of the largest cities still count', () => {
+    const cities = dataset('city');
+    const facts = datasetFacts(cities);
+    // Violent crime for the 184 largest cities: the best and worst of the biggest cities.
+    expect(facts.selectedLists.has(25088)).toBe(false);
+    // "The richest cities" lists only one end of income.
+    expect(facts.selectedLists.has(25079)).toBe(true);
   });
 
   test('a place tied at the bottom reads "tied last"', () => {

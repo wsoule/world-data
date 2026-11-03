@@ -108,9 +108,20 @@ function Profile({
     () => placeStandings(dataset, index, facts.rankable),
     [dataset, index, facts]
   );
-  const exclude = useMemo(
-    () => (hideSize ? facts.sizeDriven : new Set<number>()),
-    [hideSize, facts]
+  // Top-N lists picked by their own metric never count; population totals only while hidden.
+  const exclude = useMemo(() => {
+    const out = new Set(facts.selectedLists);
+    if (hideSize) for (const id of facts.sizeDriven) out.add(id);
+    return out;
+  }, [hideSize, facts]);
+  // This place's top-N list metrics that would otherwise qualify, for the note under the heading.
+  const listCount = useMemo(
+    () =>
+      rows.filter(
+        (r) =>
+          facts.selectedLists.has(r.metric.id) && r.standing.n >= facts.cut.minN
+      ).length,
+    [rows, facts]
   );
   const qualifying = useMemo(
     () => qualifyingRows(rows, facts.cut, exclude),
@@ -183,8 +194,11 @@ function Profile({
             </h2>
             <p className="text-muted text-sm">
               {qualifying.length > 0
-                ? `Percentile on ${plural(qualifying.length, 'metric')} that rank ${coverageNote}, given whether higher or lower is better.`
+                ? `Percentile on ${plural(qualifying.length, 'metric')} that ${qualifying.length === 1 ? 'ranks' : 'rank'} ${coverageNote}, given whether higher or lower is better.`
                 : `Based on metrics that rank ${coverageNote} and have a better and a worse end.`}
+              {listCount > 0
+                ? ` ${plural(listCount, 'metric')} from top lists such as “the most violent” ${listCount === 1 ? 'is' : 'are'} left out, since ${listCount === 1 ? 'it ranks' : 'they rank'} only one end of the scale.`
+                : ''}
             </p>
           </div>
           {sizeCount > 0 ? (

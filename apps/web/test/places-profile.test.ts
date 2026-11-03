@@ -10,12 +10,14 @@ import {
   dedupeKey,
   diversifyByTopic,
   isPolar,
+  largestPlacesShare,
   maxNotableTie,
   metricsWithData,
   notableFacts,
   placeStandings,
   type ProfileData,
   qualifyingRows,
+  selectedListMetrics,
   type SimilarityBasis,
   similarityBasis,
   similarPlaces,
@@ -151,6 +153,55 @@ describe('sizeDrivenMetrics', () => {
   test('nothing tracks population when the type has no population column', () => {
     const data = fixture(['a', 'b'], [[metric(1, 'Murders', -1), [1, 2]]]);
     expect(tracksPopulation(data, 1)).toBe(false);
+  });
+});
+
+describe('selectedListMetrics', () => {
+  // Twenty places, largest first (entities are ordered by population).
+  const names = Array.from({ length: 20 }, (_, i) => `p${i}`);
+  const only = (picked: number[], f: (i: number) => number) =>
+    names.map((_, i) => (picked.includes(i) ? f(i) : Number.NaN));
+  const range = (from: number, to: number) =>
+    Array.from({ length: to - from }, (_, k) => from + k);
+
+  test('flags top-N lists that reach into small places, not full rankings or size samples', () => {
+    const data = fixture(names, [
+      // Every place: speaks for the type.
+      [metric(1, 'Median Income', 1), names.map((_, i) => 50 + i)],
+      // The 6 largest places: a sample picked by size.
+      [metric(2, 'Murders per 10k', -1), only(range(0, 6), (i) => i + 1)],
+      // "The most violent": 6 places spread through the list.
+      [
+        metric(3, 'Agrv Assault Rate', -1),
+        only([1, 4, 9, 13, 16, 19], (i) => 900 + i),
+      ],
+      // Half of all places counts as full coverage, wherever they are.
+      [metric(4, 'Life Expectancy', 1), only(range(10, 20), (i) => 70 + i)],
+      // Neutral metrics never make a best / worst claim anyway.
+      [metric(5, '% White', 0), only([3, 8, 12, 15, 19], (i) => i)],
+    ]);
+    expect([...selectedListMetrics(data, data.metrics)]).toEqual([3]);
+    expect(largestPlacesShare(data.numeric(2))).toBe(1);
+    expect(largestPlacesShare(data.numeric(3))).toBeCloseTo(2 / 6);
+  });
+
+  test('keeps a top-N list out of strengths, weak spots and notable facts', () => {
+    const data = fixture(names, [
+      [metric(1, 'Median Income', 1), names.map((_, i) => 50 + i)],
+      [
+        metric(3, 'Agrv Assault Rate', -1),
+        only([0, 4, 9, 13, 16, 19], (i) => 900 + i),
+      ],
+    ]);
+    const selected = selectedListMetrics(data, data.metrics);
+    const cut = { minN: 5, share: 0.25 };
+    // Place 0 has the lowest assault rate on "the most violent" list: not a strength.
+    const rows = placeStandings(data, 0);
+    expect(rows.find((r) => r.metric.id === 3)?.standing.rank).toBe(1);
+    const qualifying = qualifyingRows(rows, cut, selected);
+    expect(qualifying.map((r) => r.metric.id)).toEqual([1]);
+    const facts = notableFacts(rows, cut, selected);
+    expect(facts.some((f) => f.row.metric.id === 3)).toBe(false);
   });
 });
 

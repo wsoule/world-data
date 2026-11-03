@@ -7,6 +7,7 @@ import {
   coverageCut,
   metricsWithData,
   rankableMetrics,
+  selectedListMetrics,
   type SimilarityBasis,
   similarityBasis,
   sizeDrivenMetrics,
@@ -21,6 +22,11 @@ export interface DatasetFacts {
   cut: CoverageCut;
   /** Directional metrics that mostly track population (see `sizeDrivenMetrics`) */
   sizeDriven: Set<number>;
+  /**
+   * Partial rankings picked by their own metric, such as "the 1,000 most violent counties",
+   * which never support a best / worst claim (see `selectedListMetrics`)
+   */
+  selectedLists: Set<number>;
 }
 
 const factsCache = new WeakMap<Dataset, DatasetFacts>();
@@ -35,6 +41,7 @@ export function datasetFacts(dataset: Dataset): DatasetFacts {
       rankable,
       cut: coverageCut(rankable, dataset.entities.length),
       sizeDriven: sizeDrivenMetrics(dataset, rankable),
+      selectedLists: selectedListMetrics(dataset, rankable),
     };
     factsCache.set(dataset, facts);
   }

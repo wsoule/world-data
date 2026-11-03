@@ -175,6 +175,57 @@ export function coverageCut(
   return cut;
 }
 
+/** Share of all places from which a ranking counts as covering the whole type. */
+export const FULL_COVERAGE_SHARE = 0.5;
+
+/**
+ * Share of a partial ranking's places that must be among the type's most populous for the
+ * ranking to count as a sample picked by size (see `selectedListMetrics`).
+ */
+export const SIZE_SAMPLE_SHARE = 0.8;
+
+/**
+ * Share of a column's places that are among the type's `n` most populous, where `n` is how many
+ * places the column covers. Entities are ordered by population (largest first), so that is the
+ * share of covered indexes below `n`: about 1 for a list of the largest places, about n / total
+ * for places picked without regard to size.
+ */
+export function largestPlacesShare(col: ArrayLike<number>): number {
+  let n = 0;
+  for (let i = 0; i < col.length; i++) if (isFiniteNumber(col[i])) n++;
+  if (n === 0) return 0;
+  let top = 0;
+  for (let i = 0; i < n; i++) if (isFiniteNumber(col[i])) top++;
+  return top / n;
+}
+
+/**
+ * Directional metrics whose places the source picked by the metric itself, which therefore never
+ * support calling a place best or worst. A ranking covering at least half of all places speaks for
+ * the type; a partial one only does when it is a sample picked by size (at least 80% of its places
+ * are the type's largest, like the 184 biggest cities ranked on violent crime), so its best and
+ * worst places are the best and worst of the biggest places. Any other partial ranking is a top-N
+ * list that shows one end of its metric: "the 1,000 most violent counties" reaches deep into small
+ * counties, and the county with the lowest assault rate on it is the 1,000th most violent, not the
+ * safest. Strengths, weak spots and notable facts leave these out.
+ */
+export function selectedListMetrics(
+  data: ProfileData,
+  metrics: readonly Metric[]
+): Set<number> {
+  const total = data.entities.length;
+  const out = new Set<number>();
+  for (const m of metrics) {
+    if (!isPolar(m) || m.base === true) continue;
+    const col = data.numeric(m.id);
+    let n = 0;
+    for (let i = 0; i < col.length; i++) if (isFiniteNumber(col[i])) n++;
+    if (n === 0 || n >= total * FULL_COVERAGE_SHARE) continue;
+    if (largestPlacesShare(col) < SIZE_SAMPLE_SHARE) out.add(m.id);
+  }
+  return out;
+}
+
 /**
  * Key that treats two metrics as the same fact when they share a label and value. The source
  * repeats popular measures (say, median income) across many topic pages; without this the
