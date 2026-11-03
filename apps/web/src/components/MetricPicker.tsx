@@ -18,6 +18,7 @@ import {
 
 import { cx } from './ui';
 import type { Dataset } from '~/data/dataset';
+import { rankOrder, rankOrderNote } from '~/data/rankOrder';
 import type { Metric } from '~/data/types';
 import { searchItems } from '~/lib/textSearch';
 
@@ -43,26 +44,31 @@ export interface MetricPickerProps {
 
 export function PolarityIcon({
   pol,
+  fmt,
   className,
 }: {
   pol: Metric['pol'];
+  /** The metric's format; rank columns add which end rank 1 is to the tooltip. */
+  fmt?: Metric['fmt'];
   className?: string;
 }) {
+  const order = fmt === undefined ? null : rankOrder({ fmt, pol });
+  const note = order == null ? '' : ` (${rankOrderNote(order)})`;
   if (pol === 1)
     return (
-      <span title="Higher is better">
+      <span title={`Higher is better${note}`}>
         <ArrowUpWideNarrow
           className={cx('size-3.5 text-good', className)}
-          aria-label="Higher is better"
+          aria-label={`Higher is better${note}`}
         />
       </span>
     );
   if (pol === -1)
     return (
-      <span title="Lower is better">
+      <span title={`Lower is better${note}`}>
         <ArrowDownWideNarrow
           className={cx('size-3.5 text-bad', className)}
-          aria-label="Lower is better"
+          aria-label={`Lower is better${note}`}
         />
       </span>
     );
@@ -370,7 +376,7 @@ function MetricSearchPanel({
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 text-sm font-medium">
                       <span className="truncate">{m.label}</span>
-                      <PolarityIcon pol={m.pol} />
+                      <PolarityIcon pol={m.pol} fmt={m.fmt} />
                     </div>
                     <div className="text-muted truncate text-xs">
                       {ctx ?? m.cats.join(', ')}

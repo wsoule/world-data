@@ -341,7 +341,11 @@ function MetricRow({
       <div className="flex items-baseline justify-between gap-3">
         <span className="flex min-w-0 items-center gap-1 text-sm">
           <MetricLink dataset={dataset} metric={m} />
-          <PolarityIcon pol={row.polar ? m.pol : 0} className="shrink-0" />
+          <PolarityIcon
+            pol={row.polar ? m.pol : 0}
+            fmt={m.fmt}
+            className="shrink-0"
+          />
         </span>
         <span className="tabular shrink-0 text-sm font-medium">
           {formatValue(m, row.standing.value)}

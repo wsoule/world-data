@@ -108,7 +108,11 @@ export function StrengthList({
               <div className="flex items-baseline justify-between gap-3">
                 <span className="flex min-w-0 items-center gap-1 text-sm font-medium">
                   <MetricLink dataset={dataset} metric={r.metric} />
-                  <PolarityIcon pol={r.metric.pol} className="shrink-0" />
+                  <PolarityIcon
+                    pol={r.metric.pol}
+                    fmt={r.metric.fmt}
+                    className="shrink-0"
+                  />
                 </span>
                 <span className="tabular shrink-0 text-sm font-semibold">
                   {formatValue(r.metric, r.standing.value)}

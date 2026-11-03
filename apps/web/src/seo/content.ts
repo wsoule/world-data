@@ -4,6 +4,7 @@
 
 import { topicAnswers } from './topic-content';
 import type { Dataset } from '~/data/dataset';
+import { isRankColumn } from '~/data/rankOrder';
 import type {
   CategoryInfo,
   EntityType,
@@ -236,7 +237,7 @@ export function placeSummary(ds: Dataset, index: number): PageSummary {
       p.polar &&
       isPolar(p.metric) &&
       p.metric.n >= minN &&
-      p.metric.fmt !== 'ranking' &&
+      !isRankColumn(p.metric) &&
       !/\brank(ing)?\b/i.test(p.metric.label) &&
       HEADLINE.test(p.metric.label)
   );

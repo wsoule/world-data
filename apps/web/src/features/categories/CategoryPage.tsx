@@ -735,7 +735,7 @@ function MetricRow({
           ) : (
             <span className="truncate text-sm font-medium">{metric.label}</span>
           )}
-          <PolarityIcon pol={metric.pol} />
+          <PolarityIcon pol={metric.pol} fmt={metric.fmt} />
         </div>
         <div className="text-muted tabular truncate text-xs">
           {context != null ? `${context} · ` : ''}
