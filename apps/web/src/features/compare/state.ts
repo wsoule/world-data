@@ -1,5 +1,6 @@
 import type { Normalization } from '@world-data/stats';
 
+import { type BundleId, isBundleId } from './ranking/bundles';
 import type { Dataset } from '~/data/dataset';
 import { type EntityType, isEntityType, type Metric } from '~/data/types';
 
@@ -54,6 +55,11 @@ export interface CompareSearch {
    * descending. Unset means the default, average percentile descending.
    */
   ts?: string;
+  /**
+   * A ranking bundle to load into an empty basket, for links that cannot know metric ids (the
+   * search palette's goal ideas). The page swaps it for the bundle's metrics on arrival.
+   */
+  bundle?: BundleId;
 }
 
 /**
@@ -144,6 +150,7 @@ export function validateCompareSearch(
     f: optNum(raw.f),
     fl: record(raw.fl, (x) => (typeof x === 'boolean' ? x : undefined)),
     ts: typeof raw.ts === 'string' && raw.ts !== '' ? raw.ts : undefined,
+    bundle: isBundleId(raw.bundle) ? raw.bundle : undefined,
   };
 }
 

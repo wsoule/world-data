@@ -14,10 +14,18 @@ import {
   Trophy,
   X,
 } from 'lucide-react';
-import { type ReactNode, useCallback, useId, useMemo, useState } from 'react';
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useState,
+} from 'react';
 
 import { directionHint, typeNoun } from './polarity';
 import { PopularMetricChips, PresetCards } from './QuickStart';
+import { useBundles } from './ranking/BundlePicker';
 import { ShareButton } from './ShareButton';
 import {
   type CompareSearch,
@@ -126,6 +134,21 @@ export function CompareShell() {
     },
     [navigate]
   );
+
+  // A `bundle` link fills an empty basket with that bundle's metrics, then drops the param
+  // (replacing the entry, so Back skips the intermediate URL). Unknown or empty bundles for this
+  // place type just clear it.
+  const bundles = useBundles(dataset);
+  useEffect(() => {
+    if (search.bundle == null) return;
+    const b = bundles.find((x) => x.id === search.bundle);
+    update(
+      b != null && b.metricIds.length > 0 && search.m.length === 0
+        ? { m: b.metricIds, bundle: undefined }
+        : { bundle: undefined },
+      { replace: true }
+    );
+  }, [search.bundle, search.m.length, bundles, update]);
 
   const metrics = useMemo(
     () => search.m.map((id) => dataset.metric(id)).filter((m) => m != null),

@@ -3,6 +3,7 @@ import {
   ArrowRight,
   Clock,
   CornerDownLeft,
+  Lightbulb,
   Loader2,
   Search,
   Sparkles,
@@ -17,6 +18,16 @@ import {
   useState,
 } from 'react';
 
+import {
+  GOAL_BY_ID,
+  type GoalId,
+  GOALS,
+  type Idea,
+  ideasFor,
+  inferGoal,
+  readGoal,
+  saveGoal,
+} from './goals';
 import { modKeyLabel, usePlatformLabel } from './platform';
 import { clearRecent, pushRecent, readRecent, type RecentItem } from './recent';
 import {
@@ -38,6 +49,7 @@ import {
 import {
   closeSearch,
   getSearchSeed,
+  getSearchSeedGoal,
   openSearch,
   toggleSearch,
   useSearchOpen,
@@ -114,7 +126,8 @@ type Row =
       /** Same-label metrics folded into this one */
       variants: number;
     }
-  | { key: string; seeAll: string };
+  | { key: string; seeAll: string }
+  | { key: string; idea: Idea };
 
 interface Section {
   id: string;
@@ -129,6 +142,21 @@ function PaletteDialog() {
   const [query, setQuery] = useState(getSearchSeed);
   const [active, setActive] = useState(0);
   const [recent, setRecent] = useState<RecentItem[]>(readRecent);
+  // The goal chip picked (remembered per viewer); a query can also imply one (inferGoal).
+  const [goal, setGoal] = useState<GoalId | null>(
+    () => getSearchSeedGoal() ?? readGoal()
+  );
+  // A goal chip outside the palette (home page) counts as picking it.
+  useEffect(() => {
+    const seeded = getSearchSeedGoal();
+    if (seeded != null) saveGoal(seeded);
+  }, []);
+  const pickGoal = (g: GoalId | null) => {
+    setGoal(g);
+    saveGoal(g);
+    setActive(0);
+    inputRef.current?.focus();
+  };
   const modKey = usePlatformLabel(modKeyLabel, 'Ctrl');
   const { index, version, loading, loaded, total, error } = useSearchIndex();
   const openTarget = useOpenTarget();
@@ -181,6 +209,16 @@ function PaletteDialog() {
             variants: 0,
           })),
         });
+      const chosen = goal == null ? undefined : GOAL_BY_ID.get(goal);
+      if (chosen != null) {
+        out.push({
+          id: 'ideas',
+          label: chosen.heading,
+          icon: Lightbulb,
+          rows: chosen.ideas.map((idea) => ({ key: `idea-${idea.id}`, idea })),
+        });
+        return out;
+      }
       const seen = new Set(recent.map((r) => r.id));
       out.push({
         id: 'suggested',
@@ -207,14 +245,39 @@ function PaletteDialog() {
         variants: r.variants.length,
       })),
     }));
-    if (out.length > 0)
+    // Goal ideas: from the picked chip, or guessed from the query's words ("retire", "visit").
+    const ideaGoal = goal ?? inferGoal(trimmed);
+    if (ideaGoal != null) {
+      const top = groups
+        .find((g) => g.kind === 'metric')
+        ?.results.find((r) => r.doc.target.kind === 'metric')?.doc;
+      const ideas = ideasFor(
+        ideaGoal,
+        trimmed,
+        top != null && top.target.kind === 'metric'
+          ? { target: top.target, title: top.title }
+          : null
+      );
+      if (ideas.length > 0) {
+        const section: Section = {
+          id: 'ideas',
+          label: GOAL_BY_ID.get(ideaGoal)?.heading ?? 'Ideas',
+          icon: Lightbulb,
+          rows: ideas.map((idea) => ({ key: `idea-${idea.id}`, idea })),
+        };
+        // Natural-language queries ("where should I retire") often match nothing: ideas lead then.
+        if (out.length === 0) out.unshift(section);
+        else out.push(section);
+      }
+    }
+    if (out.some((s) => s.id !== 'ideas'))
       out.push({
         id: 'all',
         label: '',
         rows: [{ key: 'see-all', seeAll: trimmed }],
       });
     return out;
-  }, [trimmed, recent, index, version]);
+  }, [trimmed, recent, index, version, goal]);
 
   const rows = useMemo(() => sections.flatMap((s) => s.rows), [sections]);
   const activeIndex = Math.min(active, Math.max(0, rows.length - 1));
@@ -241,7 +304,16 @@ function PaletteDialog() {
 
   const remember = (item: ResultLike) => setRecent(pushRecent(item));
 
+  const openIdea = (idea: Idea) => {
+    closeSearch();
+    void navigate({ href: idea.href });
+  };
+
   const choose = (row: Row) => {
+    if ('idea' in row) {
+      openIdea(row.idea);
+      return;
+    }
     if ('seeAll' in row) {
       closeSearch();
       void navigate({ to: '/search', search: { q: row.seeAll } });
@@ -384,6 +456,29 @@ function PaletteDialog() {
           </button>
         </div>
 
+        <div
+          role="group"
+          aria-label="What are you searching for?"
+          className="border-app flex items-center gap-1.5 overflow-x-auto border-b px-4 py-2"
+        >
+          <span className="text-muted shrink-0 text-xs">I’m</span>
+          {GOALS.map((g) => (
+            <button
+              key={g.id}
+              type="button"
+              aria-pressed={goal === g.id}
+              onClick={() => pickGoal(goal === g.id ? null : g.id)}
+              className={cx(
+                'shrink-0 rounded-full border px-2.5 py-0.5 text-xs',
+                goal === g.id
+                  ? 'border-accent-500 bg-accent-50 text-accent-800 dark:bg-accent-900/40 dark:text-accent-200'
+                  : 'border-app text-muted hover:text-app'
+              )}
+            >
+              {g.label}
+            </button>
+          ))}
+        </div>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
           {error != null && rows.length === 0 ? (
             <p className="text-bad p-6 text-center text-sm">
@@ -476,6 +571,46 @@ function PaletteDialog() {
                     const i = rowIndex.get(row.key) ?? -1;
                     const isActive = i === activeIndex;
                     const id = optionId(listId, row.key);
+                    if ('idea' in row)
+                      return (
+                        <a
+                          key={row.key}
+                          id={id}
+                          role="option"
+                          aria-selected={isActive}
+                          tabIndex={-1}
+                          href={row.idea.href}
+                          onClick={(e) => {
+                            if (e.metaKey || e.ctrlKey || e.shiftKey) return;
+                            e.preventDefault();
+                            openIdea(row.idea);
+                          }}
+                          onMouseMove={() => setActive(i)}
+                          className={cx(
+                            'flex items-center gap-3 rounded-xl px-3 py-2 text-sm',
+                            isActive && 'bg-accent-50 dark:bg-accent-900/30'
+                          )}
+                        >
+                          <span className="bg-accent-50 text-accent-600 dark:bg-accent-900/40 dark:text-accent-300 flex size-8 shrink-0 items-center justify-center rounded-lg">
+                            <Lightbulb className="size-4" aria-hidden />
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate font-medium">
+                              {row.idea.title}
+                            </span>
+                            <span className="text-muted block truncate text-xs">
+                              {row.idea.subtitle}
+                            </span>
+                          </span>
+                          <ArrowRight
+                            className={cx(
+                              'size-4 shrink-0',
+                              isActive ? 'text-accent-600' : 'text-muted'
+                            )}
+                            aria-hidden
+                          />
+                        </a>
+                      );
                     if ('seeAll' in row)
                       return (
                         <Link

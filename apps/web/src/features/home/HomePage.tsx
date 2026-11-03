@@ -18,12 +18,17 @@ import {
   CategoryGlyph,
   categoryTint,
 } from '~/features/categories/categoryIcons';
+import { GOALS } from '~/features/search/goals';
 import {
   searchShortcutLabel,
   usePlatformLabel,
 } from '~/features/search/platform';
 import { TYPE_PLURAL, TYPE_SHORT } from '~/features/search/results';
-import { openSearch, openSearchWith } from '~/features/search/store';
+import {
+  openSearch,
+  openSearchForGoal,
+  openSearchWith,
+} from '~/features/search/store';
 
 const HERO_QUERIES = ['median income', 'crime', 'Japan', 'happiest', 'TX'];
 
@@ -275,6 +280,19 @@ function Hero({
               className="border-app bg-surface/70 text-muted hover:text-app hover:border-accent-300 rounded-full border px-2.5 py-0.5 text-xs transition-colors"
             >
               {q}
+            </button>
+          ))}
+        </div>
+        <div className="mt-2 flex flex-wrap items-center justify-center gap-1.5 text-sm">
+          <span className="text-muted mr-1">I’m</span>
+          {GOALS.map((g) => (
+            <button
+              key={g.id}
+              type="button"
+              onClick={() => openSearchForGoal(g.id)}
+              className="border-accent-200 dark:border-accent-800 bg-accent-50/70 dark:bg-accent-900/20 text-accent-800 dark:text-accent-200 hover:border-accent-400 rounded-full border px-2.5 py-0.5 text-xs transition-colors"
+            >
+              {g.label}
             </button>
           ))}
         </div>

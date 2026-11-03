@@ -2,13 +2,18 @@ import { pearson, spearman } from '@world-data/stats';
 
 import type { Metric } from '~/data/types';
 
-export type BundleId =
-  | 'quality'
-  | 'economy'
-  | 'health'
-  | 'safety'
-  | 'education'
-  | 'everything';
+export const BUNDLE_IDS = [
+  'quality',
+  'economy',
+  'health',
+  'safety',
+  'education',
+  'everything',
+] as const;
+export type BundleId = (typeof BUNDLE_IDS)[number];
+
+export const isBundleId = (v: unknown): v is BundleId =>
+  BUNDLE_IDS.includes(v as BundleId);
 
 /** What bundle building needs from a dataset (kept minimal so it can be unit tested). */
 export interface BundleSource {
