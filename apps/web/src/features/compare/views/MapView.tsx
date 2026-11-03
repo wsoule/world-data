@@ -29,13 +29,7 @@ interface MapLayer {
   label: string;
   subtitle: string;
   values: Float64Array;
-  /**
-   * What the choropleth colours: `values`, or their negation for a lower-is-better metric so
-   * the shared red-to-green scheme puts the best (lowest) values in green
-   */
-  mapValues: Float64Array;
-  /** Formats a `mapValues` entry back into the real value for the legend and tooltip */
-  mapFormat: (v: number) => string;
+  /** Better side for the map colours: the 'score' ramp turns green towards it */
   polarity: Polarity;
   scheme: ColorScheme;
   /** Ranking direction for the top / bottom lists */
@@ -72,9 +66,8 @@ function metricLayer(
   const format = (v: number) =>
     formatValue(m, v, { compact: true, unit: false });
   // Every tile with a better side uses the same red (worse) to green (better) ramp, so a colour
-  // means the same thing side by side. The choropleth colours higher values greener, so a
-  // lower-is-better metric is drawn from its negated values (and formatted back).
-  const flip = polarity === -1;
+  // means the same thing side by side; the choropleth reverses it for a lower-is-better metric
+  // and lists that legend from the highest value, so it still reads worst to best.
   return {
     key: m.id,
     label: unit !== '' ? `${m.label} (${unit})` : m.label,
@@ -85,8 +78,6 @@ function metricLayer(
       .filter((s) => s != null)
       .join(' · '),
     values,
-    mapValues: flip ? values.map((v) => -v) : values,
-    mapFormat: flip ? (v) => format(-v) : format,
     polarity,
     scheme: polarity === 0 ? 'auto' : 'score',
     direction,
@@ -159,8 +150,6 @@ export function MapView({
       label: 'Combined score',
       subtitle: `${metrics.length} metrics · ${NORMALIZATION_LABELS[norm].toLowerCase()} · higher is better`,
       values: score,
-      mapValues: score,
-      mapFormat: fmt,
       polarity: 1,
       scheme: 'score',
       direction: 1,
@@ -277,8 +266,8 @@ export function MapView({
         >
           <Choropleth
             dataset={dataset}
-            values={active.mapValues}
-            format={active.mapFormat}
+            values={active.values}
+            format={active.format}
             label={active.label}
             polarity={active.polarity}
             scheme={active.scheme}
@@ -321,8 +310,8 @@ export function MapView({
                   </button>
                   <Choropleth
                     dataset={dataset}
-                    values={l.mapValues}
-                    format={l.mapFormat}
+                    values={l.values}
+                    format={l.format}
                     label={l.label}
                     polarity={l.polarity}
                     scheme={l.scheme}

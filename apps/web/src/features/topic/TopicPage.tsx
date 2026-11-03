@@ -197,10 +197,14 @@ interface NumericTopicProps {
   onYear: (year: number | null) => void;
 }
 
-/** How the map's colours read for a metric's polarity (matches the Choropleth schemes). */
+/**
+ * How the map's colours read for a metric's polarity (matches the Choropleth schemes, whose
+ * legend always runs from worst on the left to best on the right).
+ */
 function mapLegendHint(metric: Metric): string {
   if (metric.pol === 1) return 'Darker green is better (higher is better).';
-  if (metric.pol === -1) return 'Darker red is worse (lower is better).';
+  if (metric.pol === -1)
+    return 'Green is better, red is worse (lower is better).';
   return 'Darker means higher.';
 }
 

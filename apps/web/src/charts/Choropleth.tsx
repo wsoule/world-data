@@ -15,7 +15,6 @@ import {
   interpolatePuOr,
   interpolateRdYlGn,
   interpolateYlGn,
-  interpolateYlOrRd,
 } from 'd3-scale-chromatic';
 import type { Feature, FeatureCollection, Point } from 'geojson';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -42,7 +41,10 @@ export interface ChoroplethProps {
   format: (v: number) => string;
   /** Name of the value for tooltip/aria */
   label: string;
-  /** Orient colours: 1 → higher is good (green), -1 → higher is bad (red), 0 → neutral blue */
+  /**
+   * Orient colours so green is better: 1 → higher is greener, -1 → lower is greener (high
+   * values red), 0 → neutral blue. The legend reads worst → best whenever there is a better side.
+   */
   polarity?: Polarity;
   scheme?: ColorScheme;
   /** 'quantile' bins (robust to skew, default) or continuous */
@@ -62,22 +64,42 @@ const GEO_FOR: Record<string, GeoKind | null> = {
   'world-city': 'world',
 };
 
+/** The scheme actually drawn: 'auto' picks green-is-better ramps by polarity, blue when neutral. */
+function resolveScheme(
+  scheme: ColorScheme,
+  polarity: Polarity
+): Exclude<ColorScheme, 'auto'> {
+  if (scheme !== 'auto') return scheme;
+  return polarity === 1 ? 'good-high' : polarity === -1 ? 'good-low' : 'blues';
+}
+
+/**
+ * Whether the scheme's better side is the low values: then the legend lists the highest values
+ * first, so every legend with a better side reads worst (left) to best (right).
+ */
+function lowIsBetter(scheme: ColorScheme, polarity: Polarity): boolean {
+  const s = resolveScheme(scheme, polarity);
+  return s === 'good-low' || (s === 'score' && polarity === -1);
+}
+
+/** Red (worst) to green (best) over t from the lowest to the highest value. */
+const redToGreen = (t: number) => interpolateRdYlGn(0.05 + 0.9 * t);
+/** Green (best) to red (worst): RdYlGn reversed, for metrics where lower is better. */
+const greenToRed = (t: number) => interpolateRdYlGn(0.95 - 0.9 * t);
+
+/**
+ * Colour ramp over t from the lowest (0) to the highest (1) value. Every ramp with a better side
+ * puts green on it: 'good-high' darkens to green at high values, 'good-low' runs green to red,
+ * and 'score' is red to green, reversed when lower is better (polarity -1).
+ */
 function interpolatorFor(scheme: ColorScheme, polarity: Polarity) {
-  const s =
-    scheme === 'auto'
-      ? polarity === 1
-        ? 'good-high'
-        : polarity === -1
-          ? 'good-low'
-          : 'blues'
-      : scheme;
-  switch (s) {
+  switch (resolveScheme(scheme, polarity)) {
     case 'good-high':
       return (t: number) => interpolateYlGn(0.12 + 0.88 * t);
     case 'good-low':
-      return (t: number) => interpolateYlOrRd(0.12 + 0.88 * t);
+      return greenToRed;
     case 'score':
-      return (t: number) => interpolateRdYlGn(0.05 + 0.9 * t);
+      return polarity === -1 ? greenToRed : redToGreen;
     case 'diverging':
       return (t: number) => interpolatePuOr(1 - t);
     default:
@@ -239,7 +261,12 @@ export function Choropleth({
         <RegionChart {...common} join={join} />
       )}
       {model != null ? (
-        <MapLegend bins={model.bins} format={format} missing={colors.missing} />
+        <MapLegend
+          bins={model.bins}
+          format={format}
+          missing={colors.missing}
+          reverse={lowIsBetter(scheme, polarity)}
+        />
       ) : null}
     </div>
   );
@@ -536,22 +563,32 @@ function PointChart({
   );
 }
 
+/**
+ * Colour key under the map: the bins as swatches and the value range they span. Bins arrive
+ * ordered from the lowest value; `reverse` lists them from the highest instead, so a
+ * lower-is-better legend still reads worst (red, left) to best (green, right).
+ */
 function MapLegend({
   bins,
   format,
   missing,
+  reverse,
 }: {
   bins: ColorModel['bins'];
   format: (v: number) => string;
   missing: string;
+  reverse: boolean;
 }) {
+  const shown = reverse ? [...bins].reverse() : bins;
+  const first = reverse ? bins[bins.length - 1].to : bins[0].from;
+  const last = reverse ? bins[0].from : bins[bins.length - 1].to;
   return (
     <div
       className="text-muted mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs"
       aria-hidden
     >
       <div className="flex items-stretch overflow-hidden rounded">
-        {bins.map((b, i) => (
+        {shown.map((b, i) => (
           <div
             key={i}
             className="h-3 w-8"
@@ -561,9 +598,9 @@ function MapLegend({
         ))}
       </div>
       <span className="tabular">
-        {format(bins[0].from) === format(bins[bins.length - 1].to)
-          ? format(bins[0].from)
-          : `${format(bins[0].from)} → ${format(bins[bins.length - 1].to)}`}
+        {format(first) === format(last)
+          ? format(first)
+          : `${format(first)} → ${format(last)}`}
       </span>
       <span className="inline-flex items-center gap-1">
         <span
