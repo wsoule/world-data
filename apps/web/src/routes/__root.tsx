@@ -447,6 +447,13 @@ function Footer() {
             Search
           </Link>
           <Link
+            to="/articles"
+            activeOptions={EXACT_PATH}
+            className="hover:text-app"
+          >
+            Data stories
+          </Link>
+          <Link
             to="/glossary"
             activeOptions={EXACT_PATH}
             className="hover:text-app"

@@ -71,6 +71,21 @@ export function prerenderPages(dataDir: string): PrerenderPage[] {
       sitemap: { priority: 0.8, changefreq: 'weekly', lastmod: built },
     },
     {
+      path: '/articles',
+      sitemap: { priority: 0.8, changefreq: 'weekly', lastmod: built },
+    },
+    ...readJson<{ slug: string; kind: string }[]>(
+      dataDir,
+      'stories/index.json'
+    ).map((s) => ({
+      path: `/articles/${s.slug}`,
+      sitemap: {
+        priority: s.kind === 'flagship' ? 0.8 : 0.6,
+        changefreq: 'monthly' as const,
+        lastmod: built,
+      },
+    })),
+    {
       path: '/glossary',
       sitemap: { priority: 0.5, changefreq: 'monthly', lastmod: built },
     },

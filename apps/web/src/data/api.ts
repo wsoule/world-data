@@ -10,6 +10,7 @@ import type {
   TopicSummary,
   ValuesFile,
 } from './types';
+import type { StoryData, StorySummary } from '~/content/storyTypes';
 
 const BASE = `${import.meta.env.BASE_URL}data`;
 
@@ -111,5 +112,20 @@ export const topicQuery = (type: EntityType, slug: string) =>
   queryOptions({
     queryKey: ['topic', type, slug],
     queryFn: () => getJson<TopicFile>(`${type}/topics/${slug}.json`),
+    ...forever,
+  });
+
+/** Every data story with its card thumbnail (public/data/stories/index.json). */
+export const storiesIndexQuery = queryOptions({
+  queryKey: ['stories'],
+  queryFn: () => getJson<StorySummary[]>('stories/index.json'),
+  ...forever,
+});
+
+/** One data story's computed numbers. */
+export const storyQuery = (slug: string) =>
+  queryOptions({
+    queryKey: ['story', slug],
+    queryFn: () => getJson<StoryData>(`stories/${slug}.json`),
     ...forever,
   });

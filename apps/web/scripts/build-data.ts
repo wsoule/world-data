@@ -32,6 +32,7 @@ import type {
   ValuesFile,
 } from '../src/data/types';
 import { toSearchCatalog } from '../src/features/search/searchCatalog';
+import { buildStories } from './build-stories';
 import { parseInlineData, parseIslands } from './lib/astro';
 import {
   collapseRepeatedWords,
@@ -1357,6 +1358,8 @@ async function main(): Promise<void> {
     path.join(OUT, 'manifest.json'),
     `${JSON.stringify(manifest, null, 2)}\n`
   );
+
+  console.log(`${await buildStories(OUT)} data stories`);
 
   console.log('\nwarnings:');
   for (const [k, w] of [...warnings].sort((a, b) => b[1].count - a[1].count)) {

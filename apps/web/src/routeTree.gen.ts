@@ -14,6 +14,8 @@ import { Route as CompareRouteImport } from './routes/compare'
 import { Route as GlossaryRouteImport } from './routes/glossary'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as VsRouteImport } from './routes/vs'
+import { Route as ArticlesIndexRouteImport } from './routes/articles.index'
+import { Route as ArticlesSlugRouteImport } from './routes/articles.$slug'
 import { Route as CategoriesIndexRouteImport } from './routes/categories.index'
 import { Route as CategoriesCategoryRouteImport } from './routes/categories.$category'
 import { Route as PlacesTypeIndexRouteImport } from './routes/places.$type.index'
@@ -43,6 +45,16 @@ const SearchRoute = SearchRouteImport.update({
 const VsRoute = VsRouteImport.update({
   id: '/vs',
   path: '/vs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ArticlesIndexRoute = ArticlesIndexRouteImport.update({
+  id: '/articles/',
+  path: '/articles/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ArticlesSlugRoute = ArticlesSlugRouteImport.update({
+  id: '/articles/$slug',
+  path: '/articles/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CategoriesIndexRoute = CategoriesIndexRouteImport.update({
@@ -77,7 +89,9 @@ export interface FileRoutesByFullPath {
   '/glossary': typeof GlossaryRoute
   '/search': typeof SearchRoute
   '/vs': typeof VsRoute
+  '/articles/$slug': typeof ArticlesSlugRoute
   '/categories/$category': typeof CategoriesCategoryRoute
+  '/articles/': typeof ArticlesIndexRoute
   '/categories/': typeof CategoriesIndexRoute
   '/places/$type/$slug': typeof PlacesTypeSlugRoute
   '/topics/$type/$slug': typeof TopicsTypeSlugRoute
@@ -89,7 +103,9 @@ export interface FileRoutesByTo {
   '/glossary': typeof GlossaryRoute
   '/search': typeof SearchRoute
   '/vs': typeof VsRoute
+  '/articles/$slug': typeof ArticlesSlugRoute
   '/categories/$category': typeof CategoriesCategoryRoute
+  '/articles': typeof ArticlesIndexRoute
   '/categories': typeof CategoriesIndexRoute
   '/places/$type/$slug': typeof PlacesTypeSlugRoute
   '/topics/$type/$slug': typeof TopicsTypeSlugRoute
@@ -102,7 +118,9 @@ export interface FileRoutesById {
   '/glossary': typeof GlossaryRoute
   '/search': typeof SearchRoute
   '/vs': typeof VsRoute
+  '/articles/$slug': typeof ArticlesSlugRoute
   '/categories/$category': typeof CategoriesCategoryRoute
+  '/articles/': typeof ArticlesIndexRoute
   '/categories/': typeof CategoriesIndexRoute
   '/places/$type/$slug': typeof PlacesTypeSlugRoute
   '/topics/$type/$slug': typeof TopicsTypeSlugRoute
@@ -116,7 +134,9 @@ export interface FileRouteTypes {
     | '/glossary'
     | '/search'
     | '/vs'
+    | '/articles/$slug'
     | '/categories/$category'
+    | '/articles/'
     | '/categories/'
     | '/places/$type/$slug'
     | '/topics/$type/$slug'
@@ -128,7 +148,9 @@ export interface FileRouteTypes {
     | '/glossary'
     | '/search'
     | '/vs'
+    | '/articles/$slug'
     | '/categories/$category'
+    | '/articles'
     | '/categories'
     | '/places/$type/$slug'
     | '/topics/$type/$slug'
@@ -140,7 +162,9 @@ export interface FileRouteTypes {
     | '/glossary'
     | '/search'
     | '/vs'
+    | '/articles/$slug'
     | '/categories/$category'
+    | '/articles/'
     | '/categories/'
     | '/places/$type/$slug'
     | '/topics/$type/$slug'
@@ -153,7 +177,9 @@ export interface RootRouteChildren {
   GlossaryRoute: typeof GlossaryRoute
   SearchRoute: typeof SearchRoute
   VsRoute: typeof VsRoute
+  ArticlesSlugRoute: typeof ArticlesSlugRoute
   CategoriesCategoryRoute: typeof CategoriesCategoryRoute
+  ArticlesIndexRoute: typeof ArticlesIndexRoute
   CategoriesIndexRoute: typeof CategoriesIndexRoute
   PlacesTypeSlugRoute: typeof PlacesTypeSlugRoute
   TopicsTypeSlugRoute: typeof TopicsTypeSlugRoute
@@ -195,6 +221,20 @@ declare module '@tanstack/react-router' {
       path: '/vs'
       fullPath: '/vs'
       preLoaderRoute: typeof VsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/articles/': {
+      id: '/articles/'
+      path: '/articles'
+      fullPath: '/articles/'
+      preLoaderRoute: typeof ArticlesIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/articles/$slug': {
+      id: '/articles/$slug'
+      path: '/articles/$slug'
+      fullPath: '/articles/$slug'
+      preLoaderRoute: typeof ArticlesSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/categories/': {
@@ -241,7 +281,9 @@ const rootRouteChildren: RootRouteChildren = {
   GlossaryRoute: GlossaryRoute,
   SearchRoute: SearchRoute,
   VsRoute: VsRoute,
+  ArticlesSlugRoute: ArticlesSlugRoute,
   CategoriesCategoryRoute: CategoriesCategoryRoute,
+  ArticlesIndexRoute: ArticlesIndexRoute,
   CategoriesIndexRoute: CategoriesIndexRoute,
   PlacesTypeSlugRoute: PlacesTypeSlugRoute,
   TopicsTypeSlugRoute: TopicsTypeSlugRoute,
