@@ -156,13 +156,22 @@ What the build decides for each metric (`scripts/build-data.ts`, rules in
   ids and URLs that name them stay valid. A column may declare `pol`, which wins
   over the label guess. External rows only attach to places the ranking pages
   already have (unknown ids, such as World Bank regions, are dropped with an
-  `external-row-unknown-place` warning), so a source can never add places.
-  Sources: `bea.ts` (state and metro price parities, state real income, 2008
-  on), `census-geo.ts` (each US city's metro via the Census Geocoder, cached),
-  `worldbank.ts` (country indicators from 2000, and the country price level as
-  GDP per person in dollars over GDP per person at PPP). A rebuild may reorder
-  `values.json` of untouched types without changing content; restore those files
-  rather than committing the churn.
+  `external-row-unknown-place` warning), so a source can never add places. All
+  sources are listed in `sources/index.ts` (`fetchSources`, `sourcePages`) and
+  built on `lib/download.ts` (validating cached download), `lib/csv.ts`,
+  `lib/xlsx.ts` (minimal reader via the system unzip; extract zip members
+  without a shell) and `pageFromObservations`. Sources: `bea.ts` (state and
+  metro price parities, state real income, 2008 on), `census-geo.ts` (each US
+  city's metro and Census place via the Census Geocoder, cached), `worldbank.ts`
+  (country indicators from 2000, and the country price level as GDP per person
+  in dollars over GDP per person at PPP), `cdc.ts` (PLACES county health),
+  `epa.ts` (county air quality, joined by name with `countyKey`), `noaa.ts`
+  (1991–2020 climate; NOAA state codes are alphabetical, not FIPS), `acs.ts`
+  (Census ACS from the keyless Summary File, since the API needs a key),
+  `fbi.ts` (crime rates; signed download links) and `bls.ts` (unemployment and
+  wages; skipped unless `DATA_CONTACT_EMAIL` is set, as BLS rejects anonymous
+  user agents). A rebuild may reorder `values.json` of untouched types without
+  changing content; restore those files rather than committing the churn.
 - `<type>/search.json` is the compact catalog the search palette downloads
   instead of `metrics.json`: searchable metrics only, topic slugs and categories
   referenced by index (`src/features/search/searchCatalog.ts` defines both
