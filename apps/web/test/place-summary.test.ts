@@ -101,8 +101,10 @@ describe('placeSummary', () => {
     const idx = counties.entityBySlug.get('los-angeles-county-ca');
     if (idx == null) throw new Error('missing Los Angeles County');
     const { summary } = placeSummary(counties, idx);
-    expect(summary).toContain('It ranks best for Median Income');
-    expect(summary).not.toContain('It ranks lowest for Median Income');
+    const best = /It ranks best for (.*?)\. It ranks lowest/.exec(summary)?.[1];
+    const lowest = /It ranks lowest for (.*)\.$/.exec(summary)?.[1];
+    expect(best).toMatch(/Median (Household )?Income/);
+    expect(lowest).not.toMatch(/Median (Household )?Income/);
   });
 
   test('reads ties with rankText and keeps the FAQ JSON-LD equal to the visible answers', () => {
@@ -129,11 +131,11 @@ describe('placeSummary', () => {
   test('top-N county lists never make a county best or worst', () => {
     const counties = dataset('county');
     const facts = datasetFacts(counties);
-    // "The 1,000 most violent counties" and its siblings are flagged.
-    for (const id of [25523, 25524, 25528]) {
-      expect(counties.metric(id)?.n).toBeGreaterThanOrEqual(facts.cut.minN);
+    // "The 1,000 most violent counties" and its siblings are flagged. (With the full-coverage
+    // Census, CDC and NOAA county data the coverage cut is now half of all counties, so these
+    // lists also fall below it; the flag keeps them out should the cut ever drop again.)
+    for (const id of [25523, 25524, 25528])
       expect(facts.selectedLists.has(id)).toBe(true);
-    }
     // Median income covers most counties and still counts.
     expect(facts.selectedLists.has(25455)).toBe(false);
     const la = counties.entities.findIndex((e) =>

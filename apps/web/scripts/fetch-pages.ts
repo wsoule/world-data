@@ -10,9 +10,7 @@ import { access, mkdir, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { gzipSync } from 'node:zlib';
 
-import { fetchBea } from './sources/bea';
-import { fetchCityMetros } from './sources/census-geo';
-import { fetchWorldBank } from './sources/worldbank';
+import { fetchSources } from './sources';
 
 const BASE = 'https://worldpopulationreview.com';
 
@@ -144,11 +142,9 @@ async function main(): Promise<void> {
   await Promise.all(Array.from({ length: CONCURRENCY }, worker));
   console.log('done', stats);
 
-  await fetchBea(path.join(SOURCES, 'bea'), REFRESH);
-  await fetchWorldBank(path.join(SOURCES, 'worldbank'), REFRESH);
-  await fetchCityMetros(
+  await fetchSources(
+    SOURCES,
     path.resolve('public/data/city/entities.json'),
-    path.join(SOURCES, 'census', 'city-metros.json'),
     REFRESH
   );
 }

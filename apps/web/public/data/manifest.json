@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-03T20:17:26.280Z",
+  "generatedAt": "2026-11-03T20:48:51.702Z",
   "source": "https://worldpopulationreview.com",
   "types": [
     {
@@ -18,9 +18,9 @@
       "singular": "State",
       "prefix": "state-rankings",
       "entities": 51,
-      "metrics": 4184,
-      "numericMetrics": 2613,
-      "topics": 1259
+      "metrics": 4202,
+      "numericMetrics": 2631,
+      "topics": 1262
     },
     {
       "id": "city",
@@ -28,9 +28,9 @@
       "singular": "US City",
       "prefix": "us-city-rankings",
       "entities": 477,
-      "metrics": 86,
-      "numericMetrics": 81,
-      "topics": 23
+      "metrics": 98,
+      "numericMetrics": 93,
+      "topics": 25
     },
     {
       "id": "world-city",
@@ -48,9 +48,9 @@
       "singular": "County",
       "prefix": "us-county-rankings",
       "entities": 3094,
-      "metrics": 28,
-      "numericMetrics": 27,
-      "topics": 14
+      "metrics": 56,
+      "numericMetrics": 55,
+      "topics": 18
     }
   ],
   "categories": [
@@ -62,7 +62,7 @@
     {
       "id": "crime-safety",
       "label": "Crime & Safety",
-      "topics": 102
+      "topics": 104
     },
     {
       "id": "culture",
@@ -72,7 +72,7 @@
     {
       "id": "economics",
       "label": "Economics",
-      "topics": 389
+      "topics": 392
     },
     {
       "id": "education",
@@ -82,7 +82,7 @@
     {
       "id": "environment",
       "label": "Environment",
-      "topics": 260
+      "topics": 263
     },
     {
       "id": "facts-trivia",
@@ -102,7 +102,7 @@
     {
       "id": "health",
       "label": "Health",
-      "topics": 324
+      "topics": 326
     },
     {
       "id": "history",

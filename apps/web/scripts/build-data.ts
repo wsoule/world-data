@@ -61,9 +61,7 @@ import {
   stripYear,
 } from './lib/page';
 import { CATEGORY_LABELS, guessPolarity } from './lib/reference';
-import { beaPages } from './sources/bea';
-import { readCityMetros } from './sources/census-geo';
-import { worldBankPages } from './sources/worldbank';
+import { sourcePages } from './sources';
 
 const SITE = 'https://worldpopulationreview.com';
 
@@ -1291,13 +1289,20 @@ async function main(): Promise<void> {
     const T = db.get(page.prefix);
     if (T != null) ingestPage(page, T, categories);
   }
-  const external = [
-    ...(await beaPages(
-      path.join(SOURCES, 'bea'),
-      await readCityMetros(path.join(SOURCES, 'census', 'city-metros.json'))
-    )),
-    ...(await worldBankPages(path.join(SOURCES, 'worldbank'))),
-  ];
+  const external = await sourcePages(SOURCES, {
+    known: (type) => {
+      const prefix = (Object.keys(TYPES) as Prefix[]).find(
+        (p) => TYPES[p].id === type
+      );
+      const T = prefix == null ? undefined : db.get(prefix);
+      return [...(T?.entities.values() ?? [])].map((e) => ({
+        id: e.id,
+        name: e.name,
+        flag: e.flag ?? null,
+        sub: e.sub ?? null,
+      }));
+    },
+  });
   for (const ext of external) {
     const page = fromExternal(ext);
     const T = db.get(page.prefix);

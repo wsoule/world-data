@@ -17,6 +17,8 @@ export interface CityMetro {
   /** USPS state code */
   code: string;
   cbsa: string | null;
+  /** 7-digit Census place code (state FIPS + place), or null outside an incorporated place */
+  place: string | null;
 }
 
 const GEOCODER =
@@ -30,14 +32,17 @@ interface CityEntity {
   lng?: number | null;
 }
 
-/** The metro (CBSA code) at a point, or null outside every metro. */
-async function cbsaAt(lat: number, lng: number): Promise<string | null> {
+/** The metro (CBSA code) and Census place at a point; null for either the point is outside. */
+async function geographiesAt(
+  lat: number,
+  lng: number
+): Promise<{ cbsa: string | null; place: string | null }> {
   const url = `${GEOCODER}?${new URLSearchParams({
     x: String(lng),
     y: String(lat),
     benchmark: 'Public_AR_Current',
     vintage: 'Current_Current',
-    layers: 'Metropolitan Statistical Areas',
+    layers: 'Metropolitan Statistical Areas,Incorporated Places',
     format: 'json',
   })}`;
   for (let attempt = 0; ; attempt++) {
@@ -45,11 +50,15 @@ async function cbsaAt(lat: number, lng: number): Promise<string | null> {
       const res = await fetch(url);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const body = (await res.json()) as {
-        result?: { geographies?: Record<string, { CBSA?: string }[]> };
+        result?: {
+          geographies?: Record<string, { CBSA?: string; GEOID?: string }[]>;
+        };
       };
-      const areas =
-        body.result?.geographies?.['Metropolitan Statistical Areas'] ?? [];
-      return areas[0]?.CBSA ?? null;
+      const g = body.result?.geographies ?? {};
+      return {
+        cbsa: g['Metropolitan Statistical Areas']?.[0]?.CBSA ?? null,
+        place: g['Incorporated Places']?.[0]?.GEOID ?? null,
+      };
     } catch (err) {
       if (attempt >= 3) throw err;
       await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt));
@@ -99,13 +108,15 @@ export async function fetchCityMetros(
   };
   let looked = 0;
   for (const e of entities) {
-    if (known.has(e.id) || e.lat == null || e.lng == null || e.flag == null)
-      continue;
+    // Entries cached before places were recorded (no `place` field) are looked up again.
+    const cached = known.get(e.id);
+    if (cached != null && cached.place !== undefined) continue;
+    if (e.lat == null || e.lng == null || e.flag == null) continue;
     known.set(e.id, {
       id: e.id,
       city: e.name.replace(/, [A-Z]{2}$/, ''),
       code: e.flag.toUpperCase(),
-      cbsa: await cbsaAt(e.lat, e.lng),
+      ...(await geographiesAt(e.lat, e.lng)),
     });
     looked++;
     if (looked % 50 === 0) {

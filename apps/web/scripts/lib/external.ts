@@ -38,3 +38,101 @@ export interface ExternalPage {
   /** Named tables of metric keys (dbField), shown as tabs on the topic page */
   tables: { name: string; columns: string[] }[];
 }
+
+/** One published metric of an external topic. */
+export interface ExternalMetric {
+  id: number;
+  /** Metric key (dbField), unique within the topic */
+  key: string;
+  header: string;
+  format: string;
+  pol: Polarity;
+  unit?: string | null;
+}
+
+/** One value: a place (identity fields entityOf() reads), a metric key, a year and the value. */
+export interface Observation {
+  /** Stable key of the place, e.g. its FIPS code, to merge its observations into one row */
+  place: string;
+  identity: Record<string, unknown>;
+  key: string;
+  year: number | null;
+  value: number;
+}
+
+/**
+ * Builds a topic page from observations: one row per place, one column per metric and year, a
+ * single table listing `metrics` in order. Metrics with no observation are left out.
+ */
+export function pageFromObservations(
+  meta: Omit<ExternalPage, 'rows' | 'columns' | 'tables'>,
+  metrics: readonly ExternalMetric[],
+  observations: Iterable<Observation>
+): ExternalPage {
+  const byKey = new Map(metrics.map((m) => [m.key, m]));
+  const rows = new Map<string, Record<string, unknown>>();
+  const columns = new Map<string, ExternalColumn>();
+  for (const o of observations) {
+    const m = byKey.get(o.key);
+    if (m == null || !Number.isFinite(o.value)) continue;
+    const row = rows.get(o.place) ?? { ...o.identity };
+    rows.set(o.place, row);
+    const field = o.year == null ? m.key : `${m.key}_${o.year}`;
+    row[field] = o.value;
+    columns.set(field, {
+      id: m.id,
+      field,
+      dbField: m.key,
+      year: o.year,
+      header: m.header,
+      format: m.format,
+      unit: m.unit ?? null,
+      pol: m.pol,
+    });
+  }
+  const used = new Set([...columns.values()].map((c) => c.dbField));
+  return {
+    ...meta,
+    rows: [...rows.values()],
+    columns: [...columns.values()],
+    tables: [
+      {
+        name: '',
+        columns: metrics.map((m) => m.key).filter((k) => used.has(k)),
+      },
+    ],
+  };
+}
+
+/** Places of one type the build already knows, for sources that identify places by name. */
+export interface KnownPlace {
+  id: string;
+  name: string;
+  /** Lower-case two-letter state code for US places */
+  flag: string | null;
+  /** State name for US counties and cities */
+  sub: string | null;
+}
+
+/** What a source can ask the build about places it identifies by name. */
+export interface SourceContext {
+  known(type: EntityType): readonly KnownPlace[];
+}
+
+/**
+ * A county name reduced for matching across sources: "Los Angeles County", "Los Angeles" and
+ * "los angeles county, CA" all become "los angeles", while Virginia's independent cities keep
+ * their "city" ("Richmond city" stays apart from Richmond County).
+ */
+export function countyKey(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/,\s*[a-z]{2}$/, '')
+    .replace(
+      /\b(county|parish|borough|census area|municipality|city and borough)\b/g,
+      ''
+    )
+    .replace(/^st\.?\s/, 'saint ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
