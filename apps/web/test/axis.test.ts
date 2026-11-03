@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
 import {
-  axisBounds,
   axisTickFormat,
   barAxisDomain,
   finiteExtent,
@@ -26,27 +25,29 @@ describe('barAxisDomain', () => {
   });
 });
 
-describe('axisBounds', () => {
-  test('contains both the bar and the padded dot domain', () => {
-    const [lo, hi] = axisBounds(1_000, 9_000);
-    expect(lo).toBeLessThanOrEqual(barAxisDomain(1_000, 9_000)[0]);
-    expect(hi).toBeGreaterThanOrEqual(linearAxisDomain(1_000, 9_000, 0.05)[1]);
+describe('per-axis tick forms', () => {
+  const count = { fmt: 'abbreviateNumber', unit: null, kind: 'num' } as const;
+
+  test('an axis niced to 10,000 shortens every tick', () => {
+    // Bars up to 9,000 draw a 10,000 tick; the axis must not switch from
+    // "8,000" to "10K" part way.
+    const f = axisTickFormat(count, barAxisDomain(1_000, 9_000));
+    expect([2_000, 8_000, 10_000].map(f)).toEqual(['2K', '8K', '10K']);
   });
 
-  test('gives one tick form even when an axis is niced past 10,000', () => {
-    // Values up to 9,000 can still draw a 10,000 tick; the formatter must
-    // not switch from "8,000" to "10K" on that axis.
-    const f = axisTickFormat(
-      { fmt: 'abbreviateNumber', unit: null, kind: 'num' },
-      axisBounds(1_000, 9_000)
-    );
-    expect([2_000, 8_000, 10_000].map(f)).toEqual(['2K', '8K', '10K']);
+  test('an axis that stays under 10,000 keeps full numbers', () => {
+    // A trend axis of the same metric whose own domain stops short of 10,000
+    // labels 8,000 in full rather than borrowing another chart's "8K".
+    const domain = linearAxisDomain(5_000, 8_500, 0.04);
+    expect(domain[1]).toBeLessThan(10_000);
+    const f = axisTickFormat(count, domain);
+    expect([6_000, 8_000].map(f)).toEqual(['6,000', '8,000']);
   });
 
   test('shortens every tick of a salary axis that crosses $100K', () => {
     const f = axisTickFormat(
       { fmt: 'moneyWithCurrencyDollars', unit: null, kind: 'num' },
-      axisBounds(52_100, 131_920)
+      barAxisDomain(52_100, 131_920)
     );
     expect([40_000, 80_000, 100_000, 140_000].map(f)).toEqual([
       '$40K',

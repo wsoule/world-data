@@ -13,14 +13,21 @@ import { Flag } from '~/components/Flag';
 import { Card, cx } from '~/components/ui';
 import type { Dataset } from '~/data/dataset';
 import type { Metric, TopicFile } from '~/data/types';
-import { formatInt, formatValue } from '~/lib/format';
+import { formatInt, formatValue, labelFormat } from '~/lib/format';
 
-/** Size of a change in the metric's own units ("+$1,204", "3 places" for ranks). */
-function formatDelta(metric: Metric, delta: number): string {
+/**
+ * Size of a change in the metric's own units ("+$1,204", "3 places" for ranks), with `format`
+ * printing every change of the card in one form.
+ */
+function formatDelta(
+  metric: Metric,
+  delta: number,
+  format: (v: number) => string
+): string {
   const size = Math.abs(delta);
   if (metric.fmt === 'ranking')
     return `${formatInt(size)} ${size === 1 ? 'place' : 'places'}`;
-  return `${delta > 0 ? '+' : '−'}${formatValue(metric, size, { compact: true })}`;
+  return `${delta > 0 ? '+' : '−'}${format(size)}`;
 }
 
 /**
@@ -54,7 +61,11 @@ export function MoversCard({
       numericColumn(topic, focus.id, pair[1], n),
       directionOf(focus)
     );
-    return { pair, result };
+    let largest = 0;
+    for (const c of [...result.gains, ...result.losses])
+      largest = Math.max(largest, Math.abs(c.delta));
+    const deltaFormat = labelFormat(focus, [0, largest]);
+    return { pair, result, deltaFormat };
   }, [topic, dataset, focus, years, year]);
   if (movers == null) return null;
   const { pair, result } = movers;
@@ -77,6 +88,7 @@ export function MoversCard({
           changes={result.gains}
           dataset={dataset}
           focus={focus}
+          deltaFormat={movers.deltaFormat}
           selected={selected}
           onSelect={onSelect}
         />
@@ -90,6 +102,7 @@ export function MoversCard({
           changes={result.losses}
           dataset={dataset}
           focus={focus}
+          deltaFormat={movers.deltaFormat}
           selected={selected}
           onSelect={onSelect}
         />
@@ -106,6 +119,7 @@ function MoverList({
   changes,
   dataset,
   focus,
+  deltaFormat,
   selected,
   onSelect,
 }: {
@@ -116,6 +130,8 @@ function MoverList({
   changes: readonly Change[];
   dataset: Dataset;
   focus: Metric;
+  /** Prints the size of each change, in one form for the whole card */
+  deltaFormat: (v: number) => string;
   selected: number | null;
   onSelect: (i: number) => void;
 }) {
@@ -164,7 +180,7 @@ function MoverList({
                           : 'text-bad'
                     )}
                   >
-                    {formatDelta(focus, c.delta)}
+                    {formatDelta(focus, c.delta, deltaFormat)}
                   </span>
                 </button>
               </li>

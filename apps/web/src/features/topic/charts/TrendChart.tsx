@@ -6,7 +6,9 @@ import { tooltip } from '@tanstack/charts/tooltip';
 import { useMemo } from 'react';
 
 import type { TrendPoint } from '../model';
-import { linearAxisDomain } from '~/lib/axis';
+import type { Metric } from '~/data/types';
+import { axisTickFormat, linearAxisDomain } from '~/lib/axis';
+import { labelFormat } from '~/lib/format';
 import { chartColors, useTheme } from '~/lib/theme';
 
 export interface TrendSeries {
@@ -41,8 +43,7 @@ export function TrendChart({
   series,
   years,
   label,
-  format,
-  tickFormat,
+  metric,
   reversed = false,
   height = 280,
 }: {
@@ -50,9 +51,8 @@ export function TrendChart({
   series: readonly TrendSeries[];
   years: readonly number[];
   label: string;
-  format: (v: number) => string;
-  /** Short axis tick labels (no unit) */
-  tickFormat: (v: number) => string;
+  /** The plotted metric: its format labels the y ticks and the tooltip values */
+  metric: Pick<Metric, 'fmt' | 'unit' | 'kind'>;
   reversed?: boolean;
   height?: number;
 }) {
@@ -80,14 +80,21 @@ export function TrendChart({
         lo = Math.min(lo, p.value);
         hi = Math.max(hi, p.value);
       }
-    // Ranks run from the worst at the bottom to 1st at the top; values get a padded domain
-    // that stays at or above zero for a metric without negative values.
-    const yScale =
+    // Ranks run from the last position at the bottom to 1st at the top; values get a padded
+    // domain that stays at or above zero for a metric without negative values.
+    const domain: [number, number] =
       lo > hi
-        ? scaleLinear().domain([0, 1])
+        ? [0, 1]
         : reversed
-          ? scaleLinear().domain([hi, Math.min(lo, 1)])
-          : scaleLinear().domain(linearAxisDomain(lo, hi, 0.04));
+          ? [hi, Math.min(lo, 1)]
+          : linearAxisDomain(lo, hi, 0.04);
+    const yScale = scaleLinear().domain(domain);
+    // Ticks in one form for this axis; tooltip values in one form for this chart's values.
+    const tickFormat = axisTickFormat(metric, [
+      Math.min(domain[0], domain[1]),
+      Math.max(domain[0], domain[1]),
+    ]);
+    const format = labelFormat(metric, lo > hi ? null : [lo, hi]);
     return defineChart({
       marks: [
         crosshair({ x: true, y: false }),
@@ -162,7 +169,7 @@ export function TrendChart({
         },
       },
     });
-  }, [points, series, years, label, format, tickFormat, reversed, colors]);
+  }, [points, series, years, label, metric, reversed, colors]);
 
   return (
     <Chart

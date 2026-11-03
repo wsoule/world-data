@@ -41,8 +41,8 @@ import {
   type TopicFile,
   type TopicTable,
 } from '~/data/types';
-import { axisBounds, axisTickFormat, finiteExtent } from '~/lib/axis';
-import { formatValue } from '~/lib/format';
+import { finiteExtent } from '~/lib/axis';
+import { labelFormat } from '~/lib/format';
 import type { TopicSearch } from '~/routes/topics.$type.$slug';
 import { leadMetric } from '~/seo/content';
 import { topicAnswers, type TopicAnswers } from '~/seo/topic-content';
@@ -211,19 +211,6 @@ function mapLegendHint(metric: Metric): string {
 /** Places needed before the distribution card (and the trend's median line) is shown. */
 const MIN_DISTRIBUTION = 5;
 
-/**
- * Smallest and largest value a metric takes in any year of the topic. The topic charts share
- * one tick formatter, chosen for this range, so every axis on the page (ranking, distribution
- * and trend, whatever the year) labels its ticks in the same short form.
- */
-function seriesExtent(topic: TopicFile, metricId: number): [number, number] {
-  const series = topic.series[String(metricId)] ?? {};
-  const all: number[] = [];
-  for (const [, values] of Object.values(series))
-    for (const v of values) if (typeof v === 'number') all.push(v);
-  return finiteExtent(all) ?? [0, 1];
-}
-
 /** Everything shown for a topic with at least one numeric metric. */
 function NumericTopic({
   topic,
@@ -251,13 +238,11 @@ function NumericTopic({
     [values, direction]
   );
   const stats = useMemo(() => summarize(values), [values]);
-  const formats = useMemo<Formats>(() => {
-    const [lo, hi] = seriesExtent(topic, focus.id);
-    return {
-      format: (v: number) => formatValue(focus, v, { compact: true }),
-      tickFormat: axisTickFormat(focus, axisBounds(lo, hi)),
-    };
-  }, [topic, focus]);
+  // One label form for the map legend, the bars and the stat hints of the year shown.
+  const formats = useMemo<Formats>(
+    () => ({ format: labelFormat(focus, finiteExtent(values)) }),
+    [focus, values]
+  );
   const isRank = focus.fmt === 'ranking';
   const selectedEntry =
     selected != null
@@ -305,7 +290,6 @@ function NumericTopic({
         years={years}
         year={year}
         ranked={ranked}
-        formats={formats}
         withMedian={!isRank && ranked.length >= MIN_DISTRIBUTION}
         selected={selected}
       />

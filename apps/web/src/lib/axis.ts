@@ -64,17 +64,6 @@ export function barAxisDomain(
   return [niced[0], niced[1]];
 }
 
-/**
- * Bounds that every bar, dot or line axis drawn for values in [lo, hi] stays within (the
- * zero-based bar domain and the padded dot domain). A tick formatter picked for these bounds
- * therefore uses one form on each of those axes, even when the axes are niced separately.
- */
-export function axisBounds(lo: number, hi: number): [number, number] {
-  const bars = barAxisDomain(lo, hi);
-  const dots = linearAxisDomain(lo, hi, 0.05);
-  return [Math.min(bars[0], dots[0]), Math.max(bars[1], dots[1])];
-}
-
 /** Display formats whose numbers can be shortened to "50K" / "$1.2M" on an axis. */
 const COMPACTABLE = new Set<string | null>([
   null,

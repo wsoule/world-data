@@ -7,7 +7,8 @@ import { useMemo } from 'react';
 
 import { placeNoun, type RankedEntry } from '../model';
 import type { Dataset } from '~/data/dataset';
-import { barAxisDomain, finiteExtent } from '~/lib/axis';
+import type { Metric } from '~/data/types';
+import { axisTickFormat, barAxisDomain, finiteExtent } from '~/lib/axis';
 import { chartColors, useTheme } from '~/lib/theme';
 
 /** Band label used for the break between the top and bottom of a long ranking. */
@@ -29,7 +30,8 @@ interface BarDatum {
  * Horizontal ranking with the places' true competition ranks in the labels (so the bottom of a
  * "top 15 + bottom 5" window reads 46–50, not 16–20) and a visual break between the two parts.
  * For rank-valued metrics (`invert`), bars are inverted so the best rank draws the longest bar
- * and the axis is hidden; labels still show the rank.
+ * and the axis is hidden; labels still show the rank. Otherwise the value axis is labelled in
+ * one form chosen for its own domain.
  */
 export function RankedBars({
   dataset,
@@ -37,8 +39,8 @@ export function RankedBars({
   tail,
   total,
   label,
+  metric,
   format,
-  tickFormat,
   invert = false,
   selected,
   onSelect,
@@ -50,9 +52,10 @@ export function RankedBars({
   /** Number of ranked places (for the tooltip and the inverted bar length) */
   total: number;
   label: string;
+  /** The ranked metric: its format labels the value axis */
+  metric: Pick<Metric, 'fmt' | 'unit' | 'kind'>;
+  /** Bar labels and tooltip values */
   format: (v: number) => string;
-  /** Short axis tick labels (no unit) */
-  tickFormat: (v: number) => string;
   invert?: boolean;
   selected: number | null;
   onSelect: (entityIndex: number) => void;
@@ -101,9 +104,10 @@ export function RankedBars({
     // Bars grow from zero on a niced domain; inverted rank bars hide the axis, so the longest
     // (rank 1) bar simply spans the plot.
     const extent = finiteExtent(data.map((d) => d.length)) ?? [0, 1];
-    const xDomain = invert
+    const xDomain: [number, number] = invert
       ? [0, extent[1]]
       : barAxisDomain(extent[0], extent[1], 4);
+    const tickFormat = axisTickFormat(metric, xDomain);
     return defineChart({
       marks: [
         barX(data, {
@@ -166,7 +170,7 @@ export function RankedBars({
     selected,
     colors,
     format,
-    tickFormat,
+    metric,
     label,
     total,
   ]);

@@ -1,6 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 
-import { formatValue, ordinal } from '../src/lib/format';
+import {
+  compactFrom,
+  formatValue,
+  labelFormat,
+  ordinal,
+} from '../src/lib/format';
 
 const metric = (fmt: string | null, unit: string | null = null) => ({
   fmt,
@@ -129,5 +134,47 @@ describe('formatValue edge cases from data review', () => {
     expect(
       formatValue(metric('abbreviateNumber', 'M'), 12000, { compact: true })
     ).toBe('12,000 M');
+  });
+});
+
+describe('labelFormat', () => {
+  test('prints every label of a chart in the short form once values are large', () => {
+    const f = labelFormat(
+      metric('moneyWithCurrencyDollars'),
+      [70_000, 126_400]
+    );
+    // Not "$99,860" next to "$126.4K".
+    expect(f(99_860)).toBe('$99.9K');
+    expect(f(126_400)).toBe('$126.4K');
+  });
+
+  test('prints every label in full while values stay small', () => {
+    const f = labelFormat(metric('moneyWithCurrencyDollars'), [60_000, 99_860]);
+    expect(f(99_860)).toBe('$99,860');
+    expect(f(60_120)).toBe('$60,120');
+    const n = labelFormat(metric('abbreviateNumber'), [10, 9_000]);
+    expect(n(9_000)).toBe('9,000');
+  });
+
+  test('switches where the format starts abbreviating', () => {
+    const n = labelFormat(metric('abbreviateNumber'), [500, 12_000]);
+    expect(n(8_000)).toBe('8K');
+    expect(n(12_000)).toBe('12K');
+    const big = labelFormat(metric('moneyWithCurrency'), [5e5, 2e6]);
+    expect(big(500_000)).toBe('$500K');
+    expect(big(2_000_000)).toBe('$2M');
+    expect(labelFormat(metric('moneyWithCurrency'), [5e5, 9e5])(5e5)).toBe(
+      '$500,000'
+    );
+  });
+
+  test('never shortens ranks, percentages or scale units', () => {
+    expect(labelFormat(metric('ranking'), [1, 3000])(2500)).toBe('2,500th');
+    expect(labelFormat(metric('percAlt'), [1, 1e6])(45.1)).toBe('45.1%');
+    expect(
+      labelFormat(metric('numberWithCommas', 'thousands'), [1, 1e6])(250_000)
+    ).toBe('250,000 thousands');
+    expect(compactFrom(metric('numberWithCommas'))).toBe(1e5);
+    expect(compactFrom(metric('ranking'))).toBeNull();
   });
 });

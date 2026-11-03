@@ -9,7 +9,8 @@ import { useMemo } from 'react';
 
 import { logTicks, placeNoun } from '../model';
 import type { Dataset } from '~/data/dataset';
-import { linearAxisDomain } from '~/lib/axis';
+import type { Metric } from '~/data/types';
+import { axisTickFormat, linearAxisDomain } from '~/lib/axis';
 import { formatInt } from '~/lib/format';
 import { chartColors, useTheme } from '~/lib/theme';
 
@@ -29,9 +30,10 @@ export interface DistributionProps {
   values: Float64Array;
   stats: Summary;
   label: string;
+  /** The plotted metric: its format labels the value axis */
+  metric: Pick<Metric, 'fmt' | 'unit' | 'kind'>;
+  /** Tooltip values */
   format: (v: number) => string;
-  /** Short axis tick labels (no unit) */
-  tickFormat: (v: number) => string;
   /** Log x axis (beeswarm only; values must be positive) */
   log?: boolean;
   selected: number | null;
@@ -109,8 +111,8 @@ function Beeswarm({
   dataset,
   stats,
   label,
+  metric,
   format,
-  tickFormat,
   log = false,
   onSelect,
   points,
@@ -121,74 +123,74 @@ function Beeswarm({
   const r = n <= 40 ? 6 : n <= 120 ? 4.5 : n <= 250 ? 3.6 : 3;
   const height = n <= 40 ? 150 : n <= 120 ? 190 : 230;
 
-  const definition = useMemo(
-    () =>
-      defineChart({
-        marks: [
-          ruleX([stats.q1, stats.q3], {
-            stroke: colors.muted,
-            strokeDasharray: '4 3',
-            strokeOpacity: 0.9,
-          }),
-          ruleX([stats.median], {
-            stroke: colors.text,
-            strokeOpacity: 0.75,
-            strokeWidth: 1.5,
-          }),
-          dot(points, {
-            x: 'value',
-            key: 'key',
-            color: 'state',
-            r,
-            fillOpacity: 0.82,
-            stroke: colors.border,
-            strokeWidth: 0.6,
-            layout: dodgeY({ anchor: 'middle', padding: 0.8, fit: 'compress' }),
-          }),
-        ],
-        scales: {
-          x: log
-            ? {
-                scale: scaleLog().domain([stats.min, stats.max]),
-                axis: {
-                  label: `${label} (log scale)`,
-                  ticks: {
-                    values: logTicks(stats.min, stats.max),
-                    format: tickFormat,
-                  },
-                },
-              }
-            : {
-                // Padded so the outermost dots are not cut by the plot edge, and never
-                // below zero for a metric without negative values.
-                scale: scaleLinear().domain(
-                  linearAxisDomain(stats.min, stats.max, 0.03)
-                ),
-                axis: {
-                  label,
-                  ticks: { count: 5, format: tickFormat },
+  const definition = useMemo(() => {
+    // Padded so the outermost dots are not cut by the plot edge, and never below zero for a
+    // metric without negative values; the log axis spans the data exactly.
+    const domain: [number, number] = log
+      ? [stats.min, stats.max]
+      : linearAxisDomain(stats.min, stats.max, 0.03);
+    const tickFormat = axisTickFormat(metric, domain);
+    return defineChart({
+      marks: [
+        ruleX([stats.q1, stats.q3], {
+          stroke: colors.muted,
+          strokeDasharray: '4 3',
+          strokeOpacity: 0.9,
+        }),
+        ruleX([stats.median], {
+          stroke: colors.text,
+          strokeOpacity: 0.75,
+          strokeWidth: 1.5,
+        }),
+        dot(points, {
+          x: 'value',
+          key: 'key',
+          color: 'state',
+          r,
+          fillOpacity: 0.82,
+          stroke: colors.border,
+          strokeWidth: 0.6,
+          layout: dodgeY({ anchor: 'middle', padding: 0.8, fit: 'compress' }),
+        }),
+      ],
+      scales: {
+        x: log
+          ? {
+              scale: scaleLog().domain(domain),
+              axis: {
+                label: `${label} (log scale)`,
+                ticks: {
+                  values: logTicks(stats.min, stats.max),
+                  format: tickFormat,
                 },
               },
-          y: null,
+            }
+          : {
+              scale: scaleLinear().domain(domain),
+              axis: {
+                label,
+                ticks: { count: 5, format: tickFormat },
+              },
+            },
+        y: null,
+      },
+      color: {
+        scale: scaleOrdinal(
+          ['place', 'selected'],
+          [colors.accent, colors.highlight]
+        ),
+      },
+      tooltip: {
+        use: tooltip,
+        content: (pts) => {
+          const d = pts[0]?.datum;
+          return d != null
+            ? { title: d.name, rows: [{ label, value: format(d.value) }] }
+            : { rows: [] };
         },
-        color: {
-          scale: scaleOrdinal(
-            ['place', 'selected'],
-            [colors.accent, colors.highlight]
-          ),
-        },
-        tooltip: {
-          use: tooltip,
-          content: (pts) => {
-            const d = pts[0]?.datum;
-            return d != null
-              ? { title: d.name, rows: [{ label, value: format(d.value) }] }
-              : { rows: [] };
-          },
-        },
-      }),
-    [points, stats, colors, r, label, format, tickFormat, log]
-  );
+      },
+    });
+  }, [points, stats, colors, r, label, format, metric, log]);
 
   return (
     <Chart
@@ -206,8 +208,8 @@ function Histogram({
   dataset,
   stats,
   label,
+  metric,
   format,
-  tickFormat,
   selected,
   points,
 }: DistributionProps & { points: PlacePoint[] }) {
@@ -224,6 +226,12 @@ function Histogram({
     const selectedBins = bins.filter((b) =>
       b.source.some((p) => p.index === selected)
     );
+    // The axis spans the bins exactly, so its tick form is chosen for what is drawn.
+    const domain: [number, number] =
+      bins.length > 0
+        ? [bins[0].x1, bins[bins.length - 1].x2]
+        : [stats.min, stats.max];
+    const tickFormat = axisTickFormat(metric, domain);
     return defineChart({
       marks: [
         rect(bins, {
@@ -256,7 +264,7 @@ function Histogram({
       ],
       scales: {
         x: {
-          scale: scaleLinear,
+          scale: scaleLinear().domain(domain),
           axis: {
             label,
             ticks: { count: 5, format: tickFormat },
@@ -295,7 +303,7 @@ function Histogram({
         },
       },
     });
-  }, [points, selected, stats, colors, label, format, tickFormat, noun]);
+  }, [points, selected, stats, colors, label, format, metric, noun]);
 
   return (
     <Chart

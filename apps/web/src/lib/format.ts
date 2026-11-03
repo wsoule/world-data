@@ -125,18 +125,26 @@ function withUnit(
   return `${out} ${u}`;
 }
 
-/** Format a metric value the way the source presents it (with a few readability improvements). */
+/**
+ * Format a metric value the way the source presents it (with a few readability improvements).
+ * `compact: true` shortens large values ("$126.4K", "12.3M") where the format allows it;
+ * `compact: 'all'` shortens every value the format can shorten, small ones included ("$99.9K"),
+ * for charts whose labels must share one form (see `labelFormat`).
+ */
 export function formatValue(
   metric: Pick<Metric, 'fmt' | 'unit' | 'kind'> | undefined,
   v: number | string | null | undefined,
-  opts: { compact?: boolean; unit?: boolean } = {}
+  opts: { compact?: boolean | 'all'; unit?: boolean } = {}
 ): string {
   if (v == null || (typeof v === 'number' && Number.isNaN(v))) return '—';
   if (typeof v === 'string')
     return v.replaceAll(' | ', ', ').replace(/\s*\|\s*$/, '');
   const fmt = metric?.fmt ?? null;
   const scaled = metric?.unit != null && isScaleUnit(metric.unit.trim());
-  const compactOk = opts.compact === true && !scaled;
+  const all = opts.compact === 'all' && !scaled;
+  const compactOk = (opts.compact === true || all) && !scaled;
+  // Short form for a value of size `a` in a format that shortens from `from` on request.
+  const short = (a: number, from: number) => all || (compactOk && a >= from);
   let out: string;
   switch (fmt) {
     case 'ranking':
@@ -152,14 +160,12 @@ export function formatValue(
     case 'moneyWithCurrency':
     case 'moneyWithCurrencyAbbrev':
       out = signedMoney(v, (a) =>
-        !scaled && (opts.compact === true || a >= 1e6)
-          ? '$' + compact2.format(a)
-          : money(a)
+        compactOk || (!scaled && a >= 1e6) ? '$' + compact2.format(a) : money(a)
       );
       break;
     case 'moneyWithCurrencyDollars':
       out = signedMoney(v, (a) =>
-        compactOk && a >= 1e5 ? '$' + compact.format(a) : usd.format(a)
+        short(a, 1e5) ? '$' + compact.format(a) : usd.format(a)
       );
       break;
     case 'moneyWithCurrencyCents':
@@ -175,7 +181,7 @@ export function formatValue(
     case 'abbreviateNumber1k':
     case 'floatNumberSmart':
       out =
-        !scaled && Math.abs(v) >= 1e4
+        !scaled && (all || Math.abs(v) >= 1e4)
           ? compact.format(v)
           : scaled && Math.abs(v) >= 1e4
             ? int.format(v)
@@ -185,20 +191,17 @@ export function formatValue(
     case 'numberWithCommasRound':
     case 'numberWithCommasZeroes':
     case 'km2MiRound':
-      out =
-        compactOk && Math.abs(v) >= 1e5
-          ? compact.format(v)
-          : Number.isInteger(v) || Math.abs(v) >= 100
-            ? int.format(v)
-            : dec2.format(v);
+      out = short(Math.abs(v), 1e5)
+        ? compact.format(v)
+        : Number.isInteger(v) || Math.abs(v) >= 100
+          ? int.format(v)
+          : dec2.format(v);
       break;
     case 'floatNumberTenths':
-      out =
-        compactOk && Math.abs(v) >= 1e5 ? compact.format(v) : dec1.format(v);
+      out = short(Math.abs(v), 1e5) ? compact.format(v) : dec1.format(v);
       break;
     case 'floatNumber':
-      out =
-        compactOk && Math.abs(v) >= 1e5 ? compact.format(v) : dec2.format(v);
+      out = short(Math.abs(v), 1e5) ? compact.format(v) : dec2.format(v);
       break;
     case 'floatNumber3':
       out = dec3.format(v);
@@ -228,10 +231,71 @@ export function formatValue(
         v === 0 ? 'EVEN' : v > 0 ? `R+${int.format(v)}` : `D+${int.format(-v)}`;
       break;
     default:
-      out =
-        compactOk && Math.abs(v) >= 1e5 ? compact.format(v) : smartNumber(v);
+      out = short(Math.abs(v), 1e5) ? compact.format(v) : smartNumber(v);
   }
   return opts.unit === false ? out : withUnit(out, metric?.unit, fmt);
+}
+
+/** Formats whose numbers are always printed in full: positions, shares, cents, degrees, years… */
+const NEVER_SHORT: ReadonlySet<string> = new Set([
+  'ranking',
+  'percAlt',
+  'perc',
+  'moneyWithCurrencyCents',
+  'moneyWithCurrency3',
+  'moneyWithCurrencyEuros',
+  'floatNumber3',
+  'degC',
+  'degF',
+  'year',
+  'zipCode',
+  'cmToFeet',
+  'plusMinus',
+  'pvir',
+]);
+
+/**
+ * Smallest size at which `formatValue` may print a metric's value in the short form, with or
+ * without `compact: true`: $1M for moneyWithCurrency (short from there even in full mode),
+ * 10,000 for the abbreviating formats, 100,000 for the rest; null when the format never
+ * shortens or the unit already states a scale ("thousands").
+ */
+export function compactFrom(
+  metric: Pick<Metric, 'fmt' | 'unit'> | undefined
+): number | null {
+  const fmt = metric?.fmt ?? null;
+  if (metric?.unit != null && isScaleUnit(metric.unit.trim())) return null;
+  if (fmt != null && NEVER_SHORT.has(fmt)) return null;
+  if (fmt === 'moneyWithCurrency' || fmt === 'moneyWithCurrencyAbbrev')
+    return 1e6;
+  if (
+    fmt === 'abbreviateNumber' ||
+    fmt === 'abbreviateNumber1k' ||
+    fmt === 'floatNumberSmart'
+  )
+    return 1e4;
+  return 1e5;
+}
+
+/**
+ * Formatter for the value labels of one chart (bar labels, map legend ends, stat hints,
+ * tooltips) that prints every label in one form. When the values in `extent` reach the size
+ * at which the metric's format shortens numbers (`compactFrom`), every label uses the short
+ * form ("$99.9K" next to "$126.4K"); otherwise every label is printed in full ("$99,860" next
+ * to "$84,120"). Tables keep calling `formatValue` for full values.
+ */
+export function labelFormat(
+  metric: Pick<Metric, 'fmt' | 'unit' | 'kind'> | undefined,
+  extent: readonly [number, number] | null
+): (v: number) => string {
+  const from = compactFrom(metric);
+  const big =
+    extent != null &&
+    from != null &&
+    Math.max(Math.abs(extent[0]), Math.abs(extent[1])) >= from;
+  return big
+    ? (v) => formatValue(metric, v, { compact: 'all' })
+    : (v) => formatValue(metric, v);
 }
 
 /** Short axis tick formatter for a metric. */

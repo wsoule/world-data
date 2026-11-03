@@ -19,10 +19,13 @@ import type { Metric, TopicFile } from '~/data/types';
 import { formatInt, formatValue } from '~/lib/format';
 import { chartColors, GROUP_PALETTE, useTheme } from '~/lib/theme';
 
-/** Formatters every visual receives: value labels (with unit) and short axis ticks. */
+/**
+ * Formatter every visual of the selected year receives for its value labels (with unit), in
+ * one form for the whole view (see `labelFormat`). Axis ticks are not shared: each chart labels
+ * its own axis from its own domain with `axisTickFormat`.
+ */
 export interface Formats {
   format: (v: number) => string;
-  tickFormat: (v: number) => string;
 }
 
 /** Rankings up to this length are always shown in full. */
@@ -77,8 +80,8 @@ export function RankingCard({
       tail={slice.tail}
       total={ranked.length}
       label={focus.label}
+      metric={focus}
       format={formats.format}
-      tickFormat={formats.tickFormat}
       invert={isRank}
       selected={selected}
       onSelect={onSelect}
@@ -218,8 +221,8 @@ export function DistributionCard({
         values={values}
         stats={stats}
         label={focus.label}
+        metric={focus}
         format={formats.format}
-        tickFormat={formats.tickFormat}
         log={canLog && log}
         selected={selected}
         onSelect={onSelect}
@@ -294,7 +297,6 @@ export function TrendCard({
   years,
   year,
   ranked,
-  formats,
   withMedian,
   selected,
 }: {
@@ -304,7 +306,6 @@ export function TrendCard({
   years: number[];
   year: number | null;
   ranked: readonly RankedEntry[];
-  formats: Formats;
   /** Draw the median line (off for ranks and for very few places) */
   withMedian: boolean;
   selected: number | null;
@@ -358,8 +359,7 @@ export function TrendCard({
         series={series}
         years={years}
         label={focus.label}
-        format={formats.format}
-        tickFormat={formats.tickFormat}
+        metric={focus}
         reversed={isRank}
       />
       <ul
