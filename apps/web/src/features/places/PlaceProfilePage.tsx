@@ -39,7 +39,13 @@ import { QuickAnswers } from '~/components/QuickAnswers';
 import { Card } from '~/components/ui';
 import { type Dataset, useDataset } from '~/data/dataset';
 import { type EntityType, isEntityType } from '~/data/types';
-import { formatInt, formatValue, ordinal, plural } from '~/lib/format';
+import {
+  formatInt,
+  formatValue,
+  ordinal,
+  plural,
+  typeNoun,
+} from '~/lib/format';
 import { useTheme } from '~/lib/theme';
 import type { QA } from '~/seo/content';
 
@@ -384,7 +390,7 @@ function ProfileHeader({
             dataset={dataset}
             exclude={[entity.id]}
             placeholder="Compare with…"
-            className="min-w-0 flex-1 sm:w-56 sm:flex-none"
+            className="min-w-44 flex-1 sm:w-56 sm:flex-none"
             onSelect={(id) =>
               void navigate({ to: '/vs', search: { type, e: [entity.id, id] } })
             }
@@ -397,10 +403,10 @@ function ProfileHeader({
               m: workbenchMetrics,
               hl: [entity.id],
             }}
-            className="bg-accent-600 hover:bg-accent-700 inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-white"
+            className="bg-accent-600 hover:bg-accent-700 inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium whitespace-nowrap text-white max-sm:flex-1"
           >
             <BarChart3 className="size-4" aria-hidden />
-            Open in workbench
+            Rank among {typeNoun(dataset.type.label)}
           </Link>
         </div>
       </div>

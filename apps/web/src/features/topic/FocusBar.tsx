@@ -244,7 +244,7 @@ export function FocusBar({
             className={actionClass}
           >
             <MapIcon className="size-3.5" aria-hidden />
-            Map in workbench
+            Open full map
           </Link>
         </div>
       </div>

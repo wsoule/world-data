@@ -68,7 +68,7 @@ export function HomePage() {
             search={{ type: 'state', view: 'scatter', m: [] }}
             className="text-accent-600 dark:text-accent-300 inline-flex items-center gap-1 text-sm font-medium hover:underline"
           >
-            Open the workbench <ArrowRight className="size-4" aria-hidden />
+            Build your own <ArrowRight className="size-4" aria-hidden />
           </Link>
         }
       >

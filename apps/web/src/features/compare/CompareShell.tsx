@@ -175,7 +175,8 @@ export function CompareShell() {
   const active = VIEWS.find((v) => v.id === search.view) ?? VIEWS[0];
   const View = active.component;
   // Below the lg breakpoint the metric, filter and highlight cards collapse behind a summary
-  // bar so the chart comes first; they stay open while the basket is empty (nothing to show).
+  // bar so the chart comes first. While the basket is empty they stay open, but below the
+  // onboarding panel, so a first visit on a phone sees the ready-made questions first.
   const [panelOpen, setPanelOpen] = useState(false);
   const panelId = useId();
   const showPanel = panelOpen || metrics.length === 0;
@@ -218,7 +219,12 @@ export function CompareShell() {
           <GroupFilter {...props} />
           <Highlights {...props} />
         </aside>
-        <div className="min-w-0">
+        <div
+          className={cx(
+            'min-w-0',
+            metrics.length === 0 && 'max-lg:order-first'
+          )}
+        >
           <div
             role="tablist"
             aria-label="Comparison view"
