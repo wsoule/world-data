@@ -12,8 +12,10 @@ monorepo template (moon, pnpm catalog, TypeScript 7, oxlint/oxfmt, Bun tests).
   Table v9, Virtual and Charts). Every page is prerendered to static HTML at
   build time (`scripts/prerender-pages.ts` lists them and feeds the sitemap);
   `/compare`, `/vs` and `/search` are `ssr: false`, so theirs is a
-  client-rendered shell. Unknown paths get `404.html` (the SPA shell retitled by
-  `scripts/seo-files.ts`). Deploy `apps/web/dist/client` as a static site.
+  client-rendered shell. Unknown paths get `404.html`, a server render of the
+  not-found view written by `scripts/seo-files.ts`. Deploy
+  `apps/web/dist/client` as a static site, or build the root `Dockerfile` (Caddy
+  serving it with the root `Caddyfile`; see README "Docker and Railway").
   `public/data` holds the generated dataset, which is committed.
   `moonx web:dev --ignore-ci-checks` starts it on port 5173 + worktree offset
   with server rendering.

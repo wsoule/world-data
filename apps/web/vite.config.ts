@@ -25,12 +25,6 @@ export default defineConfig(({ command }) => ({
         concurrency: 8,
       },
       sitemap: { enabled: true, host: siteUrl },
-      // The SPA shell (/_shell.html) is the base of 404.html (written by
-      // scripts/seo-files.ts). Only enable it for builds: in dev it would make
-      // every request render as the shell instead of the real page.
-      // maskPath must not be a real page: on '/' the shell would replace the
-      // prerendered home page.
-      spa: { enabled: command === 'build', maskPath: '/app-shell' },
     }),
     react(),
   ],

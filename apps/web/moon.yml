@@ -19,6 +19,8 @@ tasks:
       - 'index.html'
       - 'vite.config.ts'
       - 'tsconfig.json'
+      - 'scripts/prerender-pages.ts'
+      - 'scripts/seo-files.ts'
     outputs:
       - 'dist'
 

@@ -10,10 +10,15 @@
 //                   without a page
 //   data/<type>/topics/<slug>.csv   each topic's default-year table
 //
+// It also tidies what `vite build` leaves behind: sitemap URLs lose the
+// trailing slash index routes get ("/categories/" -> "/categories", which the
+// server would 308), and TanStack's pages.json build manifest is removed so it
+// is not published.
+//
 // Run by the web:build moon task (and the Dockerfile) after `vite build`, from
 // apps/web: 404.html needs the server bundle that build leaves in dist/server.
 
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -27,6 +32,7 @@ import type {
 } from '../src/data/types';
 import { formatValue, typeNoun } from '../src/lib/format';
 import { SITE, SITE_URL } from '../src/site';
+import { canonicalSitemap } from './lib/sitemap';
 
 const DATA = path.resolve('public/data');
 const OUT = path.resolve('dist/client');
@@ -153,6 +159,31 @@ function topicFact(
   return `${metric.label}${year}: ${entities[topI].name} has the ${lead} (${formatValue(metric, topV)}); ${entities[lowI].name} the ${tail} (${formatValue(metric, lowV)}).`;
 }
 
+/**
+ * Fails the build when a page references a hashed asset that is not in
+ * dist/client, for example a stylesheet whose hash differs between the client
+ * and server builds. Checks the pages every visitor can land on first.
+ */
+async function assertAssetsExist(pages: readonly string[]): Promise<void> {
+  const missing = new Set<string>();
+  for (const page of pages) {
+    const html = await readFile(path.join(OUT, page), 'utf8');
+    for (const [, ref] of html.matchAll(/["'(](\/assets\/[^"')?#\s]+)/g)) {
+      if (ref == null) continue;
+      try {
+        await readFile(path.join(OUT, ref));
+      } catch {
+        missing.add(`${page}: ${ref}`);
+      }
+    }
+  }
+  if (missing.size > 0) {
+    throw new Error(
+      `Pages reference assets that were not built:\n${[...missing].join('\n')}`
+    );
+  }
+}
+
 async function main(): Promise<void> {
   const site = SITE;
   const manifest = await readJson<Manifest>('manifest.json');
@@ -267,6 +298,18 @@ async function main(): Promise<void> {
 
   await writeFile(path.join(OUT, 'robots.txt'), robots());
   await writeFile(path.join(OUT, '404.html'), await notFoundPage());
+  await assertAssetsExist([
+    'index.html',
+    '404.html',
+    'compare/index.html',
+    'topics/state/median-household-income-by-state/index.html',
+  ]);
+  const sitemapFile = path.join(OUT, 'sitemap.xml');
+  await writeFile(
+    sitemapFile,
+    canonicalSitemap(await readFile(sitemapFile, 'utf8'))
+  );
+  await rm(path.join(OUT, 'pages.json'), { force: true });
   await writeFile(path.join(OUT, 'llms.txt'), llms.join('\n'));
   await writeFile(path.join(OUT, 'llms-full.txt'), full.join('\n'));
   await writeFile(
@@ -274,7 +317,7 @@ async function main(): Promise<void> {
     `${JSON.stringify(webManifest, null, 2)}\n`
   );
   console.log(
-    `seo-files: robots.txt, 404.html, llms.txt, llms-full.txt (${topics.length} topics), site.webmanifest, ${csvCount} CSV files`
+    `seo-files: robots.txt, 404.html, sitemap.xml tidied, llms.txt, llms-full.txt (${topics.length} topics), site.webmanifest, ${csvCount} CSV files`
   );
 }
 
