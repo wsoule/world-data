@@ -10,6 +10,7 @@ import { beaPages, fetchBea } from './bea';
 import { blsPages, fetchBls } from './bls';
 import { cdcPages, fetchCdc } from './cdc';
 import { fetchCityMetros, readCityMetros } from './census-geo';
+import { electionPages, fetchElections } from './elections';
 import { epaPages, fetchEpa } from './epa';
 import { fbiPages, fetchFbi } from './fbi';
 import { fetchNoaa, noaaPages } from './noaa';
@@ -37,6 +38,7 @@ export async function fetchSources(
     ['bls', () => fetchBls(path.join(root, 'bls'), refresh)],
     ['acs', () => fetchAcs(path.join(root, 'acs'), refresh)],
     ['fbi', () => fetchFbi(path.join(root, 'fbi'), refresh)],
+    ['elections', () => fetchElections(path.join(root, 'elections'), refresh)],
   ];
   for (const [name, run] of steps) {
     try {
@@ -64,6 +66,7 @@ export async function sourcePages(
     blsPages(path.join(root, 'bls'), metros),
     acsPages(path.join(root, 'acs'), metros),
     fbiPages(path.join(root, 'fbi'), ctx),
+    electionPages(path.join(root, 'elections')),
   ]);
   return groups.flat();
 }

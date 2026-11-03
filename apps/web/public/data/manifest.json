@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-03T20:48:51.702Z",
+  "generatedAt": "2026-11-03T21:02:23.093Z",
   "source": "https://worldpopulationreview.com",
   "types": [
     {
@@ -18,9 +18,9 @@
       "singular": "State",
       "prefix": "state-rankings",
       "entities": 51,
-      "metrics": 4202,
-      "numericMetrics": 2631,
-      "topics": 1262
+      "metrics": 4206,
+      "numericMetrics": 2634,
+      "topics": 1263
     },
     {
       "id": "city",
@@ -48,9 +48,9 @@
       "singular": "County",
       "prefix": "us-county-rankings",
       "entities": 3094,
-      "metrics": 56,
-      "numericMetrics": 55,
-      "topics": 18
+      "metrics": 60,
+      "numericMetrics": 58,
+      "topics": 19
     }
   ],
   "categories": [
@@ -132,7 +132,7 @@
     {
       "id": "politics-government",
       "label": "Politics & Government",
-      "topics": 377
+      "topics": 379
     },
     {
       "id": "population",

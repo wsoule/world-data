@@ -26,7 +26,6 @@ import { EmptyState } from '~/components/feedback';
 import { InfoTip } from '~/components/InfoTip';
 import { MetricPicker } from '~/components/MetricPicker';
 import { Button, Card } from '~/components/ui';
-import type { Dataset } from '~/data/dataset';
 import {
   isRankColumn,
   type RankOrder,
@@ -211,7 +210,8 @@ function Overlay(props: CompareViewProps) {
         dataset,
         search.c,
         (id) => polarityFor(search, dataset.metric(id)),
-        analysis.points.map((p) => p.idx)
+        analysis.points.map((p) => p.idx),
+        groupLabel(dataset.type.id)
       ),
     [dataset, search, analysis]
   );
@@ -339,7 +339,6 @@ function Overlay(props: CompareViewProps) {
               ariaDescription={sentence}
             />
             <ChartLegend
-              dataset={dataset}
               color={color}
               sizeMetric={sizeMetric}
               xMetric={xMetric}
@@ -368,7 +367,6 @@ function Overlay(props: CompareViewProps) {
 
 /** HTML legend under the chart: colours, sizes, trend, medians and axis flips. */
 function ChartLegend({
-  dataset,
   color,
   sizeMetric,
   xMetric,
@@ -379,7 +377,6 @@ function ChartLegend({
   flipY,
   n,
 }: {
-  dataset: Dataset;
   color: ColorModel;
   sizeMetric: Metric | null;
   xMetric: Metric;
@@ -412,9 +409,7 @@ function ChartLegend({
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         {color.kind === 'group' ? (
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span className="text-app font-medium">
-              {groupLabel(dataset.type.id)}
-            </span>
+            <span className="text-app font-medium">{color.title}</span>
             {color.domain.map((g, i) => (
               <span key={g} className="inline-flex items-center gap-1">
                 <span

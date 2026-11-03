@@ -225,7 +225,7 @@ export function ScatterChart({
         r,
         tint:
           color.kind === 'group'
-            ? color.keyOf(e.group)
+            ? color.keyOf(p.idx)
             : Number.isFinite(colorValue)
               ? colorValue
               : null,

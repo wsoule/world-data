@@ -3,6 +3,7 @@
 // chosen with chips or inferred from the words of the query.
 
 import type { SearchTarget } from './searchIndex';
+import { ACS, ELECTIONS } from '~/data/external';
 import type { EntityType } from '~/data/types';
 
 export type GoalId = 'move' | 'research' | 'travel' | 'curious';
@@ -116,8 +117,23 @@ export const GOALS: Goal[] = [
     label: 'Researching',
     heading: 'For research',
     pattern:
-      /\b(correlat\w*|relationship|vs|versus|data|dataset|trend\w*|statistic\w*|study|research|regression|cause\w*|over time|history|historical)\b/i,
+      /\b(correlat\w*|relationship|vs|versus|data|dataset|trend\w*|statistic\w*|study|research|regression|cause\w*|over time|history|historical|election\w*|vot\w*|party|parties|republican\w*|democrat\w*|politic\w*)\b/i,
     ideas: [
+      {
+        id: 'research-education-vote',
+        title: 'Do more educated states vote differently?',
+        subtitle: 'College degrees against the 2024 vote, coloured by party',
+        href: siteHref('/compare', {
+          type: 'state',
+          view: 'scatter',
+          m: [ACS.bachelorsShare, ELECTIONS.republicanShare],
+          x: ACS.bachelorsShare,
+          y: ELECTIONS.republicanShare,
+          c: ELECTIONS.winner,
+        }),
+        keywords:
+          'election vote party republican democrat politics education college',
+      },
       {
         id: 'research-econ-matrix',
         title: 'Which economic measures move together?',

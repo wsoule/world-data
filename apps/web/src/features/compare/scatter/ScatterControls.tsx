@@ -6,6 +6,7 @@ import type { CompareSearch, CompareViewProps } from '../state';
 import { InfoTip } from '~/components/InfoTip';
 import { MetricPicker } from '~/components/MetricPicker';
 import { cx, Select } from '~/components/ui';
+import { ELECTIONS } from '~/data/external';
 import type { Metric } from '~/data/types';
 
 export interface ScatterControlsProps {
@@ -61,6 +62,10 @@ export function ScatterControls({
     typeof search.c === 'number' ? dataset.metric(search.c) : undefined;
   if (extra != null && !colorMetrics.some((m) => m.id === extra.id))
     colorMetrics.push(extra);
+  // Party colouring is offered whenever election results exist for this place type.
+  const party = dataset.metric(ELECTIONS.winner);
+  if (party != null && !colorMetrics.some((m) => m.id === party.id))
+    colorMetrics.unshift(party);
   const colorOptions = [
     { value: 'none', label: 'Single colour' },
     ...(dataset.groups.length > 1
@@ -71,7 +76,13 @@ export function ScatterControls({
           },
         ]
       : []),
-    ...colorMetrics.map((m) => ({ value: `m:${m.id}`, label: m.label })),
+    ...colorMetrics.map((m) => ({
+      value: `m:${m.id}`,
+      label:
+        m.id === ELECTIONS.winner
+          ? `Party (${m.year ?? 'latest'} presidential winner)`
+          : m.label,
+    })),
   ];
 
   return (

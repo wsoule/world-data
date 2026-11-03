@@ -102,3 +102,11 @@ export const FBI_CRIME = {
   burglary: 900_704,
   vehicleTheft: 900_705,
 } as const;
+
+/** Presidential election results by county and state (county returns, summed for states). */
+export const ELECTIONS = {
+  republicanShare: 900_801,
+  democraticShare: 900_802,
+  margin: 900_803,
+  winner: 900_804,
+} as const;

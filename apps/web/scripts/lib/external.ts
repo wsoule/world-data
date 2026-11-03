@@ -57,7 +57,8 @@ export interface Observation {
   identity: Record<string, unknown>;
   key: string;
   year: number | null;
-  value: number;
+  /** A number, or a category such as "Republican" (few distinct values become a categorical metric) */
+  value: number | string;
 }
 
 /**
@@ -74,7 +75,11 @@ export function pageFromObservations(
   const columns = new Map<string, ExternalColumn>();
   for (const o of observations) {
     const m = byKey.get(o.key);
-    if (m == null || !Number.isFinite(o.value)) continue;
+    if (m == null) continue;
+    if (
+      typeof o.value === 'number' ? !Number.isFinite(o.value) : o.value === ''
+    )
+      continue;
     const row = rows.get(o.place) ?? { ...o.identity };
     rows.set(o.place, row);
     const field = o.year == null ? m.key : `${m.key}_${o.year}`;

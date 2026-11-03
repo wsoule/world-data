@@ -1,5 +1,6 @@
 import type { CompareSearch } from './state';
 import type { Dataset } from '~/data/dataset';
+import { ACS, ELECTIONS } from '~/data/external';
 import type { EntityType, Metric } from '~/data/types';
 
 /**
@@ -12,14 +13,23 @@ export interface ScatterPreset {
   x: number;
   y: number;
   r?: number;
-  c?: 'group';
+  /** Colour by region ('group') or by a metric, such as the election winner */
+  c?: 'group' | number;
   log?: ('x' | 'y')[];
 }
 
-// Metric ids verified against public/data/<type>/metrics.json. Pairs were
+// Metric ids verified against public/data/<type>/metrics.json (external ones from
+// src/data/external.ts). Pairs were
 // chosen for broad overlapping coverage so the plots are never sparse.
 const PRESETS: Record<EntityType, ScatterPreset[]> = {
   state: [
+    {
+      title: 'Education vs how states voted',
+      description: 'Do states with more college graduates vote differently?',
+      x: ACS.bachelorsShare,
+      y: ELECTIONS.republicanShare,
+      c: ELECTIONS.winner,
+    },
     {
       title: 'Education vs income',
       description: 'Do states with better schools earn more?',
@@ -118,6 +128,14 @@ const PRESETS: Record<EntityType, ScatterPreset[]> = {
   ],
   county: [
     {
+      title: 'Education vs how counties voted',
+      description:
+        'College graduates against the Republican vote, coloured by winner',
+      x: ACS.bachelorsShare,
+      y: ELECTIONS.republicanShare,
+      c: ELECTIONS.winner,
+    },
+    {
       title: 'Income vs life expectancy',
       description: 'Do richer counties live longer?',
       x: 25455,
@@ -153,7 +171,11 @@ export function scatterPresets(dataset: Dataset): ScatterPreset[] {
   const has = (id: number | undefined) =>
     id == null || (dataset.metric(id) != null && dataset.hasValues(id));
   return PRESETS[dataset.type.id].filter(
-    (p) => has(p.x) && has(p.y) && has(p.r)
+    (p) =>
+      has(p.x) &&
+      has(p.y) &&
+      has(p.r) &&
+      has(typeof p.c === 'number' ? p.c : undefined)
   );
 }
 

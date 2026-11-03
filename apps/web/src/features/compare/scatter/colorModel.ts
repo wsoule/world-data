@@ -14,11 +14,13 @@ export type ColorModel =
   | { kind: 'none' }
   | {
       kind: 'group';
-      /** Group names in legend order (may end with "Other") */
+      /** Legend heading: the place type's group ("Region") or the category metric's label */
+      title: string;
+      /** Category names in legend order (may end with "Other") */
       domain: string[];
       range: string[];
-      /** Maps an entity group to its legend key */
-      keyOf: (group: string | null) => string;
+      /** Legend key of a place (entity index) */
+      keyOf: (entity: number) => string;
     }
   | {
       kind: 'metric';
@@ -41,6 +43,48 @@ export function metricInterpolator(polarity: Polarity): (t: number) => string {
   return (t) => interpolateViridis(0.08 + 0.84 * t);
 }
 
+/** Conventional colours for US party categories, so a party colouring reads at a glance. */
+const PARTY_COLORS: Record<string, string> = {
+  Republican: '#dc2626',
+  Democratic: '#2563eb',
+};
+
+/**
+ * One colour per category value of a categorical metric (such as a party), most common first;
+ * party names keep their conventional colours. Rare values beyond the palette become "Other".
+ */
+function categoryModel(
+  dataset: Dataset,
+  metric: Metric,
+  present: readonly number[]
+): ColorModel {
+  const text = dataset.text(metric.id);
+  const counts = new Map<string, number>();
+  for (const i of present) {
+    const v = text[i];
+    if (v != null) counts.set(v, (counts.get(v) ?? 0) + 1);
+  }
+  if (counts.size === 0) return { kind: 'none' };
+  const max = GROUP_PALETTE.length;
+  const ordered = [...counts].sort((a, b) => b[1] - a[1]).map(([v]) => v);
+  const overflow = ordered.length > max;
+  const named = overflow ? ordered.slice(0, max - 1) : ordered;
+  const known = new Set(named);
+  const domain = overflow ? [...named, OTHER_GROUP] : named;
+  return {
+    kind: 'group',
+    title: metric.label,
+    domain,
+    range: domain.map((v, i) =>
+      v === OTHER_GROUP ? OTHER_COLOR : (PARTY_COLORS[v] ?? GROUP_PALETTE[i])
+    ),
+    keyOf: (e) => {
+      const v = text[e];
+      return v != null && known.has(v) ? v : OTHER_GROUP;
+    },
+  };
+}
+
 /**
  * Resolves the colour encoding for the plotted places (`present`). With few
  * groups (continents, census regions) each keeps its dataset-wide colour so
@@ -52,7 +96,9 @@ export function buildColorModel(
   dataset: Dataset,
   c: 'group' | number | undefined,
   polarityOf: (id: number) => Polarity,
-  present: readonly number[]
+  present: readonly number[],
+  /** Legend heading for the group colouring, e.g. "Region" */
+  groupTitle = 'Group'
 ): ColorModel {
   if (c === 'group') {
     const counts = new Map<string, number>();
@@ -77,14 +123,19 @@ export function buildColorModel(
     );
     return {
       kind: 'group',
+      title: groupTitle,
       domain,
       range,
-      keyOf: (g) => (g != null && known.has(g) ? g : OTHER_GROUP),
+      keyOf: (e) => {
+        const g = dataset.entities[e].group;
+        return g != null && known.has(g) ? g : OTHER_GROUP;
+      },
     };
   }
   if (c == null) return { kind: 'none' };
   const metric = dataset.metric(c);
   if (metric == null) return { kind: 'none' };
+  if (metric.kind === 'cat') return categoryModel(dataset, metric, present);
   const values = dataset.numeric(c);
   let min = Infinity;
   let max = -Infinity;
