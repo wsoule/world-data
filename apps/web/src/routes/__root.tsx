@@ -446,6 +446,13 @@ function Footer() {
           >
             Search
           </Link>
+          <Link
+            to="/glossary"
+            activeOptions={EXACT_PATH}
+            className="hover:text-app"
+          >
+            Glossary
+          </Link>
         </FooterColumn>
         <FooterColumn title="Compare">
           <Link

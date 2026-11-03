@@ -14,6 +14,7 @@ import {
   trendPicks,
   trendPoints,
 } from './model';
+import { InfoTip } from '~/components/InfoTip';
 import { Button, Card, Segmented, Stat } from '~/components/ui';
 import type { Dataset } from '~/data/dataset';
 import { rankOrder, rankOrderNote } from '~/data/rankOrder';
@@ -228,7 +229,11 @@ export function DistributionCard({
 
   return (
     <Card
-      title="Distribution"
+      title={
+        <span className="inline-flex items-center gap-1">
+          Distribution <InfoTip term="median" />
+        </span>
+      }
       subtitle={
         ranked.length > 400
           ? `How many ${noun} fall in each range; the lines mark the median and the middle half.`

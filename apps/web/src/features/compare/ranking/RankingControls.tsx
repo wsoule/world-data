@@ -15,6 +15,7 @@ import { BundleMenu } from './BundlePicker';
 import { PlaceLink } from './PlaceLink';
 import { DEFAULT_COVERAGE, type RankingModel } from './useRanking';
 import { midSentence } from './words';
+import { InfoTip } from '~/components/InfoTip';
 import { Button, Card, cx } from '~/components/ui';
 import type { Metric } from '~/data/types';
 import { formatValue, plural } from '~/lib/format';
@@ -81,7 +82,11 @@ export function RankingControls({
 
   return (
     <Card
-      title="Weights & directions"
+      title={
+        <span className="inline-flex items-center gap-1">
+          Weights & directions <InfoTip term="weight" />
+        </span>
+      }
       subtitle={`${plural(base.active, 'metric')} in the score · ranking ${plural(base.order.length, singular, placeWord)}`}
       actions={
         <>
@@ -108,9 +113,12 @@ export function RankingControls({
     >
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <label htmlFor={normId} className="text-sm font-medium">
-            Normalisation
-          </label>
+          <div className="flex items-center gap-1">
+            <label htmlFor={normId} className="text-sm font-medium">
+              Normalisation
+            </label>
+            <InfoTip term="normalisation" />
+          </div>
           <div className="mt-1.5">
             <select
               id={normId}
@@ -135,9 +143,12 @@ export function RankingControls({
         </div>
         <div>
           <div className="flex items-baseline justify-between gap-2">
-            <label htmlFor={covId} className="text-sm font-medium">
-              Minimum data coverage
-            </label>
+            <span className="flex items-center gap-1">
+              <label htmlFor={covId} className="text-sm font-medium">
+                Minimum data coverage
+              </label>
+              <InfoTip term="coverage" />
+            </span>
             <span className="tabular text-sm font-semibold">
               {Math.round(minCoverage * 100)}%
             </span>

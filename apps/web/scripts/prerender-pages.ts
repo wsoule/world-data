@@ -70,6 +70,10 @@ export function prerenderPages(dataDir: string): PrerenderPage[] {
       path: '/categories',
       sitemap: { priority: 0.8, changefreq: 'weekly', lastmod: built },
     },
+    {
+      path: '/glossary',
+      sitemap: { priority: 0.5, changefreq: 'monthly', lastmod: built },
+    },
     // Browser-only app routes: prerendered as shells, kept out of the sitemap.
     { path: '/compare', sitemap: { exclude: true } },
     { path: '/vs', sitemap: { exclude: true } },

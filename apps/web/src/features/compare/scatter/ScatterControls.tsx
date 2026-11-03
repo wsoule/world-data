@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 
 import { groupLabel } from '../presets';
 import type { CompareSearch, CompareViewProps } from '../state';
+import { InfoTip } from '~/components/InfoTip';
 import { MetricPicker } from '~/components/MetricPicker';
 import { cx, Select } from '~/components/ui';
 import type { Metric } from '~/data/types';
@@ -160,6 +161,7 @@ export function ScatterControls({
           >
             Log Y
           </Toggle>
+          <InfoTip term="log-scale" className="self-center" />
           {canFlipX ? (
             <Toggle
               pressed={flipX}

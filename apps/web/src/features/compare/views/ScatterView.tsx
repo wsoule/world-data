@@ -23,6 +23,7 @@ import {
 import type { CompareSearch, CompareViewProps } from '../state';
 import { useMediaQuery } from '../useMediaQuery';
 import { EmptyState } from '~/components/feedback';
+import { InfoTip } from '~/components/InfoTip';
 import { MetricPicker } from '~/components/MetricPicker';
 import { Button, Card } from '~/components/ui';
 import type { Dataset } from '~/data/dataset';
@@ -485,6 +486,7 @@ function ChartLegend({
             />
           </svg>
           Trend line with 95% confidence band
+          <InfoTip term="trend-line" />
         </span>
         <span className="inline-flex items-center gap-1.5">
           <span

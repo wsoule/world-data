@@ -16,6 +16,7 @@ import { VersusTable } from './VersusTable';
 import { EntityPicker } from '~/components/EntityPicker';
 import { EmptyState } from '~/components/feedback';
 import { Flag } from '~/components/Flag';
+import { InfoTip } from '~/components/InfoTip';
 import { TypeTabs } from '~/components/TypeTabs';
 import { Card, cx, PageHeader } from '~/components/ui';
 import { type Dataset, useDataset } from '~/data/dataset';
@@ -133,7 +134,12 @@ export function VersusPage() {
             ? places.map((p) => p.name).join(' vs ')
             : `Compare ${placeNoun(dataset)} head to head`
         }
-        subtitle="Pick two to four places to see who wins on every metric they share."
+        subtitle={
+          <span className="inline-flex items-center gap-1">
+            Pick two to four places to see who wins on every metric they share.
+            <InfoTip term="head-to-head" />
+          </span>
+        }
         actions={
           <TypeTabs
             value={search.type}
@@ -494,18 +500,18 @@ function ScoreCard({
           </p>
         </div>
         {onHideSize != null ? (
-          <label
-            className="text-muted inline-flex cursor-pointer items-center gap-2 text-xs"
-            title="Totals such as “# of burglaries” or murders mostly reflect how many people live in a place: they rise with population (Spearman ρ ≥ 0.75, or ≥ 0.5 when the per-resident figure no longer does)."
-          >
-            <input
-              type="checkbox"
-              checked={hideSize}
-              onChange={(e) => onHideSize(e.target.checked)}
-              className="accent-accent-600"
-            />
-            Leave out totals that track population
-          </label>
+          <span className="inline-flex items-center gap-1">
+            <label className="text-muted inline-flex cursor-pointer items-center gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={hideSize}
+                onChange={(e) => onHideSize(e.target.checked)}
+                className="accent-accent-600"
+              />
+              Leave out totals that track population
+            </label>
+            <InfoTip term="tracks-population" />
+          </span>
         ) : null}
       </div>
       {score.total > 0 ? (

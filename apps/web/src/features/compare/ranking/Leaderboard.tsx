@@ -6,6 +6,7 @@ import { formatScore } from './model';
 import { PlaceLink } from './PlaceLink';
 import type { RankingModel } from './useRanking';
 import { midSentence } from './words';
+import { InfoTip } from '~/components/InfoTip';
 import { Card, cx } from '~/components/ui';
 import { rankOrder } from '~/data/rankOrder';
 import { rankText } from '~/features/places/percentile';
@@ -161,7 +162,11 @@ export function Leaderboard({
 
   return (
     <Card
-      title="Leaderboard"
+      title={
+        <span className="inline-flex items-center gap-1">
+          Leaderboard <InfoTip term="combined-score" />
+        </span>
+      }
       subtitle={
         method === 'zscore'
           ? 'Score = weighted mean z-score (0 = average). Chips: percentile per metric, 100 = best.'

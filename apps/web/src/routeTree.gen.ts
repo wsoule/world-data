@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CompareRouteImport } from './routes/compare'
+import { Route as GlossaryRouteImport } from './routes/glossary'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as VsRouteImport } from './routes/vs'
 import { Route as CategoriesIndexRouteImport } from './routes/categories.index'
@@ -27,6 +28,11 @@ const IndexRoute = IndexRouteImport.update({
 const CompareRoute = CompareRouteImport.update({
   id: '/compare',
   path: '/compare',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GlossaryRoute = GlossaryRouteImport.update({
+  id: '/glossary',
+  path: '/glossary',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SearchRoute = SearchRouteImport.update({
@@ -68,6 +74,7 @@ const TopicsTypeSlugRoute = TopicsTypeSlugRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/compare': typeof CompareRoute
+  '/glossary': typeof GlossaryRoute
   '/search': typeof SearchRoute
   '/vs': typeof VsRoute
   '/categories/$category': typeof CategoriesCategoryRoute
@@ -79,6 +86,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/compare': typeof CompareRoute
+  '/glossary': typeof GlossaryRoute
   '/search': typeof SearchRoute
   '/vs': typeof VsRoute
   '/categories/$category': typeof CategoriesCategoryRoute
@@ -91,6 +99,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/compare': typeof CompareRoute
+  '/glossary': typeof GlossaryRoute
   '/search': typeof SearchRoute
   '/vs': typeof VsRoute
   '/categories/$category': typeof CategoriesCategoryRoute
@@ -104,6 +113,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/compare'
+    | '/glossary'
     | '/search'
     | '/vs'
     | '/categories/$category'
@@ -115,6 +125,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/compare'
+    | '/glossary'
     | '/search'
     | '/vs'
     | '/categories/$category'
@@ -126,6 +137,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/compare'
+    | '/glossary'
     | '/search'
     | '/vs'
     | '/categories/$category'
@@ -138,6 +150,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CompareRoute: typeof CompareRoute
+  GlossaryRoute: typeof GlossaryRoute
   SearchRoute: typeof SearchRoute
   VsRoute: typeof VsRoute
   CategoriesCategoryRoute: typeof CategoriesCategoryRoute
@@ -161,6 +174,13 @@ declare module '@tanstack/react-router' {
       path: '/compare'
       fullPath: '/compare'
       preLoaderRoute: typeof CompareRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/glossary': {
+      id: '/glossary'
+      path: '/glossary'
+      fullPath: '/glossary'
+      preLoaderRoute: typeof GlossaryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/search': {
@@ -218,6 +238,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CompareRoute: CompareRoute,
+  GlossaryRoute: GlossaryRoute,
   SearchRoute: SearchRoute,
   VsRoute: VsRoute,
   CategoriesCategoryRoute: CategoriesCategoryRoute,

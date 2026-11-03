@@ -35,6 +35,7 @@ import { Choropleth } from '~/charts/Choropleth';
 import { EntityPicker } from '~/components/EntityPicker';
 import { EmptyState } from '~/components/feedback';
 import { Flag } from '~/components/Flag';
+import { InfoTip } from '~/components/InfoTip';
 import { QuickAnswers } from '~/components/QuickAnswers';
 import { Card } from '~/components/ui';
 import { type Dataset, useDataset } from '~/data/dataset';
@@ -195,8 +196,12 @@ function Profile({
       <section aria-labelledby="strengths-heading" className="space-y-3">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h2 id="strengths-heading" className="text-lg font-semibold">
+            <h2
+              id="strengths-heading"
+              className="flex items-center gap-1.5 text-lg font-semibold"
+            >
               Strengths and weak spots
+              <InfoTip term="percentile" />
             </h2>
             <p className="text-muted text-sm">
               {qualifying.length > 0
@@ -208,19 +213,19 @@ function Profile({
             </p>
           </div>
           {sizeCount > 0 ? (
-            <label
-              className="text-muted inline-flex cursor-pointer items-center gap-2 text-xs"
-              title="Totals such as “# of burglaries” or murders mostly reflect how many people live in a place: they rise with population (Spearman ρ ≥ 0.75, or ≥ 0.5 when the per-resident figure no longer does)."
-            >
-              <input
-                type="checkbox"
-                checked={hideSize}
-                onChange={(e) => setHideSize(e.target.checked)}
-                className="accent-accent-600"
-              />
-              Leave out totals that track population
-              <span className="tabular opacity-70">({sizeCount})</span>
-            </label>
+            <span className="inline-flex items-center gap-1">
+              <label className="text-muted inline-flex cursor-pointer items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={hideSize}
+                  onChange={(e) => setHideSize(e.target.checked)}
+                  className="accent-accent-600"
+                />
+                Leave out totals that track population
+                <span className="tabular opacity-70">({sizeCount})</span>
+              </label>
+              <InfoTip term="tracks-population" />
+            </span>
           ) : null}
         </div>
         {qualifying.length > 0 ? (

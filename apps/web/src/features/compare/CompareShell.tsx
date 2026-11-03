@@ -36,13 +36,24 @@ import { ScatterView } from './views/ScatterView';
 import { TableView } from './views/TableView';
 import { EntityPicker } from '~/components/EntityPicker';
 import { Flag } from '~/components/Flag';
+import { InfoTip } from '~/components/InfoTip';
 import { MetricPicker } from '~/components/MetricPicker';
 import { TypeTabs } from '~/components/TypeTabs';
 import { Badge, cx, PageHeader } from '~/components/ui';
 import { useDataset } from '~/data/dataset';
 import type { EntityType } from '~/data/types';
+import type { GlossaryId } from '~/lib/glossary';
 
 const route = getRouteApi('/compare');
+
+/**
+ * Glossary entry that explains a view, shown as an ⓘ after the view's hint. The ranking and
+ * correlation views explain their terms on their own card titles instead.
+ */
+const VIEW_TERMS: Partial<Record<CompareView, GlossaryId>> = {
+  scatter: 'overlay',
+  parallel: 'rank-lines',
+};
 
 const VIEWS: {
   id: CompareView;
@@ -173,6 +184,7 @@ export function CompareShell() {
     removeMetric,
   };
   const active = VIEWS.find((v) => v.id === search.view) ?? VIEWS[0];
+  const activeTerm = VIEW_TERMS[active.id];
   const View = active.component;
   // Below the lg breakpoint the metric, filter and highlight cards collapse behind a summary
   // bar so the chart comes first. While the basket is empty they stay open, but below the
@@ -254,7 +266,10 @@ export function CompareShell() {
             <Onboarding {...props} />
           ) : (
             <>
-              <p className="text-muted mb-4 text-sm">{active.hint}</p>
+              <p className="text-muted mb-4 flex items-center gap-1.5 text-sm">
+                {active.hint}
+                {activeTerm != null ? <InfoTip term={activeTerm} /> : null}
+              </p>
               <View {...props} />
             </>
           )}
@@ -400,11 +415,12 @@ function Basket({
   return (
     <section className="card p-4 sm:col-span-2 lg:col-span-1">
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-semibold">
-          Metrics{' '}
+        <h2 className="flex items-center gap-1 text-sm font-semibold">
+          Metrics
           {metrics.length > 0 ? (
             <span className="text-muted font-normal">({metrics.length})</span>
           ) : null}
+          <InfoTip term="direction" />
         </h2>
         {metrics.length > 0 ? (
           <button

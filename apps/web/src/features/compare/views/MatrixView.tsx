@@ -18,6 +18,7 @@ import { placeNoun } from '../insights/shared';
 import { useBasket } from '../insights/useBasket';
 import type { CompareViewProps } from '../state';
 import { EmptyState } from '~/components/feedback';
+import { InfoTip } from '~/components/InfoTip';
 import { Card, Segmented } from '~/components/ui';
 import { formatInt } from '~/lib/format';
 
@@ -111,7 +112,11 @@ function CorrelationsSection(props: CompareViewProps) {
   return (
     <>
       <Card
-        title="How the metrics move together"
+        title={
+          <span className="inline-flex items-center gap-1">
+            How the metrics move together <InfoTip term="correlation" />
+          </span>
+        }
         subtitle={`${method === 'pearson' ? 'Pearson r on the raw values' : 'Spearman ρ on rank order'} · each cell uses the ${noun.many} with both values (n = ${nRange}) · click a cell to plot the pair`}
         actions={
           <Segmented

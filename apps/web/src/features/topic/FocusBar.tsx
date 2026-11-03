@@ -4,6 +4,7 @@ import { useId } from 'react';
 
 import { LATEST, placeNoun, tableLabels } from './model';
 import { Flag } from '~/components/Flag';
+import { InfoTip } from '~/components/InfoTip';
 import { PolarityIcon } from '~/components/MetricPicker';
 import { cx } from '~/components/ui';
 import type { Dataset } from '~/data/dataset';
@@ -104,6 +105,7 @@ export function FocusBar({
               <span className="flex items-center gap-1.5 text-sm font-semibold">
                 {focus.label}
                 <PolarityIcon pol={focus.pol} />
+                <InfoTip term="direction" />
               </span>
             ) : usePills ? (
               <div

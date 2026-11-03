@@ -14,10 +14,12 @@ import {
   verdict,
 } from './analysis';
 import { Flag } from '~/components/Flag';
+import { InfoTip } from '~/components/InfoTip';
 import { Badge, Card, cx } from '~/components/ui';
 import type { Dataset } from '~/data/dataset';
 import type { Metric } from '~/data/types';
 import { formatValue, plural as pluralize } from '~/lib/format';
+import type { GlossaryId } from '~/lib/glossary';
 
 export interface StatsPanelProps {
   dataset: Dataset;
@@ -111,18 +113,21 @@ export function InsightCard({
       <dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
         <StatCell
           label="Pearson r"
+          term="pearson"
           value={formatR(c.r)}
           hint={<Badge tone={STRENGTH_TONE[s]}>{s}</Badge>}
           title="Linear correlation from −1 to 1"
         />
         <StatCell
           label="Spearman ρ"
+          term="spearman"
           value={formatR(analysis.spearman.r)}
           hint="rank-based"
           title="Correlation of the rank orders; robust to outliers and skew"
         />
         <StatCell
           label="R²"
+          term="r-squared"
           value={Number.isFinite(r2) ? r2.toFixed(2) : '—'}
           hint={
             Number.isFinite(r2)
@@ -133,6 +138,7 @@ export function InsightCard({
         />
         <StatCell
           label="p-value"
+          term="p-value"
           value={formatP(c.p)}
           hint={
             Number.isFinite(c.p)
@@ -177,15 +183,21 @@ function StatCell({
   value,
   hint,
   title,
+  term,
 }: {
   label: string;
+  /** Glossary entry explained by an ⓘ next to the label */
+  term?: GlossaryId;
   value: string;
   hint?: React.ReactNode;
   title: string;
 }) {
   return (
     <div className="bg-surface-2 rounded-lg px-3 py-2" title={title}>
-      <dt className="text-muted text-xs">{label}</dt>
+      <dt className="text-muted flex items-center gap-1 text-xs">
+        {label}
+        {term != null ? <InfoTip term={term} /> : null}
+      </dt>
       <dd className="tabular text-lg leading-tight font-semibold">{value}</dd>
       {hint != null ? (
         <dd className="text-muted mt-0.5 text-xs">{hint}</dd>
