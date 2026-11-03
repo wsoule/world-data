@@ -8,9 +8,9 @@ import { competitionRank } from '@world-data/stats';
 import { useMemo } from 'react';
 
 import { baseRadius } from './colorModel';
-import { axisTickFormat } from './ticks';
 import type { Dataset } from '~/data/dataset';
 import type { Metric } from '~/data/types';
+import { axisTickFormat } from '~/lib/axis';
 import { formatValue, ordinal } from '~/lib/format';
 import { chartColors, useTheme } from '~/lib/theme';
 

@@ -20,9 +20,9 @@ import { isRankMetric } from '../polarity';
 import { groupLabel } from '../presets';
 import { logTicks, rankTicks, type ScatterAnalysis } from './analysis';
 import { baseRadius, type ColorModel, radiusMapper } from './colorModel';
-import { axisTickFormat, linearAxisDomain } from './ticks';
 import type { Dataset } from '~/data/dataset';
 import type { Metric } from '~/data/types';
+import { axisTickFormat, linearAxisDomain } from '~/lib/axis';
 import { formatValue } from '~/lib/format';
 import { chartColors, useTheme } from '~/lib/theme';
 

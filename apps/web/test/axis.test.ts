@@ -1,9 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import {
-  axisTickFormat,
-  linearAxisDomain,
-} from '../src/features/compare/scatter/ticks';
+import { axisTickFormat, linearAxisDomain } from '../src/lib/axis';
 
 describe('linearAxisDomain', () => {
   test('never pads a non-negative metric below zero', () => {
