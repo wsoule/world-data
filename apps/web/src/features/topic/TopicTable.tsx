@@ -35,6 +35,7 @@ import {
   rawColumn,
   seriesYears,
   splitList,
+  tableLabels,
   tableYear,
 } from './model';
 import { Flag } from '~/components/Flag';
@@ -162,6 +163,7 @@ export function TopicTables({
       : null;
   const active = Math.min(picked ?? focusTable, tables.length - 1);
   const table = tables[active];
+  const labels = tableLabels(tables);
   if (table == null) return null;
   return (
     <section className="card overflow-hidden" aria-labelledby="topic-data">
@@ -185,7 +187,8 @@ export function TopicTables({
         >
           {tables.map((t, k) => (
             <button
-              key={t.name}
+              // Source pages can repeat a table name, so the index keys the tab.
+              key={k}
               type="button"
               role="tab"
               id={`topic-tab-${k}`}
@@ -204,7 +207,7 @@ export function TopicTables({
                   : 'text-muted hover:text-app'
               )}
             >
-              {t.name}
+              {labels[k]}
               <span className="text-muted ml-1.5 text-xs font-normal">
                 {t.metrics.length}
               </span>
@@ -218,10 +221,11 @@ export function TopicTables({
         aria-labelledby={tables.length > 1 ? `topic-tab-${active}` : undefined}
       >
         <DataTable
-          key={`${table.name}-${active}`}
+          key={active}
           dataset={dataset}
           topic={topic}
           table={table}
+          label={labels[active]}
           focusId={focusId}
           year={year}
           filterParam={search.tq ?? ''}
@@ -268,6 +272,7 @@ function DataTable({
   dataset,
   topic,
   table: source,
+  label,
   focusId,
   year,
   filterParam,
@@ -280,6 +285,8 @@ function DataTable({
   dataset: Dataset;
   topic: TopicFile;
   table: SourceTable;
+  /** The table's display name (see tableLabels) */
+  label: string;
   focusId: number | null;
   year: number | null | undefined;
   /** Filter text from the URL */
@@ -530,7 +537,7 @@ function DataTable({
         ref={scrollRef}
         className="border-app max-h-[70vh] overflow-auto border-t"
         role="region"
-        aria-label={`${source.name} table`}
+        aria-label={`${label} table`}
         tabIndex={0}
       >
         <table

@@ -2,7 +2,7 @@ import { Link } from '@tanstack/react-router';
 import { BarChart3, Map as MapIcon, Trophy, X } from 'lucide-react';
 import { useId } from 'react';
 
-import { LATEST, placeNoun } from './model';
+import { LATEST, placeNoun, tableLabels } from './model';
 import { Flag } from '~/components/Flag';
 import { PolarityIcon } from '~/components/MetricPicker';
 import { cx } from '~/components/ui';
@@ -77,9 +77,12 @@ export function FocusBar({
     metrics.length > 1 &&
     metrics.length <= PILL_LIMIT &&
     metrics.reduce((s, m) => s + m.label.length, 0) <= 90;
-  const grouped = tables.filter((t) =>
-    t.metrics.some((id) => metrics.some((m) => m.id === id))
-  );
+  const labels = tableLabels(tables);
+  const grouped = tables
+    .map((table, index) => ({ table, label: labels[index], index }))
+    .filter(({ table }) =>
+      table.metrics.some((id) => metrics.some((m) => m.id === id))
+    );
 
   return (
     <section
@@ -129,8 +132,9 @@ export function FocusBar({
                   className="border-app bg-surface max-w-[min(21rem,78vw)] min-w-0 rounded-lg border px-2 py-1.5 text-sm font-medium"
                 >
                   {grouped.length > 1
-                    ? grouped.map((t) => (
-                        <optgroup key={t.name} label={t.name}>
+                    ? grouped.map(({ table: t, label, index }) => (
+                        // Source pages can repeat a table name, so the index keys it.
+                        <optgroup key={index} label={label}>
                           {metrics
                             .filter((m) => t.metrics.includes(m.id))
                             .map((m) => (

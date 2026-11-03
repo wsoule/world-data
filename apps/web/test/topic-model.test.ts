@@ -22,6 +22,7 @@ import {
   resolveYear,
   seriesYears,
   splitList,
+  tableLabels,
   tableYear,
   trendPicks,
   trendPoints,
@@ -362,5 +363,19 @@ describe('log axis', () => {
     expect(logTicks(300, 230000)).toEqual([1000, 10000, 100000]);
     expect(logTicks(3, 60)).toEqual([5, 10, 20, 50]);
     expect(logTicks(0, 10)).toEqual([]);
+  });
+});
+
+describe('tableLabels', () => {
+  test('numbers the later copies of a repeated table name', () => {
+    // The crime page has two tables the source calls "Numbeo Indices".
+    expect(
+      tableLabels([
+        { name: 'GOCI Components' },
+        { name: 'Numbeo Indices' },
+        { name: 'Numbeo Indices' },
+      ])
+    ).toEqual(['GOCI Components', 'Numbeo Indices', 'Numbeo Indices (2)']);
+    expect(tableLabels([{ name: 'A' }, { name: 'B' }])).toEqual(['A', 'B']);
   });
 });

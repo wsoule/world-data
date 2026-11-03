@@ -177,6 +177,22 @@ export function displayTables(
   return out;
 }
 
+/**
+ * Names to show for a topic's tables, one per table: a name the source page repeats (the crime
+ * page has two "Numbeo Indices" tables) gets " (2)", " (3)" on its later copies so the tabs and
+ * dropdown groups can be told apart.
+ */
+export function tableLabels(
+  tables: readonly Pick<TopicTable, 'name'>[]
+): string[] {
+  const seen = new Map<string, number>();
+  return tables.map((t) => {
+    const count = (seen.get(t.name) ?? 0) + 1;
+    seen.set(t.name, count);
+    return count === 1 ? t.name : `${t.name} (${count})`;
+  });
+}
+
 /** Numeric, non-bookkeeping metrics of a topic in table order: the choices for the focus metric. */
 export function focusableMetrics(
   tables: readonly TopicTable[],
