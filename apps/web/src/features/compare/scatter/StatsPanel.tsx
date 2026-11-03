@@ -1,10 +1,9 @@
 import { Link } from '@tanstack/react-router';
-import { strength } from '@world-data/stats';
+import { describeCorrelation, strength } from '@world-data/stats';
 import { Info, Pin, PinOff, TrendingDown, TrendingUp } from 'lucide-react';
 
 import {
   type AxisMeaning,
-  correlationSummary,
   formatP,
   formatR,
   goodIsHigh,
@@ -156,7 +155,7 @@ export function InsightCard({
         />
       </dl>
       <p className="text-muted mt-3 text-xs">
-        {correlationSummary(c)} between the{' '}
+        {describeCorrelation(c)} between the{' '}
         {logged ? 'plotted (log-scale) values' : 'raw values'}.
         {signNote != null ? ` ${signNote}` : ''}
         {logNote != null ? ` ${logNote}` : ''}

@@ -4,7 +4,6 @@ import { presetSearch } from '../src/features/compare/presets';
 import {
   analyzeScatter,
   type AxisMeaning,
-  correlationSummary,
   logTicks,
   outlierPoints,
   quadrants,
@@ -125,15 +124,6 @@ describe('relationshipSentence', () => {
     expect(verdict({ r: -0.16, n: 50, p: 0.258 }, eduRank, income)).toBeNull();
     expect(verdict({ r: -0.16, n: 500, p: 0.0003 }, eduRank, income)).toBe(
       'together'
-    );
-  });
-
-  test('summarises significance inside one pair of parentheses', () => {
-    expect(correlationSummary({ r: -0.16, n: 50, p: 0.258 })).toBe(
-      'Weak negative relationship (not statistically significant, p = 0.26)'
-    );
-    expect(correlationSummary({ r: 0.84, n: 210, p: 0 })).toBe(
-      'Very strong positive relationship (p < 0.001)'
     );
   });
 

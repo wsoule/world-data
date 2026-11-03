@@ -360,25 +360,6 @@ export function rankTicks(max: number): number[] {
   return out;
 }
 
-/**
- * One-line reading of a correlation for footnotes and tooltips, e.g. "Weak
- * negative relationship (not statistically significant, p = 0.26)". Keeps the
- * significance note inside a single pair of parentheses.
- */
-export function correlationSummary(c: Correlation): string {
-  if (!finite(c.r)) return 'Not enough overlapping data';
-  const s = strength(c.r);
-  if (s === 'none') return 'No meaningful relationship';
-  const dir = c.r > 0 ? 'positive' : 'negative';
-  const sig =
-    c.p < 0.001
-      ? 'p < 0.001'
-      : c.p < 0.05
-        ? `p = ${c.p.toFixed(3)}`
-        : `not statistically significant, p = ${c.p.toFixed(2)}`;
-  return `${s.charAt(0).toUpperCase()}${s.slice(1)} ${dir} relationship (${sig})`;
-}
-
 /** p-value text: "< 0.001" or three decimals. */
 export function formatP(p: number): string {
   if (!finite(p)) return '—';

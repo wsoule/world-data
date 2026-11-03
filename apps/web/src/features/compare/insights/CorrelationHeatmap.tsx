@@ -9,9 +9,9 @@ import { decorative } from '@tanstack/charts/mark/decorative';
 import { Chart } from '@tanstack/charts/react';
 import { scaleBand } from '@tanstack/charts/scales/band';
 import { tooltip } from '@tanstack/charts/tooltip';
+import { describeCorrelation } from '@world-data/stats';
 import { useMemo } from 'react';
 
-import { correlationSummary } from '../scatter/analysis';
 import { correlationColorScale } from './corrColor';
 import {
   type CorrelationMethod,
@@ -238,7 +238,7 @@ export function CorrelationHeatmap({
                 },
                 { label: 'Places with both', value: String(chosen.n) },
                 { label: 'Significance', value: formatP(chosen.p) },
-                { label: 'Reading', value: correlationSummary(chosen) },
+                { label: 'Reading', value: describeCorrelation(chosen) },
                 { label: '', value: 'Click to plot this pair' },
               ],
             };
