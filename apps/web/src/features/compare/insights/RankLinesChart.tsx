@@ -276,7 +276,7 @@ export function RankLinesChart({
       <div className="-mx-1 overflow-x-auto px-1 pb-1">
         <div className="relative" style={{ minWidth }}>
           <div className="relative h-[4.5rem]" aria-hidden>
-            <span className="text-muted absolute top-0 left-0 text-[10px] font-medium tracking-wide uppercase">
+            <span className="text-muted absolute top-0 left-0 text-xs font-medium">
               {axisNote}
             </span>
             {basket.metrics.map((m, i) => (

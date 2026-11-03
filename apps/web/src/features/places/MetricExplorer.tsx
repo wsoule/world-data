@@ -296,14 +296,12 @@ function TopicHeader({
         <Link
           to="/topics/$type/$slug"
           params={{ type: dataset.type.id, slug: item.slug }}
-          className="hover:text-accent-600 dark:hover:text-accent-300 truncate text-xs font-semibold tracking-wide uppercase"
+          className="hover:text-accent-600 dark:hover:text-accent-300 truncate text-xs font-semibold"
         >
           {item.title}
         </Link>
       ) : (
-        <span className="truncate text-xs font-semibold tracking-wide uppercase">
-          {item.title}
-        </span>
+        <span className="truncate text-xs font-semibold">{item.title}</span>
       )}
       <span className="text-muted shrink-0 text-xs">
         {item.count === 1 ? '1 metric' : `${formatInt(item.count)} metrics`}

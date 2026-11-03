@@ -503,9 +503,7 @@ function FooterColumn({
 }) {
   return (
     <div>
-      <h2 className="text-muted mb-2 text-xs font-semibold tracking-wide uppercase">
-        {title}
-      </h2>
+      <h2 className="text-muted mb-2 text-xs font-semibold">{title}</h2>
       <div className="text-muted flex flex-col items-start gap-1.5">
         {children}
       </div>

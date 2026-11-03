@@ -29,14 +29,14 @@ const METRICS: ExternalMetric[] = [
   {
     id: ELECTIONS.republicanShare,
     key: 'presRepublican',
-    header: 'Republican Vote Share, President (%)',
+    header: 'Republican Vote Share (President, %)',
     format: 'percAlt',
     pol: 0,
   },
   {
     id: ELECTIONS.democraticShare,
     key: 'presDemocratic',
-    header: 'Democratic Vote Share, President (%)',
+    header: 'Democratic Vote Share (President, %)',
     format: 'percAlt',
     pol: 0,
   },

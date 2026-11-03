@@ -81,7 +81,7 @@ const METRICS: ExternalMetric[] = [
   {
     id: ACS.bachelorsShare,
     key: 'acsBachelors',
-    header: 'Adults 25+ with a Bachelor’s Degree or Higher (%)',
+    header: 'Bachelor’s Degree or Higher (% of Adults 25+)',
     format: 'percAlt',
     pol: 1,
   },

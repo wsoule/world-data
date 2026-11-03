@@ -539,7 +539,7 @@ function PaletteDialog() {
                 >
                   {section.label !== '' ? (
                     <div
-                      className="text-muted flex items-center gap-1.5 px-2 pt-2 pb-1 text-[11px] font-semibold tracking-wide uppercase"
+                      className="text-muted flex items-center gap-1.5 px-2 pt-2 pb-1 text-xs font-semibold"
                       role="presentation"
                     >
                       {section.icon != null ? (
@@ -661,7 +661,7 @@ function PaletteDialog() {
               ))}
               {trimmed === '' ? (
                 <div className="px-4 pt-2 pb-3">
-                  <div className="text-muted mb-2 text-[11px] font-semibold tracking-wide uppercase">
+                  <div className="text-muted mb-2 text-xs font-semibold">
                     Try searching
                   </div>
                   <div className="flex flex-wrap gap-1.5">

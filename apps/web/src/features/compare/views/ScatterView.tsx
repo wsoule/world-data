@@ -19,6 +19,7 @@ import {
   PerformersCard,
   pluralNoun,
   QuadrantCard,
+  Takeaway,
 } from '../scatter/StatsPanel';
 import type { CompareSearch, CompareViewProps } from '../state';
 import { useMediaQuery } from '../useMediaQuery';
@@ -271,6 +272,9 @@ function Overlay(props: CompareViewProps) {
 
   return (
     <div className="space-y-4">
+      {n >= 3 ? (
+        <Takeaway dataset={dataset} analysis={analysis} x={x} y={y} />
+      ) : null}
       <ScatterControls
         dataset={dataset}
         search={search}

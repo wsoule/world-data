@@ -364,7 +364,7 @@ function PresetCard({
         >
           <Icon className="size-5" aria-hidden />
         </span>
-        <span className="text-muted text-xs font-medium tracking-wide uppercase">
+        <span className="text-muted text-xs font-medium">
           {ranking ? 'Combined ranking' : 'Overlay'}
         </span>
         <Badge className="ml-auto">

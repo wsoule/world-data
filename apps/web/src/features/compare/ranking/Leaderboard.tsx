@@ -180,7 +180,7 @@ export function Leaderboard({
             Combined ranking of {midSentence(dataset.type.label)}
           </caption>
           <thead>
-            <tr className="text-muted text-[11px] font-medium tracking-wide uppercase">
+            <tr className="text-muted text-xs font-medium">
               <th scope="col" className="py-2 pr-2 pl-3 text-right">
                 #
               </th>
@@ -205,7 +205,7 @@ export function Leaderboard({
                 <tr className="border-app border-t">
                   <td
                     colSpan={5}
-                    className="text-muted bg-surface-2 py-1 pl-3 text-[11px] font-medium tracking-wide uppercase"
+                    className="text-muted bg-surface-2 py-1 pl-3 text-xs font-medium"
                   >
                     Highlighted
                   </td>

@@ -133,7 +133,6 @@ export function VersusPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Head to head"
         title={
           places.length >= 2
             ? places.map((p) => p.name).join(' vs ')

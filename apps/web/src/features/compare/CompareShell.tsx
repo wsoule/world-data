@@ -5,6 +5,7 @@ import {
   ArrowUpWideNarrow,
   BarChart3,
   ChevronDown,
+  ChevronRight,
   ChevronUp,
   Grid3x3,
   Map as MapIcon,
@@ -55,18 +56,8 @@ import {
 } from '~/data/costOfLiving';
 import { useDataset } from '~/data/dataset';
 import type { EntityType } from '~/data/types';
-import type { GlossaryId } from '~/lib/glossary';
 
 const route = getRouteApi('/compare');
-
-/**
- * Glossary entry that explains a view, shown as an ⓘ after the view's hint. The ranking and
- * correlation views explain their terms on their own card titles instead.
- */
-const VIEW_TERMS: Partial<Record<CompareView, GlossaryId>> = {
-  scatter: 'overlay',
-  parallel: 'rank-lines',
-};
 
 const VIEWS: {
   id: CompareView;
@@ -220,7 +211,6 @@ export function CompareShell() {
     removeMetric,
   };
   const active = VIEWS.find((v) => v.id === search.view) ?? VIEWS[0];
-  const activeTerm = VIEW_TERMS[active.id];
   const View = active.component;
   // Below the lg breakpoint the metric, filter and highlight cards collapse behind a summary
   // bar so the chart comes first. While the basket is empty they stay open, but below the
@@ -237,9 +227,12 @@ export function CompareShell() {
   return (
     <div>
       <PageHeader
-        eyebrow="Compare"
         title="Overlay, combine and rank"
-        subtitle="Pick any metrics, then switch views to plot them together, build a combined score, or find what correlates."
+        subtitle={
+          metrics.length === 0
+            ? 'Pick any metrics, then switch views to plot them together, build a combined score, or find what correlates.'
+            : undefined
+        }
         actions={
           <>
             <TypeTabs value={search.type} onChange={switchType} compact />
@@ -264,8 +257,27 @@ export function CompareShell() {
           )}
         >
           <Basket {...props} />
-          <GroupFilter {...props} />
-          <Highlights {...props} />
+          {/* Occasional tools share one folded card; it opens itself when either is in use. */}
+          <details
+            className="card group p-4"
+            open={
+              (search.g?.length ?? 0) > 0 || (search.hl?.length ?? 0) > 0
+                ? true
+                : undefined
+            }
+          >
+            <summary className="inline-flex w-full cursor-pointer list-none items-center gap-1.5 text-sm font-semibold select-none [&::-webkit-details-marker]:hidden">
+              <ChevronRight
+                className="text-muted size-4 transition-transform group-open:rotate-90"
+                aria-hidden
+              />
+              Filter and highlight
+            </summary>
+            <div className="mt-3 space-y-5">
+              <GroupFilter {...props} />
+              <Highlights {...props} />
+            </div>
+          </details>
         </aside>
         <div
           className={cx(
@@ -302,10 +314,6 @@ export function CompareShell() {
             <Onboarding {...props} />
           ) : (
             <>
-              <p className="text-muted mb-4 flex items-center gap-1.5 text-sm">
-                {active.hint}
-                {activeTerm != null ? <InfoTip term={activeTerm} /> : null}
-              </p>
               <View {...props} />
             </>
           )}
@@ -320,7 +328,7 @@ function Onboarding({ dataset, addMetric }: CompareViewProps) {
   return (
     <section className="card overflow-hidden">
       <div className="border-app from-accent-50 dark:from-accent-900/30 border-b bg-gradient-to-br to-transparent px-5 py-5">
-        <div className="text-accent-700 dark:text-accent-300 mb-1 inline-flex items-center gap-1.5 text-xs font-semibold tracking-wide uppercase">
+        <div className="text-accent-700 dark:text-accent-300 mb-1 inline-flex items-center gap-1.5 text-xs font-semibold">
           <Sparkles className="size-3.5" aria-hidden /> Start a comparison
         </div>
         <h2 className="text-lg font-semibold tracking-tight">
@@ -669,7 +677,7 @@ function GroupFilter({ dataset, search, update }: CompareViewProps) {
   if (dataset.groups.length < 2 || dataset.groups.length > 12) return null;
   const selected = new Set(search.g ?? []);
   return (
-    <section className="card p-4">
+    <section>
       <div className="mb-2 flex items-center justify-between">
         <h2 className="text-sm font-semibold">Filter</h2>
         {selected.size > 0 ? (
@@ -720,7 +728,7 @@ function GroupFilter({ dataset, search, update }: CompareViewProps) {
 function Highlights({ dataset, search, update }: CompareViewProps) {
   const hl = search.hl ?? [];
   return (
-    <section className="card p-4">
+    <section>
       <div className="mb-2 flex items-center justify-between">
         <h2 className="text-sm font-semibold">Highlight</h2>
         {hl.length > 0 ? (

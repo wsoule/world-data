@@ -47,8 +47,17 @@ const STRENGTH_TONE = {
   'very strong': 'accent',
 } as const;
 
-/** Headline reading of the relationship plus the numbers behind it. */
-export function InsightCard({
+/** A metric name as it reads inside a sentence: without a trailing unit, "(%)" or "(Monthly)". */
+function sentenceLabel(label: string): string {
+  const bare = label.replace(/\s*\([^()]*\)$/, '').trim();
+  return bare === '' ? label : bare;
+}
+
+/**
+ * The overlay's answer, shown first: the relationship in one plain sentence ("States with
+ * higher X tend to have lower Y") and how strong it is, with the number for those who want it.
+ */
+export function Takeaway({
   dataset,
   analysis,
   x,
@@ -57,6 +66,50 @@ export function InsightCard({
   const noun = pluralNoun(dataset);
   const c = analysis.pearson;
   const parts = relationshipSentence(c, x, y, noun);
+  const s = strength(c.r);
+  const n = analysis.points.length;
+  return (
+    <div className="space-y-1.5">
+      <h2 className="max-w-4xl text-xl leading-snug font-semibold tracking-tight text-balance md:text-2xl">
+        {parts.map((p, i) =>
+          p.strong === true ? (
+            <span key={i} className="text-accent-700 dark:text-accent-300">
+              {sentenceLabel(p.text)}
+            </span>
+          ) : (
+            <span key={i}>{p.text}</span>
+          )
+        )}
+      </h2>
+      {Number.isFinite(c.r) ? (
+        <p className="text-muted inline-flex flex-wrap items-center gap-x-1.5 text-sm">
+          <span>
+            {s === 'none'
+              ? 'No clear link'
+              : `${s.charAt(0).toUpperCase()}${s.slice(1)} link`}
+            , correlation {formatR(c.r)}
+            {c.p >= 0.05 && s !== 'none' ? ', could be chance' : ''}, across{' '}
+            {pluralize(
+              n,
+              dataset.type.singular.toLowerCase(),
+              noun.toLowerCase()
+            )}
+          </span>
+          <InfoTip term="correlation" />
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/** The numbers behind the takeaway: direction, correlation, R², p-value and notes. */
+export function InsightCard({
+  dataset,
+  analysis,
+  x,
+  y,
+}: Pick<StatsPanelProps, 'dataset' | 'analysis' | 'x' | 'y'>) {
+  const c = analysis.pearson;
   const v = verdict(c, x, y);
   const s = strength(c.r);
   const r2 = analysis.regression.r2;
@@ -81,22 +134,11 @@ export function InsightCard({
       ? `It reads as ${negative ? 'negative' : 'positive'} only because lower is better for ${flipped.map((a) => a.label).join(' and ')}.`
       : null;
   return (
-    <Card title="What this shows">
-      <p className="text-base leading-relaxed">
-        {parts.map((p, i) =>
-          p.strong === true ? (
-            <strong key={i} className="font-semibold">
-              {p.text}
-            </strong>
-          ) : (
-            <span key={i}>{p.text}</span>
-          )
-        )}
-      </p>
+    <Card title="The numbers behind it">
       {v != null ? (
         <p
           className={cx(
-            'mt-2 inline-flex items-center gap-1.5 text-sm font-medium',
+            'inline-flex items-center gap-1.5 text-sm font-medium',
             v === 'together' ? 'text-good' : 'text-bad'
           )}
         >

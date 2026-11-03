@@ -214,21 +214,14 @@ export function PageHeader({
   title,
   subtitle,
   actions,
-  eyebrow,
 }: {
   title: ReactNode;
   subtitle?: ReactNode;
   actions?: ReactNode;
-  eyebrow?: ReactNode;
 }) {
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
       <div className="min-w-0">
-        {eyebrow != null ? (
-          <div className="text-accent-600 dark:text-accent-300 mb-1 text-xs font-medium tracking-wide uppercase">
-            {eyebrow}
-          </div>
-        ) : null}
         <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
           {title}
         </h1>

@@ -1,4 +1,4 @@
-import { ArrowLeftRight } from 'lucide-react';
+import { ArrowLeftRight, ChevronRight } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 import { groupLabel } from '../presets';
@@ -115,17 +115,7 @@ export function ScatterControls({
           />
         </Field>
       </div>
-      <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
-        <Field label="Dot size" className="w-full sm:w-56">
-          <MetricPicker
-            dataset={dataset}
-            value={search.r ?? null}
-            placeholder="Same size"
-            onSelect={(id) => onSize(id)}
-            onClear={() => onSize(undefined)}
-            ariaLabel="Dot size metric"
-          />
-        </Field>
+      <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
         <Field label="Colour" className="w-full sm:w-52">
           <Select
             ariaLabel="Colour points by"
@@ -143,55 +133,84 @@ export function ScatterControls({
             }
           />
         </Field>
-        <div
-          className="flex flex-wrap gap-1.5"
-          role="group"
-          aria-label="Axis options"
+        {/* Fine-tuning folds away; it opens itself when something in it is in use. */}
+        <details
+          className="group w-full"
+          open={
+            search.r != null || log.length > 0 || flipX || flipY
+              ? true
+              : undefined
+          }
         >
-          <Toggle
-            pressed={log.includes('x') && canLogX}
-            disabled={!canLogX}
-            onClick={() => onLog('x')}
-            title={
-              canLogX
-                ? 'Logarithmic horizontal axis: equal steps are equal ratios'
-                : 'Log scale needs every value above zero'
-            }
-          >
-            Log X
-          </Toggle>
-          <Toggle
-            pressed={log.includes('y') && canLogY}
-            disabled={!canLogY}
-            onClick={() => onLog('y')}
-            title={
-              canLogY
-                ? 'Logarithmic vertical axis: equal steps are equal ratios'
-                : 'Log scale needs every value above zero'
-            }
-          >
-            Log Y
-          </Toggle>
-          <InfoTip term="log-scale" className="self-center" />
-          {canFlipX ? (
-            <Toggle
-              pressed={flipX}
-              onClick={() => onFlip('x')}
-              title="Reverse the horizontal axis so the better (lower) values are on the right"
+          <summary className="text-muted hover:text-app inline-flex cursor-pointer list-none items-center gap-1 text-sm select-none [&::-webkit-details-marker]:hidden">
+            <ChevronRight
+              className="size-4 transition-transform group-open:rotate-90"
+              aria-hidden
+            />
+            Customize chart
+          </summary>
+          <div className="mt-3 flex flex-wrap items-end gap-x-4 gap-y-2">
+            <Field label="Dot size" className="w-full sm:w-56">
+              <MetricPicker
+                dataset={dataset}
+                value={search.r ?? null}
+                placeholder="Same size"
+                onSelect={(id) => onSize(id)}
+                onClear={() => onSize(undefined)}
+                ariaLabel="Dot size metric"
+              />
+            </Field>
+            <div
+              className="flex flex-wrap gap-1.5"
+              role="group"
+              aria-label="Axis options"
             >
-              Better → right
-            </Toggle>
-          ) : null}
-          {canFlipY ? (
-            <Toggle
-              pressed={flipY}
-              onClick={() => onFlip('y')}
-              title="Reverse the vertical axis so the better (lower) values are at the top"
-            >
-              Better ↑ up
-            </Toggle>
-          ) : null}
-        </div>
+              <Toggle
+                pressed={log.includes('x') && canLogX}
+                disabled={!canLogX}
+                onClick={() => onLog('x')}
+                title={
+                  canLogX
+                    ? 'Logarithmic horizontal axis: equal steps are equal ratios'
+                    : 'Log scale needs every value above zero'
+                }
+              >
+                Log X
+              </Toggle>
+              <Toggle
+                pressed={log.includes('y') && canLogY}
+                disabled={!canLogY}
+                onClick={() => onLog('y')}
+                title={
+                  canLogY
+                    ? 'Logarithmic vertical axis: equal steps are equal ratios'
+                    : 'Log scale needs every value above zero'
+                }
+              >
+                Log Y
+              </Toggle>
+              <InfoTip term="log-scale" className="self-center" />
+              {canFlipX ? (
+                <Toggle
+                  pressed={flipX}
+                  onClick={() => onFlip('x')}
+                  title="Reverse the horizontal axis so the better (lower) values are on the right"
+                >
+                  Better → right
+                </Toggle>
+              ) : null}
+              {canFlipY ? (
+                <Toggle
+                  pressed={flipY}
+                  onClick={() => onFlip('y')}
+                  title="Reverse the vertical axis so the better (lower) values are at the top"
+                >
+                  Better ↑ up
+                </Toggle>
+              ) : null}
+            </div>
+          </div>
+        </details>
       </div>
     </div>
   );

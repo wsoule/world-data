@@ -130,7 +130,7 @@ export function TopicHeader({
   return (
     <header className="space-y-3">
       <div>
-        <div className="text-accent-600 dark:text-accent-300 mb-1 inline-flex items-center gap-1.5 text-xs font-medium tracking-wide uppercase">
+        <div className="text-accent-600 dark:text-accent-300 mb-1 inline-flex items-center gap-1.5 text-xs font-medium">
           <TypeIcon className="size-3.5" aria-hidden />
           {dataset.type.singular} rankings
         </div>

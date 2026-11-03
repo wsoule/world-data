@@ -82,7 +82,7 @@ export function StabilityCard({
       <div className="-mx-4 mt-4 -mb-4 overflow-x-auto">
         <table className="w-full text-left text-sm sm:min-w-[30rem]">
           <thead>
-            <tr className="text-muted border-app border-t text-[11px] font-medium tracking-wide uppercase">
+            <tr className="text-muted border-app border-t text-xs font-medium">
               <th scope="col" className="py-2 pr-3 pl-4">
                 Scenario
               </th>

@@ -9,7 +9,6 @@ export function GlossaryPage() {
   return (
     <div className="mx-auto max-w-3xl">
       <PageHeader
-        eyebrow="Glossary"
         title="What the numbers mean"
         subtitle="Plain-language definitions of the terms used across rankings, comparisons and statistics. Look for the ⓘ next to a term anywhere on the site."
       />

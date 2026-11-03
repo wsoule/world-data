@@ -36,7 +36,6 @@ export function CategoriesPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Explore"
         title="Categories"
         subtitle={`${topics.length.toLocaleString('en-US')} topics in ${summaries.length} categories, covering countries, US states, cities and counties.`}
       />

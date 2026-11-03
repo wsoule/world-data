@@ -157,7 +157,7 @@ function RelatedList({
 }) {
   return (
     <section className="min-w-0">
-      <h3 className="text-muted mb-1 truncate text-xs font-semibold tracking-wide uppercase">
+      <h3 className="text-muted mb-1 truncate text-xs font-semibold">
         {title}
       </h3>
       {items.length === 0 ? (

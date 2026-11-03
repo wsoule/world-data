@@ -52,9 +52,7 @@ function StandingRow({
       </span>
       <span className="min-w-0 flex-1">
         {tag != null ? (
-          <span className="text-muted block text-[10px] font-semibold tracking-wide uppercase">
-            {tag}
-          </span>
+          <span className="text-muted block text-xs font-semibold">{tag}</span>
         ) : null}
         <span className="block truncate text-sm leading-snug" title={label}>
           {label}
@@ -150,7 +148,7 @@ export function WhyFirstCard({
       ) : null}
       <div className="mt-4 grid gap-x-6 gap-y-3 @lg:grid-cols-2">
         <div>
-          <h3 className="text-good flex items-center gap-1 text-xs font-semibold tracking-wide uppercase">
+          <h3 className="text-good flex items-center gap-1 text-xs font-semibold">
             <TrendingUp className="size-3.5" aria-hidden /> Strongest
           </h3>
           <ul className="mt-1">
@@ -160,7 +158,7 @@ export function WhyFirstCard({
           </ul>
         </div>
         <div>
-          <h3 className="text-bad flex items-center gap-1 text-xs font-semibold tracking-wide uppercase">
+          <h3 className="text-bad flex items-center gap-1 text-xs font-semibold">
             <TrendingDown className="size-3.5" aria-hidden /> Weakest
           </h3>
           {weakest.length > 0 ? (

@@ -447,7 +447,7 @@ function RankList({
     <div className="min-w-0">
       <h3
         className={cx(
-          'mb-1.5 text-xs font-semibold tracking-wide uppercase',
+          'mb-1.5 text-xs font-semibold',
           layer.polarity === 0
             ? 'text-muted'
             : tone === 'good'

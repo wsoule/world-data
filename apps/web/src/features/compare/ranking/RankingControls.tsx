@@ -191,7 +191,7 @@ export function RankingControls({
 
       <div className="border-app mt-4 border-t pt-3">
         <div
-          className="text-muted hidden grid-cols-[2rem_minmax(0,1fr)_9.5rem_12rem] gap-x-3 px-1 pb-1 text-[11px] font-medium tracking-wide uppercase sm:grid"
+          className="text-muted hidden grid-cols-[2rem_minmax(0,1fr)_9.5rem_12rem] gap-x-3 px-1 pb-1 text-xs font-medium sm:grid"
           aria-hidden
         >
           <span />

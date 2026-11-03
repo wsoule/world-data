@@ -92,7 +92,6 @@ export function PlacesPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Places"
         title={`All ${dataset.type.label}`}
         subtitle={`${formatInt(dataset.entities.length)} places with up to ${formatInt(dataset.type.numericMetrics)} metrics each. Open any place for its report card.`}
         actions={

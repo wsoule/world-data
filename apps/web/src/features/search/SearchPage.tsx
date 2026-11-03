@@ -152,7 +152,6 @@ export function SearchPage() {
   return (
     <div className="mx-auto max-w-4xl">
       <PageHeader
-        eyebrow="Search"
         title={
           query !== '' ? (
             <>
