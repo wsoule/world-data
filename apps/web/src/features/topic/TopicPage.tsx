@@ -173,7 +173,7 @@ function TopicView({ type, slug }: { type: EntityType; slug: string }) {
           onSelect={toggleSelected}
         />
       )}
-      <QuickAnswers items={answers.faq} />
+      <QuickAnswers items={answers.faq} className="mt-8" />
     </div>
   );
 }
