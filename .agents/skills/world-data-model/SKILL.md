@@ -46,6 +46,24 @@ types, so a shape change must update both.
 - Correlation wording ("Weak negative relationship (not statistically
   significant, p = 0.26)") comes from `describeCorrelation` in
   `@world-data/stats`; do not write a local copy.
+- Rank columns: ask `rankOrder(metric, pol?)` in `src/data/rankOrder.ts`
+  ('best-first', 'worst-first' or null for values) instead of testing
+  `fmt === 'ranking'`; compare views pass the effective direction as `pol`.
+  `readsBackwards` is true only for best-first ranks (correlations and axes flip
+  those), and `rankOrderNote` words "rank 1 is the best / worst". Topic pages
+  list a rank column in its own order, rank 1 first (`listDirection`), so a
+  worst-first list opens on its worst place; standings, percentiles, colours and
+  movers still follow polarity. Next to a worst-first value ("1st"), standings
+  read `rankText(standing, order)`: "worst of 50", "3rd best of 50".
+- Place profiles call a place best or worst (strengths, weak spots, notable
+  facts) only on rankings that cover at least half of its type, or on partial
+  rankings of the type's largest places. `selectedListMetrics` flags the rest:
+  top-N lists picked by their own metric ("the 1,000 most violent counties",
+  "the richest cities"), whose ends say nothing about all places.
+- Chart labels: `labelFormat(metric, extent)` (`src/lib/format.ts`) prints every
+  value label of one chart in one form (all "$99.9K" or all "$99,860"); tables
+  keep `formatValue`. Axis ticks come from each axis's own domain via
+  `axisTickFormat`.
 
 ## URL state
 
