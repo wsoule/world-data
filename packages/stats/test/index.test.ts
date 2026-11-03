@@ -4,6 +4,7 @@ import {
   competitionRank,
   composite,
   correlationPValue,
+  describeCorrelation,
   linearRegression,
   pearson,
   percentile,
@@ -65,6 +66,32 @@ describe('correlation', () => {
   });
   test('p-value matches reference (r=0.3, n=50 → p≈0.0343)', () => {
     expect(correlationPValue(0.3, 50)).toBeCloseTo(0.0343, 3);
+  });
+});
+
+describe('describeCorrelation', () => {
+  test('keeps the significance note inside one pair of parentheses', () => {
+    const text = describeCorrelation({ r: -0.16, n: 50, p: 0.258 });
+    expect(text).toBe(
+      'Weak negative relationship (not statistically significant, p = 0.26)'
+    );
+    expect(text.split('(').length - 1).toBe(1);
+  });
+  test('reports significant p-values', () => {
+    expect(describeCorrelation({ r: 0.84, n: 210, p: 0 })).toBe(
+      'Very strong positive relationship (p < 0.001)'
+    );
+    expect(describeCorrelation({ r: 0.35, n: 40, p: 0.027 })).toBe(
+      'Moderate positive relationship (p = 0.027)'
+    );
+  });
+  test('says when there is no relationship or no data', () => {
+    expect(describeCorrelation({ r: 0.05, n: 50, p: 0.7 })).toBe(
+      'No meaningful relationship'
+    );
+    expect(describeCorrelation({ r: NaN, n: 2, p: NaN })).toBe(
+      'Not enough overlapping data'
+    );
   });
 });
 

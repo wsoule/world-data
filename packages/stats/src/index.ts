@@ -345,6 +345,11 @@ export function strength(
   return 'very strong';
 }
 
+/**
+ * One-line reading of a correlation for footnotes and tooltips, e.g. "Weak negative
+ * relationship (not statistically significant, p = 0.26)". The significance note stays inside
+ * a single pair of parentheses.
+ */
 export function describeCorrelation(c: Correlation): string {
   if (!finite(c.r)) return 'Not enough overlapping data';
   const s = strength(c.r);
@@ -355,7 +360,7 @@ export function describeCorrelation(c: Correlation): string {
       ? 'p < 0.001'
       : c.p < 0.05
         ? `p = ${c.p.toFixed(3)}`
-        : `not statistically significant (p = ${c.p.toFixed(2)})`;
+        : `not statistically significant, p = ${c.p.toFixed(2)}`;
   return `${s[0].toUpperCase() + s.slice(1)} ${dir} relationship (${sig})`;
 }
 
