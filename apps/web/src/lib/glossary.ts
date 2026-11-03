@@ -11,6 +11,7 @@ export type GlossaryId =
   | 'coverage'
   | 'median'
   | 'tracks-population'
+  | 'cost-of-living'
   | 'combined-score'
   | 'weight'
   | 'normalisation'
@@ -82,6 +83,13 @@ const ENTRIES: GlossaryEntry[] = [
     short:
       'Counts like “number of burglaries” that mostly reflect how many people live somewhere, so big places rank high or low regardless.',
     long: 'A metric is treated as tracking population when its values rise closely with population (a rank correlation of 0.75 or more, or 0.5 or more when the same figure per resident no longer does). Leaving these out keeps strengths and weak spots about the place itself rather than its size.',
+  },
+  {
+    id: 'cost-of-living',
+    term: 'Cost-of-living adjustment',
+    short:
+      'Converts wages and incomes to what they would buy at average US prices, so $100k in a cheap state and $100k in an expensive one are not treated as equal.',
+    long: 'The adjustment divides each value by the place’s price level from the Bureau of Economic Analysis (Regional Price Parities, US average = 100) and multiplies by 100. A state with a price level of 110 has prices 10% above average, so $110,000 there buys what $100,000 does on average. It applies only to earnings and income; prices, rents and taxes are shown as they are, since adjusting a price by a price index would count the same difference twice. Price levels are available for US states.',
   },
   {
     id: 'combined-score',
@@ -198,6 +206,7 @@ export const GLOSSARY_SECTIONS: GlossarySection[] = [
       'coverage',
       'median',
       'tracks-population',
+      'cost-of-living',
     ],
   },
   {

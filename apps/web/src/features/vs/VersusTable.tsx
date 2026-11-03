@@ -47,6 +47,7 @@ export function VersusTable({
   colors,
   categoryLabel,
   category,
+  adjusted,
 }: {
   dataset: Dataset;
   places: readonly Entity[];
@@ -54,6 +55,8 @@ export function VersusTable({
   colors: readonly string[];
   categoryLabel: (id: string) => string;
   category: string | undefined;
+  /** Metric ids whose values are cost-of-living adjusted, marked in their row */
+  adjusted: ReadonlySet<number>;
 }) {
   const type = dataset.type.id;
   const [query, setQuery] = useState('');
@@ -92,6 +95,14 @@ export function VersusTable({
                     pol={s.polar ? s.metric.pol : 0}
                     className="shrink-0"
                   />
+                  {adjusted.has(s.metric.id) ? (
+                    <span
+                      className="border-accent-300 text-accent-700 dark:text-accent-300 shrink-0 rounded border px-1 text-[10px] leading-4"
+                      title="Adjusted for cost of living: dollars at the US-average price level"
+                    >
+                      adjusted
+                    </span>
+                  ) : null}
                 </span>
                 <span className="text-muted block truncate text-xs">
                   {metricSubline(dataset, s.metric)}
@@ -171,7 +182,7 @@ export function VersusTable({
           ),
         }),
       ]),
-    [dataset, places, colors, type]
+    [dataset, places, colors, type, adjusted]
   );
 
   const table = useTable({

@@ -11,6 +11,8 @@ export interface VersusSearch {
   e: string[];
   /** optional category filter */
   cat?: string;
+  /** compare wages and incomes adjusted for each place's cost of living */
+  col?: true;
 }
 
 export const Route = createFileRoute('/vs')({
@@ -24,6 +26,10 @@ export const Route = createFileRoute('/vs')({
         ? raw.e.split(',')
         : [],
     cat: typeof raw.cat === 'string' && raw.cat !== '' ? raw.cat : undefined,
+    col:
+      raw.col === true || raw.col === 'true' || raw.col === 1
+        ? true
+        : undefined,
   }),
   loaderDeps: ({ search }) => ({ type: search.type }),
   loader: ({ context, deps }) =>

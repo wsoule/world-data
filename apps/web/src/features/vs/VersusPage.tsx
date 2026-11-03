@@ -19,6 +19,11 @@ import { Flag } from '~/components/Flag';
 import { InfoTip } from '~/components/InfoTip';
 import { TypeTabs } from '~/components/TypeTabs';
 import { Card, cx, PageHeader } from '~/components/ui';
+import {
+  isIncomeLike,
+  priceLevels,
+  withCostAdjustment,
+} from '~/data/costOfLiving';
 import { type Dataset, useDataset } from '~/data/dataset';
 import type { Entity, EntityType } from '~/data/types';
 import { datasetFacts, placeNoun } from '~/features/places/datasetFacts';
@@ -165,6 +170,8 @@ export function VersusPage() {
           places={places}
           category={search.cat}
           onCategory={(cat) => update({ cat })}
+          costAdjusted={search.col === true}
+          onCostAdjusted={(on) => update({ col: on ? true : undefined })}
         />
       )}
     </div>
@@ -284,11 +291,15 @@ function Comparison({
   places,
   category,
   onCategory,
+  costAdjusted,
+  onCostAdjusted,
 }: {
   dataset: Dataset;
   places: readonly Entity[];
   category: string | undefined;
   onCategory: (category: string | undefined) => void;
+  costAdjusted: boolean;
+  onCostAdjusted: (on: boolean) => void;
 }) {
   const theme = useTheme();
   const palette = placePalette(theme);
@@ -300,14 +311,29 @@ function Comparison({
     () => places.map((p) => dataset.entityIndex.get(p.id) ?? -1),
     [places, dataset]
   );
+  // With the adjustment on, wages and incomes are compared (and ranked among all places) at
+  // equal buying power; see withCostAdjustment.
+  const prices = useMemo(() => priceLevels(dataset), [dataset]);
+  const adjust = costAdjusted && prices != null;
+  const source = useMemo(
+    () => (adjust ? withCostAdjustment(dataset) : dataset),
+    [adjust, dataset]
+  );
+  const adjustedIds = useMemo(
+    () =>
+      adjust
+        ? new Set(dataset.metrics.filter(isIncomeLike).map((m) => m.id))
+        : new Set<number>(),
+    [adjust, dataset]
+  );
   const shared = useMemo(
     () =>
       sharedMetrics(
-        dataset,
+        source,
         indexes,
         hideSize ? facts.sizeDriven : new Set<number>()
       ),
-    [dataset, indexes, hideSize, facts]
+    [source, indexes, hideSize, facts]
   );
   const score = useMemo(
     () => scoreboard(shared, places.length),
@@ -364,6 +390,9 @@ function Comparison({
         palette={palette}
         hideSize={hideSize}
         onHideSize={facts.sizeDriven.size > 0 ? setHideSize : undefined}
+        costAdjusted={adjust}
+        onCostAdjusted={prices != null ? onCostAdjusted : undefined}
+        priceYear={prices?.year ?? null}
       />
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <Card
@@ -418,6 +447,7 @@ function Comparison({
         colors={palette}
         categoryLabel={categoryLabel}
         category={activeCategory}
+        adjusted={adjustedIds}
       />
     </div>
   );
@@ -461,6 +491,9 @@ function ScoreCard({
   palette,
   hideSize,
   onHideSize,
+  costAdjusted,
+  onCostAdjusted,
+  priceYear,
 }: {
   dataset: Dataset;
   places: readonly Entity[];
@@ -470,6 +503,11 @@ function ScoreCard({
   palette: readonly string[];
   hideSize: boolean;
   onHideSize: ((hide: boolean) => void) | undefined;
+  costAdjusted: boolean;
+  /** Absent for place types without price levels */
+  onCostAdjusted: ((on: boolean) => void) | undefined;
+  /** Year of the price levels used */
+  priceYear: number | null;
 }) {
   const type = dataset.type.id;
   const order = places
@@ -499,20 +537,44 @@ function ScoreCard({
             {score.ties > 0 ? `; ${plural(score.ties, 'tie')}` : ''}.
           </p>
         </div>
-        {onHideSize != null ? (
-          <span className="inline-flex items-center gap-1">
-            <label className="text-muted inline-flex cursor-pointer items-center gap-2 text-xs">
-              <input
-                type="checkbox"
-                checked={hideSize}
-                onChange={(e) => onHideSize(e.target.checked)}
-                className="accent-accent-600"
-              />
-              Leave out totals that track population
-            </label>
-            <InfoTip term="tracks-population" />
-          </span>
-        ) : null}
+        <div className="flex flex-col items-start gap-1.5">
+          {onCostAdjusted != null ? (
+            <span className="inline-flex items-center gap-1">
+              <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-medium">
+                <input
+                  type="checkbox"
+                  checked={costAdjusted}
+                  onChange={(e) => onCostAdjusted(e.target.checked)}
+                  className="accent-accent-600"
+                />
+                <span>
+                  Adjust wages and incomes for cost of living
+                  {priceYear != null ? (
+                    <span className="text-muted font-normal">
+                      {' '}
+                      ({priceYear} prices)
+                    </span>
+                  ) : null}
+                </span>
+              </label>
+              <InfoTip term="cost-of-living" />
+            </span>
+          ) : null}
+          {onHideSize != null ? (
+            <span className="inline-flex items-center gap-1">
+              <label className="text-muted inline-flex cursor-pointer items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={hideSize}
+                  onChange={(e) => onHideSize(e.target.checked)}
+                  className="accent-accent-600"
+                />
+                Leave out totals that track population
+              </label>
+              <InfoTip term="tracks-population" />
+            </span>
+          ) : null}
+        </div>
       </div>
       {score.total > 0 ? (
         <div
