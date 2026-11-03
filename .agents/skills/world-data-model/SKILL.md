@@ -60,6 +60,13 @@ types, so a shape change must update both.
   rankings of the type's largest places. `selectedListMetrics` flags the rest:
   top-N lists picked by their own metric ("the 1,000 most violent counties",
   "the richest cities"), whose ends say nothing about all places.
+- Cost of living: `src/data/costOfLiving.ts`. `isIncomeLike` picks the money
+  metrics that are earnings or income (not prices, rents, taxes, living-wage
+  thresholds or already-real figures); `withCostAdjustment(dataset)` wraps a
+  dataset so `numeric()` returns those columns at the US-average price level
+  (`value × 100 ÷ RPP`), which makes rankings, winners and percentiles follow.
+  It is a no-op for types without price levels (everything but states, for now).
+  Head to head turns it on with the URL param `col=true`.
 - Chart labels: `labelFormat(metric, extent)` (`src/lib/format.ts`) prints every
   value label of one chart in one form (all "$99.9K" or all "$99,860"); tables
   keep `formatValue`. Axis ticks come from each axis's own domain via
@@ -134,6 +141,13 @@ What the build decides for each metric (`scripts/build-data.ts`, rules in
   included) is dropped for that year (`copiedCountFields`).
 - A metric with no values on a topic is left off that topic, and a topic with no
   metric left is not published.
+- Other sources: `scripts/sources/*` download into `.cache/sources/` (run by
+  `web:data-fetch`) and turn their files into `ExternalPage`s
+  (`scripts/lib/external.ts`), which `build-data.ts` ingests exactly like a
+  scraped page. Their metric ids are fixed constants at 900,000 and up in
+  `src/data/external.ts`, so they never collide with the source site's column
+  ids and URLs that name them stay valid. `sources/bea.ts` adds BEA Regional
+  Price Parities and real personal income for states (2008 onward).
 - `<type>/search.json` is the compact catalog the search palette downloads
   instead of `metrics.json`: searchable metrics only, topic slugs and categories
   referenced by index (`src/features/search/searchCatalog.ts` defines both
