@@ -86,25 +86,43 @@ canonical URLs and the sitemap point at it.
 ### Docker and Railway
 
 The root `Dockerfile` builds the site in a Node stage and serves it with Caddy
-(`apps/web/Caddyfile`): precompressed gzip, a 404 status with `404.html` for
-unknown paths, one-year caching for hashed assets, and a 308 from trailing-slash
-URLs to their canonical form. It listens on `$PORT` (default 8080).
+(root `Caddyfile`): precompressed gzip, a 404 status with `404.html` for unknown
+paths, one-year caching for hashed assets, and a 308 from trailing-slash URLs to
+their canonical form. It listens on `$PORT` (default 8080). Base images come
+through `mirror.gcr.io`, because Docker Hub rate-limits shared build machines.
 
 ```bash
 docker build -t rankodex . && docker run -p 8080:8080 rankodex
 ```
 
-Railway builds a root `Dockerfile` without further configuration:
+Railway builds a root `Dockerfile` with no config file (Config as Code is
+deprecated). It deploys the repository's default branch, so merge this work into
+`main` first, or point the service at another branch in step 1.
 
-1. New project, then Deploy from GitHub repo, and pick this repository and
-   branch.
-2. In the service's Settings, under Networking, generate a domain (or add
-   `rankodex.com` as a custom domain), and set the healthcheck path to `/`.
-3. If the site is not served from `https://rankodex.com`, add a `VITE_SITE_URL`
-   service variable with the public origin and redeploy; the Dockerfile passes
-   it to the build.
+1. Create an empty project, add an Empty Service, and under the service's
+   Settings, Source, connect this repository (and pick the trigger branch if it
+   is not `main`). Starting from "Deploy from GitHub repo" instead makes Railway
+   stage one service per workspace package with pnpm build and start commands;
+   if you go that way, delete the extra services (such as `stats`) and clear the
+   web service's custom build command, start command and watch paths so the
+   Dockerfile's own commands apply.
+2. Under Settings, Networking, generate a domain. Under Settings, Deploy, set
+   the healthcheck path to `/`.
+3. Deploy. The build log should say "Using detected Dockerfile!"; the build
+   takes a few minutes (about 8,000 pages are prerendered).
+4. Canonical URLs, the sitemap and robots.txt are baked in at build time. With
+   no `VITE_SITE_URL` variable the Dockerfile uses the generated Railway domain
+   (`RAILWAY_PUBLIC_DOMAIN`), so redeploy once after generating it. When a
+   custom domain is attached, set `VITE_SITE_URL` to its origin (for example
+   `https://rankodex.com`) and redeploy.
+5. For a custom domain, add it under Settings, Networking and create both the
+   CNAME and the TXT record Railway shows. An apex domain needs a DNS provider
+   with CNAME flattening or ALIAS records (Cloudflare, for example), and plans
+   limit custom domains per service.
 
-With the CLI, the same is `railway init`, `railway up` and `railway domain`.
+The CLI equivalent of steps 1-3 is `railway init`, `railway up` (which uploads
+this checkout, without GitHub autodeploys) and `railway domain`; set the
+healthcheck path in the dashboard.
 
 ## License
 
