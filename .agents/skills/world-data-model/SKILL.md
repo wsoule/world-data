@@ -172,6 +172,13 @@ What the build decides for each metric (`scripts/build-data.ts`, rules in
   wages; skipped unless `DATA_CONTACT_EMAIL` is set, as BLS rejects anonymous
   user agents). A rebuild may reorder `values.json` of untouched types without
   changing content; restore those files rather than committing the churn.
+- Data stories: `scripts/build-stories.ts` runs at the end of the data build and
+  writes `public/data/stories` (one JSON per story plus `index.json` with card
+  thumbnails). Hand-written stories are defined in `src/content/storyDefs.ts`;
+  automatic pair articles come from `PAIR_METRICS` (one metric per
+  near-duplicate family, cross-source only, capped per type and metric). Article
+  text is in `src/features/articles/prose.ts`, written around the computed
+  numbers; never put a figure in prose that the story JSON does not contain.
 - `<type>/search.json` is the compact catalog the search palette downloads
   instead of `metrics.json`: searchable metrics only, topic slugs and categories
   referenced by index (`src/features/search/searchCatalog.ts` defines both
