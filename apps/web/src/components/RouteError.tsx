@@ -3,6 +3,7 @@ import { type ErrorComponentProps, useRouter } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 
 import { EmptyState } from './feedback';
+import { isStaleChunkError, reloadForStaleChunk } from '~/lib/staleChunks';
 
 /**
  * Route error view. Most errors here are dataset downloads that failed after
@@ -23,6 +24,12 @@ export function RouteError({ error, reset }: ErrorComponentProps) {
     queryReset.reset();
   }, [queryReset]);
 
+  // A route chunk missing after a deploy: reload onto the new build.
+  const staleChunk = isStaleChunkError(error);
+  useEffect(() => {
+    if (staleChunk) reloadForStaleChunk();
+  }, [staleChunk]);
+
   const retry = () => {
     setRetrying(true);
     queryReset.reset();
@@ -41,15 +48,19 @@ export function RouteError({ error, reset }: ErrorComponentProps) {
     <div className="mx-auto max-w-xl py-16">
       <EmptyState
         title={
-          offline
-            ? 'The data for this page did not load'
-            : 'Something went wrong'
+          staleChunk
+            ? 'Rankodex was just updated'
+            : offline
+              ? 'The data for this page did not load'
+              : 'Something went wrong'
         }
       >
         <p className="mb-4">
-          {offline
-            ? 'Check your connection and try again. The page retries on its own when you come back online.'
-            : 'Reloading usually fixes this.'}
+          {staleChunk
+            ? 'Loading the latest version. If nothing happens, reload the page.'
+            : offline
+              ? 'Check your connection and try again. The page retries on its own when you come back online.'
+              : 'Reloading usually fixes this.'}
         </p>
         <p className="text-muted mb-4 font-mono text-xs break-all">{message}</p>
         <button
