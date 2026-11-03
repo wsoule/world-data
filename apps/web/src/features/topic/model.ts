@@ -2,6 +2,7 @@
 // columns, choosing the focus metric and year, ranking, trend lines and value counts. No React here
 // so the logic stays unit-testable (see apps/web/test/topic-model.test.ts).
 
+import { isRankColumn, rankOrder } from '~/data/rankOrder';
 import type { EntityType, Metric, TopicFile, TopicTable } from '~/data/types';
 
 /** Series key used by the pipeline for metrics without a year. */
@@ -23,9 +24,22 @@ export function placeNoun(type: EntityType, count = 2): string {
 /** 1 when higher values rank first, -1 when lower values rank first. */
 export type Direction = 1 | -1;
 
-/** Ranking direction implied by a metric's polarity (neutral metrics rank highest first). */
+/**
+ * Which way is better for a metric's polarity (neutral metrics count highest first). Movers
+ * use it to tell gains from losses.
+ */
 export function directionOf(metric: Pick<Metric, 'pol'>): Direction {
   return metric.pol === -1 ? -1 : 1;
+}
+
+/**
+ * Order the topic page lists a metric in: rank columns in their own order, rank 1 first, so the
+ * ranking, the table's # column and the column's numbers agree (a worst-first list such as
+ * "Worst States to Live In" opens on its rank 1, the worst place); every other metric best first
+ * by its polarity (`directionOf`).
+ */
+export function listDirection(metric: Pick<Metric, 'pol' | 'fmt'>): Direction {
+  return isRankColumn(metric) ? -1 : directionOf(metric);
 }
 
 /** Years with data for one metric in a topic, oldest first. The undated key is not a year. */
@@ -214,7 +228,7 @@ export interface RankedEntry {
   rank: number;
 }
 
-/** Places with a value, best first for the given direction, with competition ranks. */
+/** Places with a value, first in the given direction (1 = highest first), with competition ranks. */
 export function rankEntries(
   values: ArrayLike<number>,
   direction: Direction
@@ -235,7 +249,7 @@ export function rankEntries(
 }
 
 /**
- * Competition ranks aligned to the input (NaN where missing): rank 1 is the best value for the
+ * Competition ranks aligned to the input (NaN where missing): rank 1 is the first value in the
  * direction. Used for the table's rank column so filtering never renumbers places.
  */
 export function rankColumn(
@@ -445,6 +459,38 @@ export function biggestChanges(
     .sort((x, y) => x.gain - y.gain)
     .slice(0, limit);
   return { gains, losses, compared: all.length };
+}
+
+/**
+ * Headings of the two mover lists. Neutral metrics rise and fall; a best-first rank climbs
+ * towards #1 as it improves; on a worst-first list climbing towards #1 is a decline, so its
+ * movers read like values: improved or declined.
+ */
+export function moverTitles(metric: Pick<Metric, 'fmt' | 'pol'>): {
+  gains: string;
+  losses: string;
+} {
+  if (metric.pol === 0)
+    return { gains: 'Largest increases', losses: 'Largest decreases' };
+  if (rankOrder(metric) === 'best-first')
+    return { gains: 'Climbed', losses: 'Fell' };
+  return { gains: 'Improved most', losses: 'Declined most' };
+}
+
+/**
+ * "Best first" / "Worst first" / "Highest first" for a ranking listed in `listDirection` order
+ * (or the reverse). Values list best first by polarity (highest first when neutral); a rank
+ * column lists rank 1 first, which is the worst place on a worst-first list.
+ */
+export function rankingOrderLabel(
+  metric: Pick<Metric, 'fmt' | 'pol'>,
+  reversed: boolean
+): string {
+  const order = rankOrder(metric);
+  if (order == null && metric.pol === 0)
+    return reversed ? 'Lowest first' : 'Highest first';
+  const bestFirst = order !== 'worst-first';
+  return bestFirst !== reversed ? 'Best first' : 'Worst first';
 }
 
 /** The two years a "biggest changes" view compares: the previous year into the selected one. */

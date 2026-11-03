@@ -11,7 +11,9 @@ import type { RankingModel } from './useRanking';
 import { useWidth } from './useWidth';
 import { midSentence } from './words';
 import { Card } from '~/components/ui';
-import { formatValue, ordinal } from '~/lib/format';
+import { rankOrder } from '~/data/rankOrder';
+import { rankText } from '~/features/places/percentile';
+import { formatValue } from '~/lib/format';
 import { chartColors, useTheme } from '~/lib/theme';
 
 const TOP = 10;
@@ -121,7 +123,10 @@ export function PercentileGrid({
           pct: has ? p : null,
           value: formatValue(metrics[k], inputs[k].values[i]),
           rankLabel: has
-            ? `${ordinal(stats[k].rank[i])} of ${stats[k].n}`
+            ? rankText(
+                { rank: stats[k].rank[i], n: stats[k].n },
+                rankOrder(metrics[k], inputs[k].direction)
+              )
             : 'No data',
         });
       });

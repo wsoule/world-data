@@ -7,28 +7,39 @@ import {
   type CorrelationHit,
   type CorrelationResult,
   findCorrelations,
-  readsAsRank,
 } from './correlations';
 import { placeNoun } from './model';
 import { EmptyState } from '~/components/feedback';
 import { Card, cx } from '~/components/ui';
 import type { Dataset } from '~/data/dataset';
+import {
+  isRankColumn,
+  rankOrder,
+  rankOrderNote,
+  readsBackwards,
+} from '~/data/rankOrder';
 import type { Metric } from '~/data/types';
 import { formatInt } from '~/lib/format';
 import { chartColors, useTheme } from '~/lib/theme';
 
-/** True for rank positions (1 = best), whose number reads backwards. */
+/** True for rank columns (list positions), in either order. */
 function isRank(metric: Metric | undefined): boolean {
-  return metric != null && readsAsRank(metric);
+  return metric != null && isRankColumn(metric);
+}
+
+/** True when the metric's raw number runs against its standing: a best-first rank. */
+function backwards(metric: Metric | undefined): boolean {
+  return metric != null && readsBackwards(metric);
 }
 
 /**
  * "What correlates with this?": the focus metric (at the selected year) against every other
  * numeric metric of the dataset that is not part of this topic. Shows the six strongest
  * relationships each way with a strength bar and a link that opens the pair in the overlay.
- * Rank-format metrics are grouped by rank position rather than by their raw number, so a rank
- * list where richer places rank better lands under "Higher together" for income, not under
- * "Opposite directions".
+ * Rank columns are read by standing, a better rank counting as higher: a best-first rank (1 =
+ * best) is grouped by its flipped number, so a list where richer places rank better lands under
+ * "Higher together" for income; a worst-first rank (1 = worst, "Worst States to Live In") already
+ * grows as places get better, so its raw number is used.
  */
 export function CorrelationsCard({
   dataset,
@@ -54,15 +65,15 @@ export function CorrelationsCard({
         !skip.has(m.id) &&
         dataset.hasValues(m.id)
     );
-    const focusRank = isRank(focus);
+    const focusBackwards = backwards(focus);
     return findCorrelations(
       values,
       candidates,
       (id) => dataset.numeric(id),
       6,
       (id) => dataset.metricFullLabel(id).toLowerCase(),
-      // A rank paired with a measured value runs backwards: group it by -r.
-      (id) => isRank(dataset.metric(id)) !== focusRank
+      // A best-first rank paired with a metric read the other way: group it by -r.
+      (id) => backwards(dataset.metric(id)) !== focusBackwards
     );
   }, [dataset, values, exclude, focus]);
 
@@ -100,7 +111,7 @@ export function CorrelationsCard({
             : ''}
           .
           {isRank(focus) || hasRankHit
-            ? ' Ranks (1 = best) are read by position: ranking better counts as higher.'
+            ? ' Ranks are read by standing: a better rank counts as higher, whether rank 1 is the best place on a list or the worst.'
             : ''}{' '}
           Correlation is not causation.
         </>
@@ -175,6 +186,7 @@ function HitList({
             const ctx = dataset.metricContext(h.id);
             const s = strength(h.r);
             const positive = h.r > 0;
+            const order = rankOrder(m);
             return (
               <li
                 key={h.id}
@@ -202,9 +214,9 @@ function HitList({
                       {ctx}
                     </span>
                   ) : null}
-                  {isRank(m) ? (
+                  {order != null ? (
                     <span className="text-muted block text-xs">
-                      Rank: lower is better
+                      A rank: {rankOrderNote(order)}
                     </span>
                   ) : null}
                   <div className="mt-1 flex items-center gap-2">

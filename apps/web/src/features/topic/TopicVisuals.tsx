@@ -9,12 +9,14 @@ import {
   isSkewed,
   placeNoun,
   type RankedEntry,
+  rankingOrderLabel,
   rankWindow,
   trendPicks,
   trendPoints,
 } from './model';
 import { Button, Card, Segmented, Stat } from '~/components/ui';
 import type { Dataset } from '~/data/dataset';
+import { rankOrder, rankOrderNote } from '~/data/rankOrder';
 import type { Metric, TopicFile } from '~/data/types';
 import { formatInt, formatValue } from '~/lib/format';
 import { chartColors, GROUP_PALETTE, useTheme } from '~/lib/theme';
@@ -34,8 +36,10 @@ const SHORT_RANKING = 60;
 const SHOW_ALL_LIMIT = 300;
 
 /**
- * Ranked bars for the focus metric: every place when the list is short, otherwise the top 15 and
- * bottom 5 with a toggle for all. The order can be flipped (worst first), keeping true ranks.
+ * Ranked bars for the focus metric: every place when the list is short, otherwise the first 15
+ * and last 5 with a toggle for all. The order can be flipped, keeping true ranks. Rank columns
+ * keep their own order (rank 1 first, with the longest bar), so a worst-first list opens on its
+ * worst place.
  */
 export function RankingCard({
   dataset,
@@ -56,7 +60,7 @@ export function RankingCard({
   const [reversed, setReversed] = useState(false);
   const short = ranked.length <= SHORT_RANKING;
   const showAll = short || mode === 'all';
-  const isRank = focus.fmt === 'ranking';
+  const order = rankOrder(focus);
   const slice = useMemo(() => {
     const ordered = reversed ? [...ranked].reverse() : [...ranked];
     return showAll
@@ -65,14 +69,7 @@ export function RankingCard({
   }, [ranked, showAll, reversed]);
   const noun = placeNoun(dataset.type.id);
   const canToggle = !short && ranked.length <= SHOW_ALL_LIMIT;
-  const neutral = focus.pol === 0;
-  const firstLabel = neutral
-    ? reversed
-      ? 'Lowest first'
-      : 'Highest first'
-    : reversed
-      ? 'Worst first'
-      : 'Best first';
+  const firstLabel = rankingOrderLabel(focus, reversed);
   const bars = (
     <RankedBars
       dataset={dataset}
@@ -82,7 +79,7 @@ export function RankingCard({
       label={focus.label}
       metric={focus}
       format={formats.format}
-      invert={isRank}
+      invert={order != null}
       selected={selected}
       onSelect={onSelect}
       rowHeight={showAll && ranked.length > 30 ? 19 : 22}
@@ -93,8 +90,8 @@ export function RankingCard({
       title={short ? `All ${formatInt(ranked.length)} ranked` : 'Ranking'}
       subtitle={
         showAll
-          ? `${firstLabel}${isRank ? '; rank 1 has the longest bar' : ''}.`
-          : `${firstLabel}: the top 15 and bottom 5 of ${formatInt(ranked.length)} ${noun}.`
+          ? `${firstLabel}${order != null ? `; ${rankOrderNote(order)} and has the longest bar` : ''}.`
+          : `${firstLabel}: the first 15 and last 5 of ${formatInt(ranked.length)} ${noun}${order != null ? `; ${rankOrderNote(order)}` : ''}.`
       }
       actions={
         <>
@@ -305,13 +302,14 @@ export function TrendCard({
   focus: Metric;
   years: number[];
   year: number | null;
+  /** The page's ranking, in list order: its first places get a line */
   ranked: readonly RankedEntry[];
   /** Draw the median line (off for ranks and for very few places) */
   withMedian: boolean;
   selected: number | null;
 }) {
   const colors = chartColors(useTheme());
-  const isRank = focus.fmt === 'ranking';
+  const order = rankOrder(focus);
   const { points, series, extra } = useMemo(() => {
     const picks = trendPicks(ranked, selected, TREND_PLACES);
     const places = picks.map((p) => ({
@@ -349,10 +347,12 @@ export function TrendCard({
 
   const top = Math.min(TREND_PLACES, ranked.length);
   const when = year != null ? `in ${year}` : 'on the latest figures';
+  // A worst-first list's first places are its worst ones.
+  const lead = order === 'worst-first' ? `The ${top} worst` : `The top ${top}`;
   return (
     <Card
       title={`Over time · ${years[0]}–${years[years.length - 1]}`}
-      subtitle={`The top ${top} ${when}${extra ? ' and the highlighted place' : ''}${isRank ? '; rank 1 at the top' : withMedian ? ', against the median' : ''}.`}
+      subtitle={`${lead} ${when}${extra ? ' and the highlighted place' : ''}${order != null ? '; rank 1 at the top' : withMedian ? ', against the median' : ''}.`}
     >
       <TrendChart
         points={points}
@@ -360,7 +360,7 @@ export function TrendCard({
         years={years}
         label={focus.label}
         metric={focus}
-        reversed={isRank}
+        reversed={order != null}
       />
       <ul
         className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs"

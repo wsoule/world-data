@@ -6,12 +6,14 @@ import {
   type Change,
   comparedYears,
   directionOf,
+  moverTitles,
   numericColumn,
   placeNoun,
 } from './model';
 import { Flag } from '~/components/Flag';
 import { Card, cx } from '~/components/ui';
 import type { Dataset } from '~/data/dataset';
+import { isRankColumn, rankOrder, rankOrderNote } from '~/data/rankOrder';
 import type { Metric, TopicFile } from '~/data/types';
 import { formatInt, formatValue, labelFormat } from '~/lib/format';
 
@@ -25,7 +27,7 @@ function formatDelta(
   format: (v: number) => string
 ): string {
   const size = Math.abs(delta);
-  if (metric.fmt === 'ranking')
+  if (isRankColumn(metric))
     return `${formatInt(size)} ${size === 1 ? 'place' : 'places'}`;
   return `${delta > 0 ? '+' : '−'}${format(size)}`;
 }
@@ -71,17 +73,16 @@ export function MoversCard({
   const { pair, result } = movers;
 
   const neutral = focus.pol === 0;
-  const rank = focus.fmt === 'ranking';
+  const titles = moverTitles(focus);
+  const order = rankOrder(focus);
   return (
     <Card
       title={`Biggest changes · ${pair[0]} → ${pair[1]}`}
-      subtitle={`${formatInt(result.compared)} ${placeNoun(dataset.type.id, result.compared)} ${result.compared === 1 ? 'has' : 'have'} a value in both years.`}
+      subtitle={`${formatInt(result.compared)} ${placeNoun(dataset.type.id, result.compared)} ${result.compared === 1 ? 'has' : 'have'} a value in both years${order != null ? `; ${rankOrderNote(order)}` : ''}.`}
     >
       <div className="grid gap-5 sm:grid-cols-2">
         <MoverList
-          title={
-            neutral ? 'Largest increases' : rank ? 'Climbed' : 'Improved most'
-          }
+          title={titles.gains}
           icon={<ArrowUpRight className="size-4" aria-hidden />}
           tone="good"
           neutral={neutral}
@@ -93,9 +94,7 @@ export function MoversCard({
           onSelect={onSelect}
         />
         <MoverList
-          title={
-            neutral ? 'Largest decreases' : rank ? 'Fell' : 'Declined most'
-          }
+          title={titles.losses}
           icon={<ArrowDownRight className="size-4" aria-hidden />}
           tone="bad"
           neutral={neutral}

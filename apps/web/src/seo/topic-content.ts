@@ -7,6 +7,7 @@
 
 import type { QA } from './content';
 import type { Dataset } from '~/data/dataset';
+import { rankOrder } from '~/data/rankOrder';
 import type { Metric, TopicFile } from '~/data/types';
 import { formatInt, formatValue, typeNoun } from '~/lib/format';
 import { SITE } from '~/site';
@@ -51,7 +52,8 @@ function median(values: number[]): number {
  * value, then where the data comes from. Without a metric (or with fewer than
  * two values) the summary is a generic "compare N places" line and only the
  * source answer remains. "Highest" means the largest value, whatever the
- * metric's polarity.
+ * metric's polarity. A rank column instead names who ranks first and last and
+ * which end rank 1 is (the best place, or the worst on a worst-first list).
  */
 export function topicAnswers(
   topic: TopicFile,
@@ -70,7 +72,32 @@ export function topicAnswers(
   const faq: QA[] = [];
   let summary = `${topic.title}: compare ${formatInt(topic.entities.length)} ${plural} on ${formatInt(topic.metrics.length)} ${topic.metrics.length === 1 ? 'metric' : 'metrics'}.`;
 
-  if (metric != null && rows.length >= 2) {
+  const order = metric == null ? null : rankOrder(metric);
+  if (metric != null && rows.length >= 2 && order != null) {
+    // A rank column holds list positions: name who holds rank 1 and who comes last, and say
+    // which end rank 1 is ("the highest rank" would be ambiguous, and a median position says
+    // nothing).
+    const asc = [...rows].reverse();
+    const [first, second, third] = asc;
+    const last = asc[asc.length - 1];
+    const label = metric.label;
+    const end = order === 'best-first' ? 'best' : 'worst';
+    const follow =
+      asc.length >= 3 && second != null && third != null
+        ? `, followed by ${name(second[0])} (${fmt(second[1])}) and ${name(third[0])} (${fmt(third[1])})`
+        : '';
+    summary = `${name(first[0])} ranks ${fmt(first[1])} on ${label}${yearNote}${follow}; rank 1 is the ${end}. ${name(last[0])} ranks last (${fmt(last[1])}).`;
+    faq.push(
+      {
+        question: `Which ${singular} ranks first on ${label}?`,
+        answer: `${name(first[0])} ranks first on ${label}${yearNote}, at ${fmt(first[1])}${follow}. Rank 1 is the ${end} ${singular}.`,
+      },
+      {
+        question: `Which ${singular} ranks last on ${label}?`,
+        answer: `${name(last[0])} ranks last of the ${formatInt(rows.length)} ${plural} with data${yearNote}, at ${fmt(last[1])}.`,
+      }
+    );
+  } else if (metric != null && rows.length >= 2) {
     const [top, second, third] = rows;
     const low = rows[rows.length - 1];
     const label = metric.label;

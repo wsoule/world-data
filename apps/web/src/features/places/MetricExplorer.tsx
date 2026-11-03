@@ -9,6 +9,7 @@ import { MetricLink } from './ProfileSections';
 import { PolarityIcon } from '~/components/MetricPicker';
 import { Card, Segmented } from '~/components/ui';
 import type { Dataset } from '~/data/dataset';
+import { rankOrder } from '~/data/rankOrder';
 import { formatInt, formatValue } from '~/lib/format';
 import { searchItems } from '~/lib/textSearch';
 import type { Theme } from '~/lib/theme';
@@ -359,7 +360,7 @@ function MetricRow({
           <span className="truncate">{sub}</span>
         </span>
         <span className="tabular text-muted hidden w-28 shrink-0 text-right whitespace-nowrap sm:block">
-          {rankText(row.standing)}
+          {rankText(row.standing, rankOrder(m))}
         </span>
         <PercentileBar
           pct={row.standing.pct}

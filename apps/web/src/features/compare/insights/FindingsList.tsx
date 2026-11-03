@@ -21,6 +21,7 @@ import type { BasketColumns } from './useBasket';
 import { Flag } from '~/components/Flag';
 import { cx } from '~/components/ui';
 import type { Dataset } from '~/data/dataset';
+import { isRankColumn, readsBackwards } from '~/data/rankOrder';
 import type { Metric } from '~/data/types';
 import { formatValue, plural } from '~/lib/format';
 
@@ -160,11 +161,12 @@ function M({ children }: { children: ReactNode }) {
 }
 
 /**
- * "higher Median Household Income" / "a better Best Education Rank": rank-style metrics are
- * phrased as better/worse so "lower rank number" never reads as a bad thing.
+ * "higher Median Household Income" / "a better Best Education Rank": rank columns are phrased as
+ * better/worse by the metric's direction, so neither a best-first list's lower number nor a
+ * worst-first list's higher number reads as a bad thing.
  */
 function movement(metric: Metric, dir: 1 | -1, up: boolean): ReactNode {
-  if (metric.fmt === 'ranking') {
+  if (isRankColumn(metric)) {
     const better = up === (dir === 1);
     return (
       <>
@@ -214,7 +216,7 @@ function renderFinding(f: Finding, props: FindingsListProps): Rendered {
       const dirA = basket.directions[f.pair.i];
       const dirB = basket.directions[f.pair.j];
       // Lead with the "good" end of a rank metric ("a better rank"), else with higher values.
-      const upA = !(A.fmt === 'ranking' && dirA === -1);
+      const upA = !readsBackwards(A, dirA);
       const upB = f.sign > 0 ? upA : !upA;
       const s = strength(f.r);
       return {

@@ -20,6 +20,7 @@ import { EmptyState } from '~/components/feedback';
 import { Flag } from '~/components/Flag';
 import { Card, cx, Select } from '~/components/ui';
 import type { Dataset } from '~/data/dataset';
+import { type RankOrder, rankOrder, rankOrderNote } from '~/data/rankOrder';
 import type { Metric, Polarity } from '~/data/types';
 import { formatValue, ordinal } from '~/lib/format';
 
@@ -39,6 +40,8 @@ interface MapLayer {
   /** Headings for the best / worst lists */
   bestLabel: string;
   worstLabel: string;
+  /** How the values read as list positions (see `rankOrder`); null for values and the score */
+  rankOrder: RankOrder | null;
 }
 
 const COVERAGE_OPTIONS = [
@@ -85,6 +88,7 @@ function metricLayer(
     formatLong: (v) => formatValue(m, v),
     bestLabel: polarity === 0 ? 'Highest' : 'Best',
     worstLabel: polarity === 0 ? 'Lowest' : 'Worst',
+    rankOrder: rankOrder(m, direction),
   };
 }
 
@@ -157,6 +161,7 @@ export function MapView({
       formatLong: (v) => (z ? fmt(v) : `${fmt(v)} / 100`),
       bestLabel: 'Top',
       worstLabel: 'Bottom',
+      rankOrder: null,
     };
   }, [canCombine, layers, weight, dataset, norm, cov, metrics.length]);
 
@@ -464,16 +469,23 @@ function RankList({
                 to="/places/$type/$slug"
                 params={{ type: dataset.type.id, slug: e.slug }}
                 className="hover:bg-surface-2 relative flex items-center gap-2 overflow-hidden rounded-md px-1.5 py-1 text-sm"
-                title={`${e.name}: ${layer.formatLong(r.value)} (${ordinal(r.rank)})`}
+                title={
+                  layer.rankOrder != null
+                    ? `${e.name}: ${layer.formatLong(r.value)} (${rankOrderNote(layer.rankOrder)})`
+                    : `${e.name}: ${layer.formatLong(r.value)} (${ordinal(r.rank)})`
+                }
               >
                 <span
                   className="bg-accent-500/10 dark:bg-accent-400/15 absolute inset-y-0.5 left-0 rounded"
                   style={{ width: `${Math.max(4, share * 100)}%` }}
                   aria-hidden
                 />
-                <span className="tabular text-muted relative min-w-6 shrink-0 text-right text-xs">
-                  {r.rank}
-                </span>
+                {/* A rank column's value is already the place's position on its list. */}
+                {layer.rankOrder == null ? (
+                  <span className="tabular text-muted relative min-w-6 shrink-0 text-right text-xs">
+                    {r.rank}
+                  </span>
+                ) : null}
                 <Flag
                   entity={e}
                   type={dataset.type.id}

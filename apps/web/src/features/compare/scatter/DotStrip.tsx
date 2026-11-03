@@ -9,9 +9,11 @@ import { useMemo } from 'react';
 
 import { baseRadius } from './colorModel';
 import type { Dataset } from '~/data/dataset';
+import { rankOrder } from '~/data/rankOrder';
 import type { Metric } from '~/data/types';
+import { rankText } from '~/features/places/percentile';
 import { axisTickFormat, linearAxisDomain } from '~/lib/axis';
-import { formatValue, ordinal } from '~/lib/format';
+import { formatValue } from '~/lib/format';
 import { chartColors, useTheme } from '~/lib/theme';
 
 interface StripDatum {
@@ -121,7 +123,10 @@ export function DotStrip({
                 { label: metric.label, value: formatValue(metric, d.value) },
                 {
                   label: 'Rank',
-                  value: `${ordinal(d.rank)} of ${rows.length}`,
+                  value: rankText(
+                    { rank: d.rank, n: rows.length },
+                    rankOrder(metric, direction)
+                  ),
                 },
               ],
             };

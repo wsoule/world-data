@@ -55,6 +55,16 @@ describe('directionHint', () => {
     expect(hint.side).toBe(-1);
     expect(hint.action).toBe('click to set no side');
   });
+
+  test('says which end rank 1 is for a rank column', () => {
+    const worstFirst = { ...metric(24006, 1), fmt: 'ranking' };
+    expect(directionHint(base, worstFirst).label).toBe(
+      'Rank 1 is the worst: higher is better'
+    );
+    const flipped = directionHint({ ...base, d: { '24006': -1 } }, worstFirst);
+    expect(flipped.label).toBe('Rank 1 is the best: lower is better');
+    expect(directionHint(base, metric(5, 1)).label).toBe('Higher is better');
+  });
 });
 
 describe('validateCompareSearch', () => {

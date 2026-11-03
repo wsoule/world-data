@@ -8,6 +8,8 @@ import { PlaceLink } from './PlaceLink';
 import type { RankingModel } from './useRanking';
 import { midSentence } from './words';
 import { Card } from '~/components/ui';
+import { rankOrder } from '~/data/rankOrder';
+import { rankText } from '~/features/places/percentile';
 import { formatValue, ordinal } from '~/lib/format';
 import { useTheme } from '~/lib/theme';
 
@@ -29,9 +31,11 @@ function StandingRow({
   const k = model.inputs.findIndex((i) => i.id === standing.id);
   const metric = model.metrics[k];
   const label = model.labels.get(standing.id) ?? metric.label;
-  // A rank-formatted metric's value is itself a rank ("1st"), so only print the value otherwise.
+  // A rank column's value is itself a list position ("1st"), which the standing below already
+  // covers (worded best / worst for a worst-first list), so only print the value otherwise.
+  const order = rankOrder(metric, model.inputs[k].direction);
   const value =
-    metric.fmt === 'ranking'
+    order != null
       ? null
       : formatValue(metric, model.inputs[k].values[idx], { compact: true });
   return (
@@ -57,7 +61,7 @@ function StandingRow({
         </span>
         <span className="text-muted tabular block text-xs">
           {value != null ? `${value} · ` : ''}
-          {ordinal(standing.rank)} of {standing.n}
+          {rankText(standing, order)}
         </span>
       </span>
     </li>

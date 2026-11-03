@@ -1,7 +1,7 @@
 import { ChartScatter, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo } from 'react';
 
-import { isRankMetric, polarityFor } from '../polarity';
+import { polarityFor } from '../polarity';
 import { groupLabel } from '../presets';
 import { PopularMetricChips, PresetCards } from '../QuickStart';
 import {
@@ -26,6 +26,13 @@ import { EmptyState } from '~/components/feedback';
 import { MetricPicker } from '~/components/MetricPicker';
 import { Button, Card } from '~/components/ui';
 import type { Dataset } from '~/data/dataset';
+import {
+  isRankColumn,
+  type RankOrder,
+  rankOrder,
+  rankOrderNote,
+  readsBackwards,
+} from '~/data/rankOrder';
 import type { Metric } from '~/data/types';
 import { formatValue, plural } from '~/lib/format';
 import { chartColors, useTheme } from '~/lib/theme';
@@ -122,7 +129,7 @@ function SingleMetric({
           metric={metric}
           entityIdx={entityIdx}
           direction={dir}
-          reverse={dir === -1 && isRankMetric(metric)}
+          reverse={readsBackwards(metric, dir)}
           highlight={highlight}
           onToggle={toggle}
         />
@@ -136,7 +143,7 @@ function meaningOf(search: CompareSearch, m: Metric, dir: 1 | -1): AxisMeaning {
     label: m.label,
     dir,
     neutral: polarityFor(search, m) === 0,
-    isRank: isRankMetric(m),
+    isRank: isRankColumn(m),
   };
 }
 
@@ -174,11 +181,14 @@ function Overlay(props: CompareViewProps) {
     [search, yMetric, dirY]
   );
 
-  // Axis flips live in the URL (`fl`) so shared links keep them. Rank metrics
-  // start flipped so #1 sits at the right / top.
+  // Axis flips live in the URL (`fl`) so shared links keep them. Best-first
+  // ranks start flipped so #1 sits at the right / top; a worst-first rank's
+  // better places already have the larger numbers, so it needs no flip.
   const flips = search.fl ?? {};
-  const flipX = dirX === -1 && (flips[String(xMetric.id)] ?? x.isRank);
-  const flipY = dirY === -1 && (flips[String(yMetric.id)] ?? y.isRank);
+  const flipX =
+    dirX === -1 && (flips[String(xMetric.id)] ?? readsBackwards(xMetric, dirX));
+  const flipY =
+    dirY === -1 && (flips[String(yMetric.id)] ?? readsBackwards(yMetric, dirY));
 
   const log = search.log ?? [];
   const logX = log.includes('x');
@@ -333,6 +343,8 @@ function Overlay(props: CompareViewProps) {
               sizeMetric={sizeMetric}
               xMetric={xMetric}
               yMetric={yMetric}
+              xOrder={rankOrder(xMetric, dirX)}
+              yOrder={rankOrder(yMetric, dirY)}
               flipX={flipX}
               flipY={flipY}
               n={n}
@@ -360,6 +372,8 @@ function ChartLegend({
   sizeMetric,
   xMetric,
   yMetric,
+  xOrder,
+  yOrder,
   flipX,
   flipY,
   n,
@@ -369,6 +383,9 @@ function ChartLegend({
   sizeMetric: Metric | null;
   xMetric: Metric;
   yMetric: Metric;
+  /** How each axis reads as list positions, with the reader's directions (null: values) */
+  xOrder: RankOrder | null;
+  yOrder: RankOrder | null;
   flipX: boolean;
   flipY: boolean;
   n: number;
@@ -378,6 +395,16 @@ function ChartLegend({
   const flips = [
     flipX ? `${xMetric.label} runs right-to-left (best on the right)` : null,
     flipY ? `${yMetric.label} runs top-to-bottom (best at the top)` : null,
+  ].filter((f) => f != null);
+  // A rank axis drawn unflipped says which end rank 1 is, so "1st" at the left or bottom is
+  // not mistaken for the best place on a worst-first list (or the reverse).
+  const rankNotes = [
+    xOrder != null && !flipX
+      ? `${xMetric.label}: ${rankOrderNote(xOrder)}, so better places sit ${xOrder === 'worst-first' ? 'to the right' : 'to the left'}`
+      : null,
+    yOrder != null && !flipY
+      ? `${yMetric.label}: ${rankOrderNote(yOrder)}, so better places sit ${yOrder === 'worst-first' ? 'higher up' : 'lower down'}`
+      : null,
   ].filter((f) => f != null);
   return (
     <div className="text-muted mt-3 space-y-2 text-xs">
@@ -476,6 +503,9 @@ function ChartLegend({
           <span className="font-medium">Flipped so better is up/right:</span>{' '}
           {flips.join('; ')}.
         </p>
+      ) : null}
+      {rankNotes.length > 0 ? (
+        <p className="text-app">{rankNotes.join('; ')}.</p>
       ) : null}
     </div>
   );

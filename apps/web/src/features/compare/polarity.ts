@@ -1,4 +1,5 @@
 import type { CompareSearch } from './state';
+import { rankOrder } from '~/data/rankOrder';
 import type { Metric, Polarity } from '~/data/types';
 
 /**
@@ -17,7 +18,9 @@ export function polarityFor(
 
 /**
  * Wording for a metric's direction button: its current side and what one click does (see
- * `cycleDirection`). Neutral metrics are never described as better or worse.
+ * `cycleDirection`). Neutral metrics are never described as better or worse. A rank column
+ * also says which end rank 1 is ("Rank 1 is the worst: higher is better"), so a worst-first
+ * list's "higher is better" does not read as a mistake.
  */
 export function directionHint(
   search: CompareSearch,
@@ -30,15 +33,17 @@ export function directionHint(
       label: 'No better or worse side',
       action: 'click to treat higher as better',
     };
-  const label = side === 1 ? 'Higher is better' : 'Lower is better';
+  const order = rankOrder(m, side);
+  const plain = side === 1 ? 'higher is better' : 'lower is better';
+  const label =
+    order != null
+      ? `Rank 1 is the ${order === 'best-first' ? 'best' : 'worst'}: ${plain}`
+      : side === 1
+        ? 'Higher is better'
+        : 'Lower is better';
   if (m.pol === 0 && side === -1)
     return { side, label, action: 'click to set no side' };
   return { side, label, action: 'click to flip' };
-}
-
-/** Rank-style metric (1st, 2nd, …) where #1 is the top. */
-export function isRankMetric(m: Metric): boolean {
-  return m.fmt === 'ranking';
 }
 
 /** "US States" → "US states", "World Cities" → "world cities". */

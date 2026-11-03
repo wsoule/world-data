@@ -16,6 +16,7 @@ import { Flag } from '~/components/Flag';
 import { PolarityIcon } from '~/components/MetricPicker';
 import { Card, cx, Segmented } from '~/components/ui';
 import type { Dataset } from '~/data/dataset';
+import { rankOrder } from '~/data/rankOrder';
 import type { Entity } from '~/data/types';
 import { placeNoun } from '~/features/places/datasetFacts';
 import { useVirtualRows } from '~/features/places/hooks';
@@ -119,7 +120,7 @@ export function VersusTable({
                     {formatValue(s.metric, s.values[k])}
                   </div>
                   <div className="tabular text-muted truncate text-xs">
-                    {rankText(s.standings[k])}
+                    {rankText(s.standings[k], rankOrder(s.metric))}
                   </div>
                 </div>
               );

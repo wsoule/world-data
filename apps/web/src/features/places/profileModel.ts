@@ -4,6 +4,7 @@
 
 import { pearson, percentile, spearman } from '@world-data/stats';
 
+import { isRankColumn, rankOrder } from '~/data/rankOrder';
 import type { Metric } from '~/data/types';
 
 /** The parts of a `Dataset` these helpers read (a Dataset satisfies it structurally). */
@@ -428,6 +429,23 @@ export interface NotableFact {
   end: 'first' | 'last';
 }
 
+/**
+ * Plain-language headline for a first / last-place fact. A rank column names the place's
+ * position on the list: "#1 in" when it holds rank 1 (the best place on a best-first list, the
+ * worst on a worst-first one; the fact's Best / Worst badge says which), "Last in" otherwise.
+ * Values say highest or lowest.
+ */
+export function factHeadline(f: NotableFact): string {
+  const m = f.row.metric;
+  const order = rankOrder(m);
+  if (order != null) {
+    const holdsRankOne = (f.end === 'first') === (order === 'best-first');
+    return holdsRankOne ? `#1 in ${m.label}` : `Last in ${m.label}`;
+  }
+  const high = (f.end === 'first') === (f.row.direction === 1);
+  return `${high ? 'Highest' : 'Lowest'} ${m.label}`;
+}
+
 /** How far a fact's place is from its nearest rival, as a share of the value range. */
 const factMargin = (f: NotableFact) =>
   f.end === 'first' ? f.row.standing.aheadOfNext : f.row.standing.behindNext;
@@ -587,7 +605,7 @@ export function similarityBasis(
     (m) =>
       m.n >= minN &&
       m.fmt !== 'year' &&
-      m.fmt !== 'ranking' &&
+      !isRankColumn(m) &&
       !RANK_LABEL.test(m.label) &&
       !SIZE_COLUMNS.has(m.id) &&
       (m.base === true ||

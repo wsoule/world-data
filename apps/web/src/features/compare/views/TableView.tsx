@@ -54,6 +54,7 @@ import { Flag } from '~/components/Flag';
 import { PolarityIcon } from '~/components/MetricPicker';
 import { Button, Card, cx } from '~/components/ui';
 import type { Dataset } from '~/data/dataset';
+import { isRankColumn, rankOrder, rankOrderNote } from '~/data/rankOrder';
 import type { EntityType, Metric } from '~/data/types';
 import { formatInt, formatValue } from '~/lib/format';
 
@@ -246,7 +247,7 @@ function ComparisonTable(props: CompareViewProps) {
                     <span className="tabular truncate">
                       {formatValue(m, r.values[k])}
                     </span>
-                    {Number.isNaN(rank) || m.fmt === 'ranking' ? null : (
+                    {Number.isNaN(rank) || isRankColumn(m) ? null : (
                       <span className="text-muted tabular w-8 shrink-0 text-right text-[10px]">
                         #{formatInt(rank)}
                       </span>
@@ -377,12 +378,13 @@ function ComparisonTable(props: CompareViewProps) {
   // year; percentages are written as shown (8.0, not 0.08).
   const download = () => {
     const names = csvMetricHeaders(
-      basket.metrics.map((m) => ({
+      basket.metrics.map((m, k) => ({
         id: m.id,
         fullLabel: dataset.metricFullLabel(m.id),
         fmt: m.fmt,
         unit: m.unit,
         year: m.year,
+        pol: basket.neutral[k] ? 0 : basket.directions[k],
       }))
     );
     const header: CsvCell[] = [
@@ -562,6 +564,21 @@ function coverageFor(
   return k < 0 ? null : coverage[k];
 }
 
+/**
+ * A column's better side in words for its header tooltip. A rank column also says which end
+ * rank 1 is, since "higher is better" next to "1st" would otherwise read backwards.
+ */
+function directionText(
+  metric: Metric,
+  direction: 1 | -1 | null,
+  neutral: boolean
+): string {
+  if (neutral || direction == null) return 'no better or worse direction';
+  const side = direction === 1 ? 'higher is better' : 'lower is better';
+  const order = rankOrder(metric, direction);
+  return order != null ? `${rankOrderNote(order)}, so ${side}` : side;
+}
+
 function HeaderCell({
   header,
   metric,
@@ -609,7 +626,7 @@ function HeaderCell({
         onClick={() => header.column.toggleSorting()}
         title={
           metric != null
-            ? `${metric.label}${metric.year != null ? ` (${metric.year})` : ''} — ${neutral ? 'no better or worse direction' : direction === 1 ? 'higher is better' : 'lower is better'}. Click to sort.`
+            ? `${metric.label}${metric.year != null ? ` (${metric.year})` : ''} — ${directionText(metric, direction, neutral)}. Click to sort.`
             : `${hint != null ? `${hint} ` : ''}Click to sort by ${label}.`
         }
         className={cx(

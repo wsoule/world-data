@@ -10,6 +10,7 @@ import { useMemo } from 'react';
 import { placePalette } from './palette';
 import type { SharedMetric } from './versusModel';
 import type { Dataset } from '~/data/dataset';
+import { rankOrder } from '~/data/rankOrder';
 import type { Entity } from '~/data/types';
 import { useElementWidth } from '~/features/places/hooks';
 import { pctText, rankText } from '~/features/places/percentile';
@@ -76,7 +77,7 @@ export function VersusChart({
           name: places[k].name,
           pct,
           value: formatValue(s.metric, s.values[k]),
-          rank: rankText(st),
+          rank: rankText(st, rankOrder(s.metric)),
         });
       });
       ranges.push({ row, lo, hi });

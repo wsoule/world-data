@@ -1,5 +1,8 @@
 import { competitionRank, percentile } from '@world-data/stats';
 
+import { rankOrder } from '~/data/rankOrder';
+import type { Polarity } from '~/data/types';
+
 export type CsvCell = string | number | null | undefined;
 
 /**
@@ -78,6 +81,8 @@ export interface CsvMetric {
   fmt: string | null;
   unit: string | null;
   year: number | null;
+  /** Better side as the table uses it (after direction overrides): says which end rank 1 is */
+  pol: Polarity;
 }
 
 /** Unit for a CSV header: the metric's own unit, else one implied by its display format. */
@@ -93,7 +98,8 @@ function csvUnit(m: CsvMetric): string | null {
   if (m.fmt === 'degC') return '°C';
   if (m.fmt === 'degF') return '°F';
   if (m.fmt === 'cmToFeet') return 'cm';
-  if (m.fmt === 'ranking') return '1 = top';
+  const order = rankOrder(m);
+  if (order != null) return order === 'best-first' ? '1 = best' : '1 = worst';
   return null;
 }
 

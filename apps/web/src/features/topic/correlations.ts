@@ -4,8 +4,6 @@
 
 import { pearson } from '@world-data/stats';
 
-import type { Metric } from '~/data/types';
-
 /** A metric that may correlate with the focus column. `n` is its coverage (an upper bound). */
 export interface CorrelationCandidate {
   id: number;
@@ -38,23 +36,6 @@ export interface CorrelationResult {
   ms: number;
 }
 
-/**
- * True when a metric's number is a rank position (1 = top), so a higher number reads as a worse
- * place: rank-format metrics, plus lower-is-better columns labelled as a rank that the catalog
- * stores as plain numbers ("GII Institutions Rank", the Well-Being Index "Rank"). A change in
- * rank or a percentile rank is not a position.
- */
-export function readsAsRank(
-  metric: Pick<Metric, 'fmt' | 'pol' | 'label'>
-): boolean {
-  if (metric.fmt === 'ranking') return true;
-  return (
-    metric.pol === -1 &&
-    /\brank(ing)?\b/i.test(metric.label) &&
-    !/\b(change|percentile)\b/i.test(metric.label)
-  );
-}
-
 /** Above this |r| two series are treated as the same measure republished, not a finding. */
 export const DUPLICATE_R = 0.995;
 
@@ -75,9 +56,9 @@ export function minOverlapFor(coverage: number): number {
  * |r| of at least MIN_R. With `keyOf`, only the strongest hit per key is kept: the catalog
  * repeats some series under several ids (the same column published on two pages).
  *
- * `flip` names candidates whose raw number runs against the reading direction, such as a rank
- * (1 = best) correlated with a measured value: their hits are grouped by -r, so "positive"
- * reads as "better rank with a higher focus". Each hit keeps its raw r.
+ * `flip` names candidates whose raw number runs against the reading direction, such as a
+ * best-first rank (1 = best) correlated with a measured value: their hits are grouped by -r, so
+ * "positive" reads as "better rank with a higher focus". Each hit keeps its raw r.
  */
 export function findCorrelations(
   focus: ArrayLike<number>,

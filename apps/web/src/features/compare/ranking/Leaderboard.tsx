@@ -7,6 +7,8 @@ import { PlaceLink } from './PlaceLink';
 import type { RankingModel } from './useRanking';
 import { midSentence } from './words';
 import { Card, cx } from '~/components/ui';
+import { rankOrder } from '~/data/rankOrder';
+import { rankText } from '~/features/places/percentile';
 import { formatValue, ordinal } from '~/lib/format';
 import { chartColors, useTheme } from '~/lib/theme';
 
@@ -74,7 +76,7 @@ export function Leaderboard({
         const has = !Number.isNaN(p);
         const m = metrics[k];
         const title = has
-          ? `${labels.get(m.id) ?? m.label}: ${formatValue(m, inputs[k].values[i])} · ${ordinal(stats[k].rank[i])} of ${stats[k].n} · percentile ${Math.round(p)}`
+          ? `${labels.get(m.id) ?? m.label}: ${formatValue(m, inputs[k].values[i])} · ${rankText({ rank: stats[k].rank[i], n: stats[k].n }, rankOrder(m, inputs[k].direction))} · percentile ${Math.round(p)}`
           : `${labels.get(m.id) ?? m.label}: no data`;
         return (
           <span

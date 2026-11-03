@@ -26,8 +26,8 @@ import {
 } from 'react';
 
 import {
-  directionOf,
   formatSort,
+  listDirection,
   numericColumn,
   parseSort,
   placeNoun,
@@ -328,7 +328,7 @@ function DataTable({
           metric.kind === 'num'
             ? rankColumn(
                 numericColumn(topic, id, y, entityCount),
-                directionOf(metric)
+                listDirection(metric)
               )
             : null,
         coverage,
@@ -351,13 +351,14 @@ function DataTable({
     return out;
   }, [topic, dataset, cols]);
 
-  // Default order: the focus metric (or the first numeric one) best-first by its polarity.
+  // Default order: the focus metric (or the first numeric one) in the page's list order: best
+  // first by polarity, or rank 1 first for a rank column.
   const defaultSorting = useMemo<SortingState>(() => {
     const lead =
       cols.find((c) => c.metric.id === focusId) ??
       cols.find((c) => c.ranks != null);
     return lead != null
-      ? [{ id: `m${lead.metric.id}`, desc: directionOf(lead.metric) === 1 }]
+      ? [{ id: `m${lead.metric.id}`, desc: listDirection(lead.metric) === 1 }]
       : [{ id: 'place', desc: false }];
   }, [cols, focusId]);
   const columnIds = useMemo(
@@ -437,7 +438,7 @@ function DataTable({
               id: `m${c.metric.id}`,
               header: c.metric.label,
               sortUndefined: 'last',
-              sortDescFirst: c.ranks != null && directionOf(c.metric) === 1,
+              sortDescFirst: c.ranks != null && listDirection(c.metric) === 1,
               ...(c.ranks == null ? { sortFn: 'alphanumeric' as const } : {}),
               cell: (info) => (
                 <ValueCell

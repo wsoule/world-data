@@ -97,6 +97,33 @@ describe('topicAnswers', () => {
     expect(faq[2].answer).toContain('in 2022');
   });
 
+  test('names who ranks first on a rank column and which end that is', () => {
+    const ds = dataset('state');
+    const worst = read<TopicFile>('state/topics/worst-states-to-live-in.json');
+    const overall = ds.metric(23998);
+    if (overall == null) throw new Error('missing metric 23998');
+    const w = topicAnswers(worst, ds, overall, 2025);
+    expect(w.summary).toStartWith(
+      'Louisiana ranks 1st on Overall Worst States Rank (US News) in 2025'
+    );
+    expect(w.summary).toContain('rank 1 is the worst');
+    expect(w.summary).toEndWith('Utah ranks last (50th).');
+    expect(w.faq[0].question).toBe(
+      'Which state ranks first on Overall Worst States Rank (US News)?'
+    );
+    // No median of positions.
+    expect(w.faq.some((q) => q.question.includes('median'))).toBe(false);
+
+    const education = read<TopicFile>(
+      'state/topics/best-states-for-education.json'
+    );
+    const rank = ds.metric(20594);
+    if (rank == null) throw new Error('missing metric 20594');
+    const e = topicAnswers(education, ds, rank, rank.year);
+    expect(e.summary).toContain('ranks 1st on Best Education Rank (USNews)');
+    expect(e.summary).toContain('rank 1 is the best');
+  });
+
   test('reads the undated series without a year', () => {
     const ds = dataset('country');
     const topic = read<TopicFile>(

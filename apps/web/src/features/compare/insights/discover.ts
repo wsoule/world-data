@@ -1,6 +1,6 @@
 import { correlationPValue } from '@world-data/stats';
 
-import { isRankMetric } from '../polarity';
+import { isRankColumn } from '~/data/rankOrder';
 import type { Metric } from '~/data/types';
 
 /** One column to compare against the target: values aligned to the dataset's entities, NaN = missing. */
@@ -163,7 +163,7 @@ export function listTitles(
   target: Metric,
   dir: 1 | -1
 ): { positive: string; negative: string } {
-  if (!isRankMetric(target))
+  if (!isRankColumn(target))
     return {
       positive: `Rises with ${target.label}`,
       negative: `Falls as ${target.label} rises`,

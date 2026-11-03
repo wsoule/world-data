@@ -7,6 +7,7 @@ import { Flag } from '~/components/Flag';
 import { PolarityIcon } from '~/components/MetricPicker';
 import { cx } from '~/components/ui';
 import type { Dataset } from '~/data/dataset';
+import { rankOrder, rankOrderNote } from '~/data/rankOrder';
 import type { Metric, TopicTable } from '~/data/types';
 import { formatInt, formatValue } from '~/lib/format';
 
@@ -278,6 +279,7 @@ function SelectedPlace({
   onClear: () => void;
 }) {
   const e = dataset.entities[index];
+  const order = rankOrder(focus);
   return (
     <div
       className="border-app mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 border-t pt-3 text-sm"
@@ -291,7 +293,15 @@ function SelectedPlace({
       >
         {e.name}
       </Link>
-      {rank != null ? (
+      {rank != null && order != null ? (
+        // A rank column's value is the place's position on the list.
+        <span className="text-muted">
+          <span className="text-app tabular font-medium">
+            {formatValue(focus, rank.value)}
+          </span>{' '}
+          of {formatInt(coverage)} · {rankOrderNote(order)}
+        </span>
+      ) : rank != null ? (
         <span className="text-muted">
           <span className="text-app tabular font-medium">
             {formatValue(focus, rank.value)}

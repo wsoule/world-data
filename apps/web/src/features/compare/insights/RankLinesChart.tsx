@@ -14,6 +14,8 @@ import type { BasketColumns } from './useBasket';
 import { PolarityIcon } from '~/components/MetricPicker';
 import { cx } from '~/components/ui';
 import type { Dataset } from '~/data/dataset';
+import { rankOrder } from '~/data/rankOrder';
+import { rankText } from '~/features/places/percentile';
 import { formatInt, formatValue, ordinal } from '~/lib/format';
 import { chartColors, useTheme } from '~/lib/theme';
 
@@ -208,7 +210,10 @@ export function RankLinesChart({
                 label: 'Rank',
                 value: Number.isNaN(d.rank)
                   ? 'No data'
-                  : `${ordinal(d.rank)} of ${formatInt(d.count)}`,
+                  : rankText(
+                      { rank: d.rank, n: d.count },
+                      rankOrder(metric, basket.directions[d.k])
+                    ),
               },
               { label: 'Value', value: formatValue(metric, d.value) },
               {

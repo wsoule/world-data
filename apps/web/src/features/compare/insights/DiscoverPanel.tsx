@@ -2,7 +2,6 @@ import { Link } from '@tanstack/react-router';
 import { ChartScatter, Check, Plus, Telescope } from 'lucide-react';
 import { useState } from 'react';
 
-import { isRankMetric } from '../polarity';
 import type { CompareViewProps } from '../state';
 import { type CorrelationColorScale, correlationColorScale } from './corrColor';
 import { formatP, formatR } from './correlation';
@@ -11,6 +10,7 @@ import { placeNoun, similarLabels } from './shared';
 import { useKeyed } from './useBasket';
 import { PolarityIcon } from '~/components/MetricPicker';
 import { Card, cx, Select } from '~/components/ui';
+import { rankOrder, rankOrderNote } from '~/data/rankOrder';
 import type { Metric } from '~/data/types';
 import { formatInt } from '~/lib/format';
 import { useTheme } from '~/lib/theme';
@@ -63,6 +63,8 @@ export function DiscoverPanel(props: CompareViewProps) {
 
   const listProps = { colorScale, inBasket, onAdd: addMetric, onPlot: plot };
   const titles = listTitles(target, direction(target.id));
+  // Read with the direction the reader picked, like the list titles.
+  const targetOrder = rankOrder(target, direction(target.id));
 
   return (
     <Card
@@ -103,11 +105,13 @@ export function DiscoverPanel(props: CompareViewProps) {
         </p>
       ) : (
         <>
-          {isRankMetric(target) ? (
+          {targetOrder != null ? (
             <p className="text-muted -mt-2 mb-4 text-xs">
-              {target.label} is a rank, so a higher number means a{' '}
-              {direction(target.id) === -1 ? 'worse' : 'better'} position.
-              Metrics marked “rank” read the same way.
+              {target.label} is a rank ({rankOrderNote(targetOrder)}), so a
+              higher number means a{' '}
+              {targetOrder === 'best-first' ? 'worse' : 'better'} position.
+              Metrics marked “rank” are list positions too; each says which end
+              its rank 1 is.
             </p>
           ) : null}
           <div className="grid gap-x-8 gap-y-6 md:grid-cols-2">
@@ -203,6 +207,7 @@ function RelatedRow({
   onPlot: () => void;
 }) {
   const slug = metric.topics[0];
+  const order = rankOrder(metric);
   const label =
     slug != null ? (
       <Link
@@ -222,12 +227,12 @@ function RelatedRow({
         <div className="line-clamp-2 text-sm leading-snug font-medium">
           {label}{' '}
           <PolarityIcon pol={metric.pol} className="inline align-[-2px]" />
-          {isRankMetric(metric) ? (
+          {order != null ? (
             <span
               className="border-app text-muted ml-1 rounded border px-1 align-[1px] text-[10px] font-normal whitespace-nowrap"
-              title="A rank: 1 is the top, so a higher number is a worse position"
+              title={`A rank: ${rankOrderNote(order)}, so a higher number is a ${order === 'best-first' ? 'worse' : 'better'} position`}
             >
-              rank
+              {order === 'best-first' ? 'rank' : 'rank · 1 = worst'}
             </span>
           ) : null}
         </div>

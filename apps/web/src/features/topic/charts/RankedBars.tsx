@@ -28,10 +28,10 @@ interface BarDatum {
 
 /**
  * Horizontal ranking with the places' true competition ranks in the labels (so the bottom of a
- * "top 15 + bottom 5" window reads 46–50, not 16–20) and a visual break between the two parts.
- * For rank-valued metrics (`invert`), bars are inverted so the best rank draws the longest bar
- * and the axis is hidden; labels still show the rank. Otherwise the value axis is labelled in
- * one form chosen for its own domain.
+ * "first 15 + last 5" window reads 46–50, not 16–20) and a visual break between the two parts.
+ * For rank-valued metrics (`invert`), bars are inverted so rank 1 (the top of the list, best or
+ * worst depending on the list) draws the longest bar and the axis is hidden; labels still show
+ * the rank. Otherwise the value axis is labelled in one form chosen for its own domain.
  */
 export function RankedBars({
   dataset,

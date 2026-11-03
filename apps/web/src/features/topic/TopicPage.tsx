@@ -8,10 +8,10 @@ import { CategoricalTopic } from './CategoricalTopic';
 import { CorrelationsCard } from './CorrelationsCard';
 import { FocusBar } from './FocusBar';
 import {
-  directionOf,
   displayTables,
   focusableMetrics,
   hasUndated,
+  listDirection,
   numericColumn,
   rankEntries,
   resolveYear,
@@ -34,6 +34,7 @@ import { QuickAnswers } from '~/components/QuickAnswers';
 import { Card } from '~/components/ui';
 import { topicQuery } from '~/data/api';
 import { type Dataset, useDataset } from '~/data/dataset';
+import { isRankColumn, rankOrder, rankOrderNote } from '~/data/rankOrder';
 import {
   type EntityType,
   isEntityType,
@@ -199,12 +200,15 @@ interface NumericTopicProps {
 
 /**
  * How the map's colours read for a metric's polarity (matches the Choropleth schemes, whose
- * legend always runs from worst on the left to best on the right).
+ * legend always runs from worst on the left to best on the right). Rank columns say which end
+ * rank 1 is, since "higher is better" alone reads oddly next to "1st".
  */
-function mapLegendHint(metric: Metric): string {
-  if (metric.pol === 1) return 'Darker green is better (higher is better).';
+function mapLegendHint(metric: Pick<Metric, 'fmt' | 'pol'>): string {
+  const order = rankOrder(metric);
+  if (metric.pol === 1)
+    return `Darker green is better (${order != null ? `${rankOrderNote(order)}, so a higher rank number is better` : 'higher is better'}).`;
   if (metric.pol === -1)
-    return 'Green is better, red is worse (lower is better).';
+    return `Green is better, red is worse (${order != null ? rankOrderNote(order) : 'lower is better'}).`;
   return 'Darker means higher.';
 }
 
@@ -232,7 +236,9 @@ function NumericTopic({
     () => numericColumn(topic, focus.id, year, dataset.entities.length),
     [topic, focus, year, dataset]
   );
-  const direction = directionOf(focus);
+  // Rank columns list rank 1 first (a worst-first list opens on its worst place); other
+  // metrics list best first.
+  const direction = listDirection(focus);
   const ranked = useMemo(
     () => rankEntries(values, direction),
     [values, direction]
@@ -243,7 +249,7 @@ function NumericTopic({
     () => ({ format: labelFormat(focus, finiteExtent(values)) }),
     [focus, values]
   );
-  const isRank = focus.fmt === 'ranking';
+  const isRank = isRankColumn(focus);
   const selectedEntry =
     selected != null
       ? (ranked.find((e) => e.index === selected) ?? null)

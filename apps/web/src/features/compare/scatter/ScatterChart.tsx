@@ -16,11 +16,11 @@ import { tooltip } from '@tanstack/charts/tooltip';
 import { scaleLog, scaleSequential } from 'd3-scale';
 import { useMemo } from 'react';
 
-import { isRankMetric } from '../polarity';
 import { groupLabel } from '../presets';
 import { logTicks, rankTicks, type ScatterAnalysis } from './analysis';
 import { baseRadius, type ColorModel, radiusMapper } from './colorModel';
 import type { Dataset } from '~/data/dataset';
+import { isRankColumn } from '~/data/rankOrder';
 import type { Metric } from '~/data/types';
 import { axisTickFormat, linearAxisDomain } from '~/lib/axis';
 import { formatValue } from '~/lib/format';
@@ -195,13 +195,13 @@ export function ScatterChart({
       points.map((p) => p.x),
       logX,
       pad,
-      isRankMetric(xMetric)
+      isRankColumn(xMetric)
     );
     const yAxis = axisSpec(
       points.map((p) => p.y),
       logY,
       pad,
-      isRankMetric(yMetric)
+      isRankColumn(yMetric)
     );
     const xDomain = xAxis.domain;
     const yDomain = yAxis.domain;

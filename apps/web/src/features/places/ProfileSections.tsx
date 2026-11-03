@@ -4,13 +4,19 @@ import { type ReactNode, useState } from 'react';
 
 import { placeNoun } from './datasetFacts';
 import { pctText, PercentileBar, rankText } from './percentile';
-import type { NotableFact, PlaceMetric, SimilarPlace } from './profileModel';
+import {
+  factHeadline,
+  type NotableFact,
+  type PlaceMetric,
+  type SimilarPlace,
+} from './profileModel';
 import { type PlaceGroup, shortPlaceName } from './relatedPlaces';
 import { EmptyState } from '~/components/feedback';
 import { Flag } from '~/components/Flag';
 import { PolarityIcon } from '~/components/MetricPicker';
 import { Badge, Card, cx } from '~/components/ui';
 import type { Dataset } from '~/data/dataset';
+import { rankOrder } from '~/data/rankOrder';
 import type { Entity, Metric } from '~/data/types';
 import { formatInt, formatValue, plural } from '~/lib/format';
 import type { Theme } from '~/lib/theme';
@@ -119,7 +125,7 @@ export function StrengthList({
                   className="flex-1"
                 />
                 <span className="tabular text-muted w-28 shrink-0 text-right text-xs whitespace-nowrap">
-                  {rankText(r.standing)}
+                  {rankText(r.standing, rankOrder(r.metric))}
                 </span>
               </div>
             </li>
@@ -128,15 +134,6 @@ export function StrengthList({
       )}
     </Card>
   );
-}
-
-/** Plain-language headline for a #1 / last-place fact. */
-export function factHeadline(f: NotableFact): string {
-  const m = f.row.metric;
-  if (m.fmt === 'ranking')
-    return f.end === 'first' ? `#1 in ${m.label}` : `Last in ${m.label}`;
-  const high = (f.end === 'first') === (f.row.direction === 1);
-  return `${high ? 'Highest' : 'Lowest'} ${m.label}`;
 }
 
 const FACTS_COLLAPSED = 8;
@@ -211,7 +208,7 @@ export function NotableFacts({
                       </span>
                     </div>
                     <div className="text-muted truncate text-xs">
-                      {`${upperFirst(rankText(f.row.standing))} ${noun} · `}
+                      {`${upperFirst(rankText(f.row.standing, rankOrder(f.row.metric)))} ${noun} · `}
                       {metricSubline(dataset, f.row.metric)}
                     </div>
                   </div>

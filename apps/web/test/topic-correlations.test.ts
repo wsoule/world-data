@@ -4,7 +4,6 @@ import {
   type CorrelationCandidate,
   findCorrelations,
   minOverlapFor,
-  readsAsRank,
 } from '../src/features/topic/correlations';
 
 // Deterministic pseudo-random noise so the expected ordering never flakes.
@@ -19,43 +18,6 @@ function noise(seed: number) {
 function column(n: number, f: (i: number) => number): Float64Array {
   return Float64Array.from({ length: n }, (_, i) => f(i));
 }
-
-describe('readsAsRank', () => {
-  test('treats rank formats and rank-labelled lower-is-better columns as positions', () => {
-    expect(readsAsRank({ fmt: 'ranking', pol: -1, label: 'Health Care' })).toBe(
-      true
-    );
-    expect(
-      readsAsRank({
-        fmt: 'numberWithCommas',
-        pol: -1,
-        label: 'GII Institutions Rank',
-      })
-    ).toBe(true);
-    expect(readsAsRank({ fmt: null, pol: -1, label: 'Rank' })).toBe(true);
-  });
-
-  test('leaves values, rank changes and percentile ranks alone', () => {
-    expect(readsAsRank({ fmt: null, pol: -1, label: 'Poverty Rate' })).toBe(
-      false
-    );
-    expect(
-      readsAsRank({
-        fmt: 'numberWithCommas',
-        pol: -1,
-        label: 'Change in DI Rank',
-      })
-    ).toBe(false);
-    expect(
-      readsAsRank({
-        fmt: 'floatNumberTenths',
-        pol: -1,
-        label: 'Percentile Rank',
-      })
-    ).toBe(false);
-    expect(readsAsRank({ fmt: null, pol: 0, label: 'Rank' })).toBe(false);
-  });
-});
 
 describe('minOverlapFor', () => {
   test('needs at least 10 places and 60% of the focus coverage', () => {

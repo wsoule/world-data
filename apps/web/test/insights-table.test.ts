@@ -76,8 +76,9 @@ describe('csv headers and values', () => {
     fullLabel: string,
     fmt: string | null,
     unit: string | null = null,
-    year: number | null = null
-  ) => ({ id, fullLabel, fmt, unit, year });
+    year: number | null = null,
+    pol: 1 | -1 | 0 = -1
+  ) => ({ id, fullLabel, fmt, unit, year, pol });
 
   test('carry unit and year once and never repeat a unit in the label', () => {
     expect(
@@ -99,7 +100,19 @@ describe('csv headers and values', () => {
       'Population Growth Rate (%)',
       'Median Household Income — Poorest States (USD, 2023)',
       'Violent Crime Rate (per 100k, 2024)',
-      'Best Education Rank (1 = top)',
+      'Best Education Rank (1 = best)',
+    ]);
+  });
+
+  test('say which end rank 1 is for best-first and worst-first ranks', () => {
+    expect(
+      csvMetricHeaders([
+        m(24419, 'Best Education Rank', 'ranking', null, 2025, -1),
+        m(24006, 'Healthcare Rank', 'ranking', null, 2025, 1),
+      ])
+    ).toEqual([
+      'Best Education Rank (1 = best, 2025)',
+      'Healthcare Rank (1 = worst, 2025)',
     ]);
   });
 
