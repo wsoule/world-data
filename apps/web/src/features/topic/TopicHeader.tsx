@@ -1,6 +1,7 @@
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { BookOpen, CalendarClock, ExternalLink, Link2 } from 'lucide-react';
+import { useEffect, useRef } from 'react';
 
 import { placeNoun } from './model';
 import { TYPE_ICONS } from '~/components/TypeTabs';
@@ -34,6 +35,70 @@ function updatedOf(topic: TopicFile, dataset: Dataset): string | null {
     if (u != null && (latest == null || u > latest)) latest = u;
   }
   return latest;
+}
+
+/**
+ * "N sources" disclosure listing a topic's cited sources. It stays a native <details> so the links
+ * are in the prerendered HTML, and adds what <details> lacks as a dropdown: it closes on a click
+ * outside it or on Escape. The list sits at z-50 like the other pickers, above the sticky focus
+ * bar and table headers (z-30) that follow it on the page.
+ */
+function SourcesMenu({ sources }: { sources: TopicFile['sources'] }) {
+  const ref = useRef<HTMLDetailsElement>(null);
+
+  useEffect(() => {
+    const onDown = (e: PointerEvent) => {
+      const el = ref.current;
+      if (
+        el != null &&
+        el.open &&
+        e.target instanceof Node &&
+        !el.contains(e.target)
+      )
+        el.open = false;
+    };
+    const onKey = (e: KeyboardEvent) => {
+      const el = ref.current;
+      if (e.key !== 'Escape' || el == null || !el.open) return;
+      el.open = false;
+      el.querySelector('summary')?.focus();
+    };
+    document.addEventListener('pointerdown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, []);
+
+  return (
+    <details ref={ref} className="group relative">
+      <summary className="hover:text-app inline-flex cursor-pointer list-none items-center gap-1 underline-offset-2 select-none hover:underline [&::-webkit-details-marker]:hidden">
+        <BookOpen className="size-3.5" aria-hidden />
+        {sources.length === 1 ? '1 source' : `${sources.length} sources`}
+      </summary>
+      <ul className="border-app bg-surface absolute top-full left-0 z-50 mt-2 w-[min(22rem,80vw)] space-y-1.5 rounded-xl border p-3 text-sm shadow-lg">
+        {sources.map((s) => (
+          <li key={s.url} className="min-w-0">
+            <a
+              href={s.url}
+              target="_blank"
+              rel="noreferrer"
+              className="text-app hover:text-accent-600 dark:hover:text-accent-300 flex items-start gap-1.5"
+            >
+              <ExternalLink
+                className="text-muted mt-0.5 size-3.5 shrink-0"
+                aria-hidden
+              />
+              <span className="min-w-0 break-words">
+                {s.name !== '' ? s.name : s.url}
+              </span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
 }
 
 /**
@@ -112,34 +177,7 @@ export function TopicHeader({
           Original page
         </a>
         {topic.sources.length > 0 ? (
-          <details className="group relative">
-            <summary className="hover:text-app inline-flex cursor-pointer list-none items-center gap-1 underline-offset-2 select-none hover:underline [&::-webkit-details-marker]:hidden">
-              <BookOpen className="size-3.5" aria-hidden />
-              {topic.sources.length === 1
-                ? '1 source'
-                : `${topic.sources.length} sources`}
-            </summary>
-            <ul className="border-app bg-surface absolute top-full left-0 z-30 mt-2 w-[min(22rem,80vw)] space-y-1.5 rounded-xl border p-3 text-sm shadow-lg">
-              {topic.sources.map((s) => (
-                <li key={s.url} className="min-w-0">
-                  <a
-                    href={s.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-app hover:text-accent-600 dark:hover:text-accent-300 flex items-start gap-1.5"
-                  >
-                    <ExternalLink
-                      className="text-muted mt-0.5 size-3.5 shrink-0"
-                      aria-hidden
-                    />
-                    <span className="min-w-0 break-words">
-                      {s.name !== '' ? s.name : s.url}
-                    </span>
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </details>
+          <SourcesMenu sources={topic.sources} />
         ) : null}
       </div>
 
