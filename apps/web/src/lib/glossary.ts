@@ -89,7 +89,7 @@ const ENTRIES: GlossaryEntry[] = [
     term: 'Cost-of-living adjustment',
     short:
       'Converts wages and incomes to what they would buy at average US prices, so $100k in a cheap state and $100k in an expensive one are not treated as equal.',
-    long: 'The adjustment divides each value by the place’s price level from the Bureau of Economic Analysis (Regional Price Parities, US average = 100) and multiplies by 100. A state with a price level of 110 has prices 10% above average, so $110,000 there buys what $100,000 does on average. It applies only to earnings and income; prices, rents and taxes are shown as they are, since adjusting a price by a price index would count the same difference twice. Price levels are available for US states.',
+    long: 'The adjustment divides each value by the place’s price level from the Bureau of Economic Analysis (Regional Price Parities, US average = 100) and multiplies by 100. A state with a price level of 110 has prices 10% above average, so $110,000 there buys what $100,000 does on average. It applies only to earnings and income; prices, rents and taxes are shown as they are, since adjusting a price by a price index would count the same difference twice. Price levels cover US states, US cities (from their metro area) and countries; for countries they come from the World Bank, as GDP per person in dollars over GDP per person at purchasing power parity, so an adjusted dollar figure is close to its purchasing-power-parity value.',
   },
   {
     id: 'combined-score',

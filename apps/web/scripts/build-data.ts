@@ -63,6 +63,7 @@ import {
 import { CATEGORY_LABELS, guessPolarity } from './lib/reference';
 import { beaPages } from './sources/bea';
 import { readCityMetros } from './sources/census-geo';
+import { worldBankPages } from './sources/worldbank';
 
 const SITE = 'https://worldpopulationreview.com';
 
@@ -531,8 +532,13 @@ function ingestPage(
   });
 }
 
+/** Polarity declared by external sources, keyed "<type>:<metric id>"; wins over the label guess. */
+const EXTERNAL_POL = new Map<string, Polarity>();
+
 /** An external source's topic as a parsed page, so it is ingested like a scraped one. */
 function fromExternal(ext: ExternalPage): ParsedPage {
+  for (const c of ext.columns)
+    if (c.pol != null) EXTERNAL_POL.set(`${ext.type}:${c.id}`, c.pol);
   const prefix = (Object.keys(TYPES) as Prefix[]).find(
     (p) => TYPES[p].id === ext.type
   );
@@ -1079,7 +1085,9 @@ async function writeType(
       pol:
         kind !== 'num'
           ? 0
-          : (fix?.pol ?? guessPolarity(label, m.key, sourceFmt, topics)),
+          : (fix?.pol ??
+            EXTERNAL_POL.get(`${T.id}:${m.id}`) ??
+            guessPolarity(label, m.key, sourceFmt, topics)),
       year,
       years: [...m.years.keys()]
         .filter((y): y is number => y !== '_')
@@ -1283,15 +1291,31 @@ async function main(): Promise<void> {
     const T = db.get(page.prefix);
     if (T != null) ingestPage(page, T, categories);
   }
-  const external = await beaPages(
-    path.join(SOURCES, 'bea'),
-    await readCityMetros(path.join(SOURCES, 'census', 'city-metros.json'))
-  );
+  const external = [
+    ...(await beaPages(
+      path.join(SOURCES, 'bea'),
+      await readCityMetros(path.join(SOURCES, 'census', 'city-metros.json'))
+    )),
+    ...(await worldBankPages(path.join(SOURCES, 'worldbank'))),
+  ];
   for (const ext of external) {
     const page = fromExternal(ext);
-    categories.set(`${ext.type}:${ext.slug}`, new Set(ext.cats));
     const T = db.get(page.prefix);
-    if (T != null) ingestPage(page, T, categories);
+    if (T == null) continue;
+    // External rows only attach to places the ranking pages already know: an unknown id (a World
+    // Bank region such as "Arab World", a territory we do not list) must not become a new place.
+    const known = page.rows.filter((r) => {
+      const e = entityOf(page.type, r);
+      return e != null && T.entities.has(e.id);
+    });
+    if (known.length < page.rows.length)
+      warn(
+        'external-row-unknown-place',
+        `${ext.slug}: ${page.rows.length - known.length} of ${page.rows.length} rows`
+      );
+    page.rows = known;
+    categories.set(`${ext.type}:${ext.slug}`, new Set(ext.cats));
+    ingestPage(page, T, categories);
   }
   console.log(`${external.length} topics from other sources`);
   const countries = db.get('country-rankings');

@@ -14,10 +14,10 @@ const INCOME_LABEL =
 /**
  * Label words that make a money metric something other than income: prices and costs, taxes,
  * government money, thresholds such as living wages (already a cost-of-living measure), and
- * figures that are already adjusted ("real").
+ * figures that are already adjusted ("real", PPP or international dollars).
  */
 const NOT_INCOME_LABEL =
-  /\b(tax|taxes|price|prices|cost|costs|rent|fee|fees|debt|spending|spent|expenditures?|budget|revenue|funding|loss|losses|damage|fine|bail|tuition|premium|deductible|real|livable|living|threshold|ratio|payouts?|payments?|employment|reimbursement)\b/i;
+  /\b(tax|taxes|price|prices|cost|costs|rent|fee|fees|debt|spending|spent|expenditures?|budget|revenue|funding|loss|losses|damage|fine|bail|tuition|premium|deductible|real|livable|living|threshold|ratio|payouts?|payments?|employment|reimbursement|ppp|purchasing|international)\b/i;
 /** Topic slug words for pages of earnings, used when a column label is just "RN" or "Annual". */
 const INCOME_TOPIC = new Set([
   'salary',

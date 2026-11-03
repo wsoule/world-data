@@ -19,3 +19,26 @@ export const REAL_INCOME = {
   perCapitaIncome: 900_011,
   perCapitaSpending: 900_012,
 } as const;
+
+/**
+ * World Bank World Development Indicators for countries (yearly from 2000). Countries also use
+ * `RPP.allItems` for their price level relative to the US, from the PPP price level ratio.
+ */
+export const WORLD_BANK = {
+  gdpPerCapita: 900_101,
+  gdpPerCapitaPpp: 900_102,
+  gdpGrowth: 900_103,
+  inflation: 900_104,
+  unemployment: 900_105,
+  gini: 900_106,
+  extremePoverty: 900_107,
+  lifeExpectancy: 900_111,
+  infantMortality: 900_112,
+  healthSpending: 900_113,
+  fertility: 900_114,
+  literacy: 900_121,
+  internetUsers: 900_122,
+  electricityAccess: 900_123,
+  urbanPopulation: 900_124,
+  co2PerCapita: 900_125,
+} as const;

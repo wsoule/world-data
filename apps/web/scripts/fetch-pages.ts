@@ -12,6 +12,7 @@ import { gzipSync } from 'node:zlib';
 
 import { fetchBea } from './sources/bea';
 import { fetchCityMetros } from './sources/census-geo';
+import { fetchWorldBank } from './sources/worldbank';
 
 const BASE = 'https://worldpopulationreview.com';
 
@@ -144,6 +145,7 @@ async function main(): Promise<void> {
   console.log('done', stats);
 
   await fetchBea(path.join(SOURCES, 'bea'), REFRESH);
+  await fetchWorldBank(path.join(SOURCES, 'worldbank'), REFRESH);
   await fetchCityMetros(
     path.resolve('public/data/city/entities.json'),
     path.join(SOURCES, 'census', 'city-metros.json'),

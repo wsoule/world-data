@@ -3,7 +3,7 @@
 // the same ingest path as scraped pages, so their metrics get the same polarity, years,
 // topic pages and search entries.
 
-import type { EntityType } from '../../src/data/types';
+import type { EntityType, Polarity } from '../../src/data/types';
 import type { PageLink } from './page';
 
 /** One metric column for one year, as build-data's SourceColumn expects it. */
@@ -19,6 +19,8 @@ export interface ExternalColumn {
   /** Source display format, such as 'floatNumberTenths' or 'moneyWithCurrency' */
   format: string;
   unit: string | null;
+  /** Which end is better, when the source's meaning is known; otherwise guessed from the label */
+  pol?: Polarity;
 }
 
 export interface ExternalPage {
