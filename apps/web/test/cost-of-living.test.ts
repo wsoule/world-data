@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 
 import {
   adjustForPrices,
+  adjustTopic,
   isIncomeLike,
   withCostAdjustment,
 } from '../src/data/costOfLiving';
@@ -129,11 +130,55 @@ describe('withCostAdjustment', () => {
     expect(adjusted.hasValues(1)).toBe(true);
   });
 
+  test('methods built on numeric() see adjusted values too', () => {
+    const withValue = {
+      ...data,
+      value(this: typeof data, id: number, i: number) {
+        return this.numeric(id)[i];
+      },
+    };
+    const adjusted = withCostAdjustment(withValue);
+    expect(adjusted.value(1, 0)).toBeCloseTo(62_500, 5);
+  });
+
   test('is a no-op for place types without price levels', () => {
     const noPrices = {
       ...data,
       hasValues: (id: number) => id !== RPP.allItems,
     };
     expect(withCostAdjustment(noPrices)).toBe(noPrices);
+  });
+});
+
+describe('adjustTopic', () => {
+  test('adjusts income series in every year and leaves the rest alone', () => {
+    const metrics = new Map([
+      [1, metric(1, 'Average Salary')],
+      [2, metric(2, 'Median Home Value')],
+    ]);
+    const topic = {
+      series: {
+        '1': {
+          '2023': [
+            [0, 1, 2],
+            [96, 110, 50],
+          ],
+          '2024': [[1], [220]],
+        },
+        '2': { '2024': [[0], [300_000]] },
+      },
+    } as unknown as Parameters<typeof adjustTopic>[0];
+    const out = adjustTopic(
+      topic,
+      (id) => metrics.get(id),
+      Float64Array.from([96, 110, Number.NaN])
+    );
+    expect(out.series['1']['2023']).toEqual([
+      [0, 1],
+      [100, 100],
+    ]);
+    expect(out.series['1']['2024']).toEqual([[1], [200]]);
+    expect(out.series['2']).toBe(topic.series['2']);
+    expect(topic.series['1']['2023'][1]).toEqual([96, 110, 50]);
   });
 });

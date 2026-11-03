@@ -6,7 +6,7 @@
 // are left alone, since dividing a price by a price index would double-count.
 
 import { RPP } from './external';
-import type { Metric } from './types';
+import type { Metric, TopicFile } from './types';
 
 /** Label words that mark money a person earns or receives. */
 const INCOME_LABEL =
@@ -117,12 +117,50 @@ export function withCostAdjustment<T extends PriceLevelSource>(data: T): T {
     }
     return col;
   };
-  return new Proxy(data, {
+  const proxy: T = new Proxy(data, {
     get(target, prop) {
       if (prop === 'numeric') return numeric;
-      // Read from the target itself so class getters and private fields keep working.
       const v: unknown = Reflect.get(target, prop);
-      return typeof v === 'function' ? v.bind(target) : v;
+      // Methods run with the proxy as `this`, so ones built on numeric() (Dataset.value) see the
+      // adjusted columns too. (Dataset has no #private fields, which a proxy could not reach.)
+      return typeof v === 'function'
+        ? (...args: unknown[]) =>
+            (v as (...a: unknown[]) => unknown).apply(proxy, args)
+        : v;
     },
   });
+  return proxy;
+}
+
+/**
+ * A copy of `topic` whose income-like series (every year) are at the US-average price level,
+ * using one price level per place (`levels`, aligned to entities). Places without a price level
+ * drop out of those series. Other metrics are shared with the original, untouched.
+ */
+export function adjustTopic(
+  topic: TopicFile,
+  metric: (id: number) => Metric | undefined,
+  levels: Float64Array
+): TopicFile {
+  const series: TopicFile['series'] = { ...topic.series };
+  for (const [id, byYear] of Object.entries(topic.series)) {
+    const m = metric(Number(id));
+    if (m == null || !isIncomeLike(m)) continue;
+    const next: (typeof series)[string] = {};
+    for (const [year, [idx, vals]] of Object.entries(byYear)) {
+      const keepIdx: number[] = [];
+      const keepVals: (number | string)[] = [];
+      idx.forEach((e, k) => {
+        const v = vals[k];
+        const p = levels[e];
+        if (typeof v === 'number' && p > 0) {
+          keepIdx.push(e);
+          keepVals.push((v * 100) / p);
+        }
+      });
+      next[year] = [keepIdx, keepVals];
+    }
+    series[id] = next;
+  }
+  return { ...topic, series };
 }

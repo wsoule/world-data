@@ -48,6 +48,11 @@ import { InfoTip } from '~/components/InfoTip';
 import { MetricPicker } from '~/components/MetricPicker';
 import { TypeTabs } from '~/components/TypeTabs';
 import { Badge, cx, PageHeader } from '~/components/ui';
+import {
+  isIncomeLike,
+  priceLevels,
+  withCostAdjustment,
+} from '~/data/costOfLiving';
 import { useDataset } from '~/data/dataset';
 import type { EntityType } from '~/data/types';
 import type { GlossaryId } from '~/lib/glossary';
@@ -195,8 +200,16 @@ export function CompareShell() {
     [update]
   );
 
+  // With ?col every view reads wages and incomes at the US-average price level.
+  const adjusted = useMemo(
+    () =>
+      search.col === true && priceLevels(dataset) != null
+        ? withCostAdjustment(dataset)
+        : dataset,
+    [search.col, dataset]
+  );
   const props: CompareViewProps = {
-    dataset,
+    dataset: adjusted,
     search,
     metrics,
     entityIdx,
@@ -596,7 +609,59 @@ function Basket({
           “crime” or “happiness”.
         </p>
       ) : null}
+      <CostToggle
+        dataset={dataset}
+        search={search}
+        metrics={metrics}
+        update={update}
+      />
     </section>
+  );
+}
+
+/**
+ * "Adjust wages and incomes for cost of living", shown when the basket holds a wage or income
+ * and the place type has price levels. Lists which basket metrics it changes.
+ */
+function CostToggle({
+  dataset,
+  search,
+  metrics,
+  update,
+}: Pick<CompareViewProps, 'dataset' | 'search' | 'metrics' | 'update'>) {
+  const prices = priceLevels(dataset);
+  const income = metrics.filter(isIncomeLike);
+  if (prices == null || income.length === 0) return null;
+  return (
+    <div className="border-app mt-3 border-t pt-3 text-xs">
+      <span className="inline-flex items-center gap-1">
+        <label className="inline-flex cursor-pointer items-center gap-2 font-medium">
+          <input
+            type="checkbox"
+            checked={search.col === true}
+            onChange={(e) =>
+              update({ col: e.target.checked ? true : undefined })
+            }
+            className="accent-accent-600"
+          />
+          <span>
+            Adjust for cost of living
+            {prices.year != null ? (
+              <span className="text-muted font-normal">
+                {' '}
+                ({prices.year} prices)
+              </span>
+            ) : null}
+          </span>
+        </label>
+        <InfoTip term="cost-of-living" />
+      </span>
+      {search.col === true ? (
+        <p className="text-muted mt-1">
+          Adjusted: {income.map((m) => m.label).join(', ')}
+        </p>
+      ) : null}
+    </div>
   );
 }
 

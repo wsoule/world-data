@@ -33,7 +33,7 @@ export function DiscoverPanel(props: CompareViewProps) {
   const noun = placeNoun(dataset.type.id);
 
   const scan = useKeyed(
-    `${dataset.type.id};${target.id};${filtered ? (search.g ?? []).join('|') : '*'}`,
+    `${dataset.type.id};${target.id};${filtered ? (search.g ?? []).join('|') : '*'};${search.col === true ? 'col' : ''}`,
     () => {
       const started = performance.now();
       const candidates = dataset.metrics

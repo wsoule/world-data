@@ -20,6 +20,8 @@ export interface TopicSearch {
   tq?: string;
   /** Data table: sorted column id, "-" prefixed when descending */
   tsort?: string;
+  /** Show wages and incomes adjusted for each place's cost of living */
+  col?: true;
 }
 
 /** A finite number from a search value ("12" or 12), else undefined. */
@@ -42,6 +44,7 @@ export const Route = createFileRoute('/topics/$type/$slug')({
     tab: numberParam(raw.tab),
     tq: textParam(raw.tq),
     tsort: textParam(raw.tsort),
+    col: raw.col === true || raw.col === 'true' ? true : undefined,
   }),
   // The summary depends only on the path, so search changes (metric, year,
   // table filter) never rerun the loader.
