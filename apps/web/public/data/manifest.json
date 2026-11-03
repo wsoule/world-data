@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-03T00:21:51.651Z",
+  "generatedAt": "2026-11-03T19:11:35.209Z",
   "source": "https://worldpopulationreview.com",
   "types": [
     {
@@ -18,9 +18,9 @@
       "singular": "State",
       "prefix": "state-rankings",
       "entities": 51,
-      "metrics": 4177,
-      "numericMetrics": 2606,
-      "topics": 1257
+      "metrics": 4184,
+      "numericMetrics": 2613,
+      "topics": 1259
     },
     {
       "id": "city",
@@ -72,7 +72,7 @@
     {
       "id": "economics",
       "label": "Economics",
-      "topics": 385
+      "topics": 387
     },
     {
       "id": "education",

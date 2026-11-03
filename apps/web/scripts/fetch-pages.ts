@@ -10,6 +10,8 @@ import { access, mkdir, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { gzipSync } from 'node:zlib';
 
+import { fetchBea } from './sources/bea';
+
 const BASE = 'https://worldpopulationreview.com';
 
 /** Parses `--key=value` / `--flag` command-line arguments. */
@@ -28,6 +30,10 @@ const CACHE = path.resolve(
 );
 const CONCURRENCY = Number(args.get('concurrency') ?? 6);
 const REFRESH = args.get('refresh') === 'true';
+/** Downloads from sources other than the ranking site, next to the page cache. */
+const SOURCES = path.resolve(
+  args.get('sources') ?? path.join(path.dirname(CACHE), 'sources')
+);
 
 const RANKING_PREFIXES = new Set([
   'country-rankings',
@@ -135,6 +141,8 @@ async function main(): Promise<void> {
   }
   await Promise.all(Array.from({ length: CONCURRENCY }, worker));
   console.log('done', stats);
+
+  await fetchBea(path.join(SOURCES, 'bea'), REFRESH);
 }
 
 await main();

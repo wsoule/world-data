@@ -52,6 +52,7 @@ import {
   type Row,
   type RowEntity,
 } from './lib/entities';
+import type { ExternalPage } from './lib/external';
 import {
   lastUpdated,
   type PageLink,
@@ -60,6 +61,7 @@ import {
   stripYear,
 } from './lib/page';
 import { CATEGORY_LABELS, guessPolarity } from './lib/reference';
+import { beaPages } from './sources/bea';
 
 const SITE = 'https://worldpopulationreview.com';
 
@@ -78,6 +80,10 @@ const CACHE = path.resolve(
   args.get('cache') ?? process.env.WPR_CACHE ?? '.cache/pages'
 );
 const OUT = path.resolve(args.get('out') ?? 'public/data');
+/** Downloads from other sources (see fetch-pages.ts), next to the page cache. */
+const SOURCES = path.resolve(
+  args.get('sources') ?? path.join(path.dirname(CACHE), 'sources')
+);
 
 type Prefix =
   | 'country-rankings'
@@ -522,6 +528,36 @@ function ingestPage(
     series,
     entityIds: [...new Set(rowEntities.filter((x): x is string => x != null))],
   });
+}
+
+/** An external source's topic as a parsed page, so it is ingested like a scraped one. */
+function fromExternal(ext: ExternalPage): ParsedPage {
+  const prefix = (Object.keys(TYPES) as Prefix[]).find(
+    (p) => TYPES[p].id === ext.type
+  );
+  if (prefix == null) throw new Error(`no prefix for type ${ext.type}`);
+  return {
+    prefix,
+    slug: ext.slug,
+    type: ext.type,
+    rows: ext.rows,
+    columns: ext.columns.map((c) => ({
+      id: c.id,
+      field: c.field,
+      year: c.year,
+      header: c.header,
+      label: c.header,
+      format: c.format,
+      unit: c.unit,
+      dbField: c.dbField,
+      lastUpdated: ext.updated,
+    })),
+    tables: ext.tables,
+    title: ext.title,
+    sources: ext.sources,
+    related: [],
+    updated: ext.updated,
+  };
 }
 
 /** The /countries index carries population, area, density and growth for every country. */
@@ -1246,6 +1282,14 @@ async function main(): Promise<void> {
     const T = db.get(page.prefix);
     if (T != null) ingestPage(page, T, categories);
   }
+  const external = await beaPages(path.join(SOURCES, 'bea'));
+  for (const ext of external) {
+    const page = fromExternal(ext);
+    categories.set(`${ext.type}:${ext.slug}`, new Set(ext.cats));
+    const T = db.get(page.prefix);
+    if (T != null) ingestPage(page, T, categories);
+  }
+  console.log(`${external.length} topics from other sources`);
   const countries = db.get('country-rankings');
   if (countries != null) await mergeCountryIndex(countries);
 
