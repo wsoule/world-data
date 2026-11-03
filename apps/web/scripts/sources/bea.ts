@@ -5,7 +5,10 @@
 // incomes by it to compare them at equal buying power ("adjust for cost of living").
 // SARPI: real personal income and spending per person, already adjusted by the same parities.
 //
-// Both tables are CSVs inside one zip (SARPP.zip) from BEA's public bulk download; no API key.
+// MARPP: the same price parities for metro areas, which US cities take from the metro they are
+// in (see census-geo.ts for how a city is placed in its metro).
+//
+// All are CSVs inside zips from BEA's public bulk download; no API key.
 
 import { execFileSync } from 'node:child_process';
 import { access, mkdir, rename, writeFile } from 'node:fs/promises';
@@ -13,8 +16,12 @@ import path from 'node:path';
 
 import { REAL_INCOME, RPP } from '../../src/data/external';
 import type { ExternalColumn, ExternalPage } from '../lib/external';
+import type { CityMetro } from './census-geo';
 
-const ZIP_URL = 'https://apps.bea.gov/regional/zip/SARPP.zip';
+/** BEA bulk zips: SARPP holds the state tables, MARPP the metro-area price parities. */
+const ZIPS = ['SARPP', 'MARPP'] as const;
+const zipUrl = (name: string) =>
+  `https://apps.bea.gov/regional/zip/${name}.zip`;
 const TABLES = ['SARPP', 'SARPI'] as const;
 type Table = (typeof TABLES)[number];
 
@@ -99,29 +106,31 @@ const PAGES: Record<
   },
 };
 
-const zipPath = (dir: string) => path.join(dir, 'SARPP.zip');
+const zipPath = (dir: string, name: string) => path.join(dir, `${name}.zip`);
 
-/** Downloads BEA's bulk zip into `dir` (skipped when already there unless `refresh`). */
+/** Downloads BEA's bulk zips into `dir` (each skipped when already there unless `refresh`). */
 export async function fetchBea(dir: string, refresh: boolean): Promise<void> {
   await mkdir(dir, { recursive: true });
-  const f = zipPath(dir);
-  if (!refresh) {
-    try {
-      await access(f);
-      return;
-    } catch {
-      // not cached yet
+  for (const name of ZIPS) {
+    const f = zipPath(dir, name);
+    if (!refresh) {
+      try {
+        await access(f);
+        continue;
+      } catch {
+        // not cached yet
+      }
     }
+    const res = await fetch(zipUrl(name));
+    if (!res.ok) throw new Error(`BEA ${name}: HTTP ${res.status}`);
+    const body = Buffer.from(await res.arrayBuffer());
+    // An error page instead of the archive must not land in the cache.
+    if (body.subarray(0, 2).toString('latin1') !== 'PK')
+      throw new Error(`BEA: ${zipUrl(name)} did not return a zip`);
+    await writeFile(`${f}.tmp`, body);
+    await rename(`${f}.tmp`, f);
+    console.log(`cached BEA ${name}.zip`);
   }
-  const res = await fetch(ZIP_URL);
-  if (!res.ok) throw new Error(`BEA: HTTP ${res.status}`);
-  const body = Buffer.from(await res.arrayBuffer());
-  // An error page instead of the archive must not land in the cache.
-  if (body.subarray(0, 2).toString('latin1') !== 'PK')
-    throw new Error(`BEA: ${ZIP_URL} did not return a zip`);
-  await writeFile(`${f}.tmp`, body);
-  await rename(`${f}.tmp`, f);
-  console.log('cached BEA SARPP.zip');
 }
 
 /** Splits one CSV line, honouring double-quoted fields. */
@@ -140,55 +149,65 @@ function csvFields(line: string): string[] {
   return out;
 }
 
-/** The state CSV inside a BEA zip, read with the system unzip. */
-function readStateCsv(zip: string, table: Table): string {
-  const names = execFileSync('unzip', ['-Z1', zip], { encoding: 'utf8' })
-    .split('\n')
-    .filter((n) => n.startsWith(`${table}_STATE_`) && n.endsWith('.csv'));
-  const name = names[0];
-  if (name == null) throw new Error(`${zip}: no ${table}_STATE_*.csv inside`);
-  return execFileSync('unzip', ['-p', zip, name], { encoding: 'latin1' });
+/** One geography of a BEA table: its name and, per line code, a value per year. */
+interface GeoSeries {
+  name: string;
+  lines: Map<string, Map<number, number>>;
 }
 
-/** BEA topics as external pages; empty when the zips have not been fetched. */
-export async function beaPages(dir: string): Promise<ExternalPage[]> {
-  const pages: ExternalPage[] = [];
-  const zip = zipPath(dir);
-  try {
-    await access(zip);
-  } catch {
-    console.warn(`BEA SARPP.zip not cached in ${dir}; run web:data-fetch`);
-    return pages;
+/**
+ * Reads the CSV whose name starts with `csvPrefix` (e.g. "SARPP_STATE_") from a BEA zip with the
+ * system unzip, keyed by GeoFIPS (state FIPS + "000", or a metro's CBSA code).
+ */
+function readTable(zip: string, csvPrefix: string): Map<string, GeoSeries> {
+  const name = execFileSync('unzip', ['-Z1', zip], { encoding: 'utf8' })
+    .split('\n')
+    .find((n) => n.startsWith(csvPrefix) && n.endsWith('.csv'));
+  if (name == null) throw new Error(`${zip}: no ${csvPrefix}*.csv inside`);
+  const lines = execFileSync('unzip', ['-p', zip, name], {
+    encoding: 'latin1',
+    maxBuffer: 64 * 1024 * 1024,
+  }).split(/\r?\n/);
+  const head = csvFields(lines[0] ?? '');
+  const years = head
+    .map((h, i) => ({ year: Number(h), i }))
+    .filter((y) => /^\d{4}$/.test(String(y.year)));
+  const [iFips, iName, iLine] = ['GeoFIPS', 'GeoName', 'LineCode'].map((c) =>
+    head.indexOf(c)
+  );
+  const out = new Map<string, GeoSeries>();
+  for (const line of lines.slice(1)) {
+    const f = csvFields(line);
+    const fips = f[iFips] ?? '';
+    const code = f[iLine] ?? '';
+    if (!/^\d{5}$/.test(fips) || code === '') continue;
+    const geo = out.get(fips) ?? {
+      name: (f[iName] ?? '').replace(/\s*\*$/, ''),
+      lines: new Map(),
+    };
+    out.set(fips, geo);
+    const byYear = new Map<number, number>();
+    for (const { year, i } of years) {
+      const raw = f[i] ?? '';
+      const v = Number(raw);
+      if (raw !== '' && raw !== '(NA)' && Number.isFinite(v))
+        byYear.set(year, v);
+    }
+    geo.lines.set(code, byYear);
   }
-  for (const table of TABLES) {
-    const lines = readStateCsv(zip, table).split(/\r?\n/);
-    const head = csvFields(lines[0] ?? '');
-    const years = head
-      .map((h, i) => ({ year: Number(h), i }))
-      .filter((y) => /^\d{4}$/.test(String(y.year)));
-    const col = (name: string) => head.indexOf(name);
-    const [iFips, iName, iLine] = [
-      col('GeoFIPS'),
-      col('GeoName'),
-      col('LineCode'),
-    ];
+  return out;
+}
 
-    const rows = new Map<string, Record<string, unknown>>();
-    const columns = new Map<string, ExternalColumn>();
-    for (const line of lines.slice(1)) {
-      const f = csvFields(line);
-      const def = LINES[table][f[iLine] ?? ''];
-      const fips = f[iFips] ?? '';
-      // State rows only: 2-digit FIPS followed by 000, not the US total (00000).
-      if (def == null || !/^\d{2}000$/.test(fips) || fips === '00000') continue;
-      const row = rows.get(fips) ?? {
-        state: (f[iName] ?? '').replace(/\s*\*$/, ''),
-        fips: fips.slice(0, 2),
-      };
-      rows.set(fips, row);
-      for (const { year, i } of years) {
-        const v = Number(f[i]);
-        if (!Number.isFinite(v) || f[i] === '' || f[i] === '(NA)') continue;
+/** Rows (identity fields plus one field per metric-year) and columns for one table's places. */
+function buildRows(
+  table: Table,
+  places: { identity: Record<string, unknown>; geo: GeoSeries }[]
+): Pick<ExternalPage, 'rows' | 'columns' | 'tables'> {
+  const columns = new Map<string, ExternalColumn>();
+  const rows = places.map(({ identity, geo }) => {
+    const row: Record<string, unknown> = { ...identity };
+    for (const [code, def] of Object.entries(LINES[table])) {
+      for (const [year, v] of geo.lines.get(code) ?? []) {
         const field = `${def.key}_${year}`;
         row[field] = v;
         columns.set(field, {
@@ -202,15 +221,87 @@ export async function beaPages(dir: string): Promise<ExternalPage[]> {
         });
       }
     }
-    const keys = Object.values(LINES[table]).map((d) => d.key);
+    return row;
+  });
+  const keys = Object.values(LINES[table]).map((d) => d.key);
+  return {
+    rows,
+    columns: [...columns.values()],
+    tables: [{ name: '', columns: keys }],
+  };
+}
+
+const CITY_PAGE: Pick<ExternalPage, 'slug' | 'title' | 'cats' | 'sources'> = {
+  slug: 'cost-of-living-by-city',
+  title: 'Cost of Living by City (Metro Price Parities)',
+  cats: ['economics'],
+  sources: [
+    {
+      url: 'https://www.bea.gov/data/prices-inflation/regional-price-parities-state-and-metro-area',
+      name: 'Regional Price Parities by State and Metro Area - US Bureau of Economic Analysis',
+    },
+    {
+      url: 'https://geocoding.geo.census.gov/',
+      name: 'Census Geocoder (metro area of each city) - US Census Bureau',
+    },
+  ],
+};
+
+/**
+ * BEA topics as external pages: price levels and real income for states, and each US city's
+ * metro price levels (`cityMetros` from census-geo.ts; cities outside a metro get none). Empty
+ * when the zips have not been fetched.
+ */
+export async function beaPages(
+  dir: string,
+  cityMetros: readonly CityMetro[] | null
+): Promise<ExternalPage[]> {
+  const pages: ExternalPage[] = [];
+  const state = zipPath(dir, 'SARPP');
+  try {
+    await access(state);
+  } catch {
+    console.warn(`BEA zips not cached in ${dir}; run web:data-fetch`);
+    return pages;
+  }
+  for (const table of TABLES) {
+    const geos = readTable(state, `${table}_STATE_`);
+    // State rows only: 2-digit FIPS followed by 000, not the US total (00000).
+    const places = [...geos]
+      .filter(([fips]) => /^\d{2}000$/.test(fips) && fips !== '00000')
+      .map(([fips, geo]) => ({
+        identity: { state: geo.name, fips: fips.slice(0, 2) },
+        geo,
+      }));
     pages.push({
       ...PAGES[table],
       type: 'state',
       // The CSVs carry no release date; the years themselves say how current the data is.
       updated: null,
-      rows: [...rows.values()],
-      columns: [...columns.values()],
-      tables: [{ name: '', columns: keys }],
+      ...buildRows(table, places),
+    });
+  }
+
+  const metro = zipPath(dir, 'MARPP');
+  let haveMetro = true;
+  try {
+    await access(metro);
+  } catch {
+    haveMetro = false;
+  }
+  if (haveMetro && cityMetros != null) {
+    const geos = readTable(metro, 'MARPP_MSA_');
+    const places = cityMetros.flatMap((c) => {
+      const geo = c.cbsa == null ? undefined : geos.get(c.cbsa);
+      return geo == null
+        ? []
+        : [{ identity: { slug: c.id, city: c.city, code: c.code }, geo }];
+    });
+    pages.push({
+      ...CITY_PAGE,
+      type: 'city',
+      updated: null,
+      ...buildRows('SARPP', places),
     });
   }
   return pages;

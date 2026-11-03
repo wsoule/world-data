@@ -62,6 +62,7 @@ import {
 } from './lib/page';
 import { CATEGORY_LABELS, guessPolarity } from './lib/reference';
 import { beaPages } from './sources/bea';
+import { readCityMetros } from './sources/census-geo';
 
 const SITE = 'https://worldpopulationreview.com';
 
@@ -1282,7 +1283,10 @@ async function main(): Promise<void> {
     const T = db.get(page.prefix);
     if (T != null) ingestPage(page, T, categories);
   }
-  const external = await beaPages(path.join(SOURCES, 'bea'));
+  const external = await beaPages(
+    path.join(SOURCES, 'bea'),
+    await readCityMetros(path.join(SOURCES, 'census', 'city-metros.json'))
+  );
   for (const ext of external) {
     const page = fromExternal(ext);
     categories.set(`${ext.type}:${ext.slug}`, new Set(ext.cats));

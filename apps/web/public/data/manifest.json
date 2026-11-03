@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-03T19:11:35.209Z",
+  "generatedAt": "2026-11-03T20:05:32.725Z",
   "source": "https://worldpopulationreview.com",
   "types": [
     {
@@ -28,9 +28,9 @@
       "singular": "US City",
       "prefix": "us-city-rankings",
       "entities": 477,
-      "metrics": 81,
-      "numericMetrics": 76,
-      "topics": 22
+      "metrics": 86,
+      "numericMetrics": 81,
+      "topics": 23
     },
     {
       "id": "world-city",
@@ -72,7 +72,7 @@
     {
       "id": "economics",
       "label": "Economics",
-      "topics": 387
+      "topics": 388
     },
     {
       "id": "education",
