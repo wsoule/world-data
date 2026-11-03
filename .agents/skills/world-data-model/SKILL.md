@@ -65,8 +65,12 @@ types, so a shape change must update both.
   thresholds or already-real figures); `withCostAdjustment(dataset)` wraps a
   dataset so `numeric()` returns those columns at the US-average price level
   (`value × 100 ÷ RPP`), which makes rankings, winners and percentiles follow.
-  It is a no-op for types without price levels (everything but states, for now).
-  Head to head turns it on with the URL param `col=true`.
+  It is a no-op for types without price levels (world cities and counties, for
+  now). Price levels (`RPP.allItems`) come from BEA for states and for US cities
+  (their metro's), and from the World Bank for countries. Head to head, topic
+  pages and compare turn it on with the URL param `col=true`; topic pages adjust
+  a copy of the topic file (`adjustTopic`). Caches keyed by strings
+  (`useBasket`, the discover scan) must include `col` in their key.
 - Chart labels: `labelFormat(metric, extent)` (`src/lib/format.ts`) prints every
   value label of one chart in one form (all "$99.9K" or all "$99,860"); tables
   keep `formatValue`. Axis ticks come from each axis's own domain via
@@ -83,7 +87,10 @@ views keep clean URLs.
   `type`, metric basket `m` (ordered ids), `view`, scatter encodings `x`, `y`,
   `r`, `c` and `log`, weights `w`, direction overrides `d`, highlights `hl`,
   group filter `g`, composite `norm` and `cov`, map/ranking focus `f`, overlay
-  axis flips `fl`, and table sort `ts`. Use
+  axis flips `fl`, table sort `ts`, cost-of-living adjustment `col`, and
+  `bundle` (a ranking bundle id that an empty basket is filled with on arrival,
+  then dropped; for links that cannot know metric ids, such as the search
+  palette's goal ideas in `features/search/goals.ts`). Use
   `effectiveDirection`/`effectiveWeight` rather than reading `pol` directly.
 - `ts` is the compare table's sort: a column id (`avg`, `place`, `group` or
   `m<metric id>`), prefixed with `-` for descending, e.g. `-avg` (the default,
@@ -146,8 +153,16 @@ What the build decides for each metric (`scripts/build-data.ts`, rules in
   (`scripts/lib/external.ts`), which `build-data.ts` ingests exactly like a
   scraped page. Their metric ids are fixed constants at 900,000 and up in
   `src/data/external.ts`, so they never collide with the source site's column
-  ids and URLs that name them stay valid. `sources/bea.ts` adds BEA Regional
-  Price Parities and real personal income for states (2008 onward).
+  ids and URLs that name them stay valid. A column may declare `pol`, which wins
+  over the label guess. External rows only attach to places the ranking pages
+  already have (unknown ids, such as World Bank regions, are dropped with an
+  `external-row-unknown-place` warning), so a source can never add places.
+  Sources: `bea.ts` (state and metro price parities, state real income, 2008
+  on), `census-geo.ts` (each US city's metro via the Census Geocoder, cached),
+  `worldbank.ts` (country indicators from 2000, and the country price level as
+  GDP per person in dollars over GDP per person at PPP). A rebuild may reorder
+  `values.json` of untouched types without changing content; restore those files
+  rather than committing the churn.
 - `<type>/search.json` is the compact catalog the search palette downloads
   instead of `metrics.json`: searchable metrics only, topic slugs and categories
   referenced by index (`src/features/search/searchCatalog.ts` defines both
