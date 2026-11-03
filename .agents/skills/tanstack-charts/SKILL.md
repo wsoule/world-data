@@ -52,8 +52,10 @@ Copy patterns from `apps/web/src/charts/Choropleth.tsx` (geoShape maps, layered
   but never below zero for non-negative data; `barAxisDomain` for bars, which
   start exactly at zero) and label ticks with `axisTickFormat(metric, domain)`,
   so every tick on an axis uses one form (`$50K` and `$100K`, never `$50,000`
-  next to `$100K`). Charts that only receive a formatter (the topic charts) get
-  one built from `axisBounds` over every value the page can draw.
+  next to `$100K`). Each topic chart builds `axisTickFormat(metric, domain)`
+  from its own domain, and value labels within one chart (bar labels, legend
+  ends, stat hints) come from `labelFormat(metric, extent)` in
+  `src/lib/format.ts`, so they share one form too.
 - Maps keep green = better. Pass the metric's polarity to `Choropleth`: `1`
   greens high values, `-1` uses RdYlGn reversed (low values green, high red),
   `0` is neutral blue. Pass raw values (never negate them to flip colours); the
