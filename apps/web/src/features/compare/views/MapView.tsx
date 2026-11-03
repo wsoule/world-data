@@ -281,7 +281,7 @@ export function MapView({
 
       {metrics.length >= 2 ? (
         <section aria-label="Every metric, side by side">
-          <div className="mb-2 flex items-baseline justify-between gap-2">
+          <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
             <h2 className="text-sm font-semibold">Side by side</h2>
             <p className="text-muted text-xs">
               Click a title to focus it. On every map green is better and red is
