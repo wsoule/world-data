@@ -6,6 +6,7 @@ import { tooltip } from '@tanstack/charts/tooltip';
 import { useMemo } from 'react';
 
 import type { TrendPoint } from '../model';
+import { linearAxisDomain } from '~/lib/axis';
 import { chartColors, useTheme } from '~/lib/theme';
 
 export interface TrendSeries {
@@ -79,9 +80,14 @@ export function TrendChart({
         lo = Math.min(lo, p.value);
         hi = Math.max(hi, p.value);
       }
-    const yScale = reversed
-      ? scaleLinear().domain([hi, Math.min(lo, 1)])
-      : scaleLinear;
+    // Ranks run from the worst at the bottom to 1st at the top; values get a padded domain
+    // that stays at or above zero for a metric without negative values.
+    const yScale =
+      lo > hi
+        ? scaleLinear().domain([0, 1])
+        : reversed
+          ? scaleLinear().domain([hi, Math.min(lo, 1)])
+          : scaleLinear().domain(linearAxisDomain(lo, hi, 0.04));
     return defineChart({
       marks: [
         crosshair({ x: true, y: false }),
@@ -126,7 +132,6 @@ export function TrendChart({
         },
         y: {
           scale: yScale,
-          nice: !reversed,
           grid: true,
           axis: {
             label,

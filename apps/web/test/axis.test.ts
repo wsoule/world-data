@@ -1,6 +1,61 @@
 import { describe, expect, test } from 'bun:test';
 
-import { axisTickFormat, linearAxisDomain } from '../src/lib/axis';
+import {
+  axisBounds,
+  axisTickFormat,
+  barAxisDomain,
+  finiteExtent,
+  linearAxisDomain,
+} from '../src/lib/axis';
+
+describe('finiteExtent', () => {
+  test('skips missing and infinite values', () => {
+    expect(finiteExtent([NaN, 3, null, -1, Infinity])).toEqual([-1, 3]);
+    expect(finiteExtent([NaN, null])).toBeNull();
+  });
+});
+
+describe('barAxisDomain', () => {
+  test('starts positive bars exactly at zero', () => {
+    expect(barAxisDomain(36_000, 83_730)).toEqual([0, 100_000]);
+    expect(barAxisDomain(0, 0)).toEqual([0, 1]);
+  });
+
+  test('covers bars on both sides of zero', () => {
+    expect(barAxisDomain(-3, 5)).toEqual([-4, 6]);
+  });
+});
+
+describe('axisBounds', () => {
+  test('contains both the bar and the padded dot domain', () => {
+    const [lo, hi] = axisBounds(1_000, 9_000);
+    expect(lo).toBeLessThanOrEqual(barAxisDomain(1_000, 9_000)[0]);
+    expect(hi).toBeGreaterThanOrEqual(linearAxisDomain(1_000, 9_000, 0.05)[1]);
+  });
+
+  test('gives one tick form even when an axis is niced past 10,000', () => {
+    // Values up to 9,000 can still draw a 10,000 tick; the formatter must
+    // not switch from "8,000" to "10K" on that axis.
+    const f = axisTickFormat(
+      { fmt: 'abbreviateNumber', unit: null, kind: 'num' },
+      axisBounds(1_000, 9_000)
+    );
+    expect([2_000, 8_000, 10_000].map(f)).toEqual(['2K', '8K', '10K']);
+  });
+
+  test('shortens every tick of a salary axis that crosses $100K', () => {
+    const f = axisTickFormat(
+      { fmt: 'moneyWithCurrencyDollars', unit: null, kind: 'num' },
+      axisBounds(52_100, 131_920)
+    );
+    expect([40_000, 80_000, 100_000, 140_000].map(f)).toEqual([
+      '$40K',
+      '$80K',
+      '$100K',
+      '$140K',
+    ]);
+  });
+});
 
 describe('linearAxisDomain', () => {
   test('never pads a non-negative metric below zero', () => {

@@ -7,6 +7,7 @@ import { useMemo } from 'react';
 
 import { placeNoun, type RankedEntry } from '../model';
 import type { Dataset } from '~/data/dataset';
+import { barAxisDomain, finiteExtent } from '~/lib/axis';
 import { chartColors, useTheme } from '~/lib/theme';
 
 /** Band label used for the break between the top and bottom of a long ranking. */
@@ -97,6 +98,12 @@ export function RankedBars({
       ...tail.map((e) => toDatum(e).display),
     ];
     const hasNegative = data.some((d) => d.length < 0);
+    // Bars grow from zero on a niced domain; inverted rank bars hide the axis, so the longest
+    // (rank 1) bar simply spans the plot.
+    const extent = finiteExtent(data.map((d) => d.length)) ?? [0, 1];
+    const xDomain = invert
+      ? [0, extent[1]]
+      : barAxisDomain(extent[0], extent[1], 4);
     return defineChart({
       marks: [
         barX(data, {
@@ -123,8 +130,7 @@ export function RankedBars({
           axis: { ticks: { size: 0 } },
         },
         x: {
-          scale: scaleLinear,
-          nice: !invert,
+          scale: scaleLinear().domain(xDomain),
           grid: !invert,
           axis: invert
             ? false

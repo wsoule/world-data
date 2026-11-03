@@ -41,7 +41,8 @@ import {
   type TopicFile,
   type TopicTable,
 } from '~/data/types';
-import { formatValue, tickFormatter } from '~/lib/format';
+import { axisBounds, axisTickFormat, finiteExtent } from '~/lib/axis';
+import { formatValue } from '~/lib/format';
 import type { TopicSearch } from '~/routes/topics.$type.$slug';
 import { leadMetric } from '~/seo/content';
 import { topicAnswers, type TopicAnswers } from '~/seo/topic-content';
@@ -206,12 +207,17 @@ function mapLegendHint(metric: Metric): string {
 /** Places needed before the distribution card (and the trend's median line) is shown. */
 const MIN_DISTRIBUTION = 5;
 
-/** Drops trailing ".0" on whole-number ticks ("20.0" → "20", "5.00%" → "5%"). */
-function wholeTicks(base: (v: number) => string): (v: number) => string {
-  return (v) => {
-    const s = base(v);
-    return Number.isInteger(v) ? s.replace(/\.0+(?!\d)/, '') : s;
-  };
+/**
+ * Smallest and largest value a metric takes in any year of the topic. The topic charts share
+ * one tick formatter, chosen for this range, so every axis on the page (ranking, distribution
+ * and trend, whatever the year) labels its ticks in the same short form.
+ */
+function seriesExtent(topic: TopicFile, metricId: number): [number, number] {
+  const series = topic.series[String(metricId)] ?? {};
+  const all: number[] = [];
+  for (const [, values] of Object.values(series))
+    for (const v of values) if (typeof v === 'number') all.push(v);
+  return finiteExtent(all) ?? [0, 1];
 }
 
 /** Everything shown for a topic with at least one numeric metric. */
@@ -241,13 +247,13 @@ function NumericTopic({
     [values, direction]
   );
   const stats = useMemo(() => summarize(values), [values]);
-  const formats = useMemo<Formats>(
-    () => ({
+  const formats = useMemo<Formats>(() => {
+    const [lo, hi] = seriesExtent(topic, focus.id);
+    return {
       format: (v: number) => formatValue(focus, v, { compact: true }),
-      tickFormat: wholeTicks(tickFormatter(focus)),
-    }),
-    [focus]
-  );
+      tickFormat: axisTickFormat(focus, axisBounds(lo, hi)),
+    };
+  }, [topic, focus]);
   const isRank = focus.fmt === 'ranking';
   const selectedEntry =
     selected != null

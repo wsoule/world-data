@@ -75,7 +75,7 @@ function signedMoney(v: number, format: (abs: number) => string): string {
  * them are never abbreviated again. A capital "M" means millions; "m" is metres.
  */
 const SCALE_UNIT = /^(thousands?|millions?|billions?|mn|bn|kt|mt)\b/i;
-const isScaleUnit = (unit: string): boolean =>
+export const isScaleUnit = (unit: string): boolean =>
   unit === 'M' || SCALE_UNIT.test(unit);
 
 /** Units a price is quoted per ("$12/m²"); a bare one follows money as "/unit". */

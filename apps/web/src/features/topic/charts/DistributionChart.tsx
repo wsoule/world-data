@@ -9,6 +9,7 @@ import { useMemo } from 'react';
 
 import { logTicks, placeNoun } from '../model';
 import type { Dataset } from '~/data/dataset';
+import { linearAxisDomain } from '~/lib/axis';
 import { formatInt } from '~/lib/format';
 import { chartColors, useTheme } from '~/lib/theme';
 
@@ -158,8 +159,11 @@ function Beeswarm({
                 },
               }
             : {
-                scale: scaleLinear,
-                nice: true,
+                // Padded so the outermost dots are not cut by the plot edge, and never
+                // below zero for a metric without negative values.
+                scale: scaleLinear().domain(
+                  linearAxisDomain(stats.min, stats.max, 0.03)
+                ),
                 axis: {
                   label,
                   ticks: { count: 5, format: tickFormat },

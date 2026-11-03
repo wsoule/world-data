@@ -10,7 +10,7 @@ import { useMemo } from 'react';
 import { baseRadius } from './colorModel';
 import type { Dataset } from '~/data/dataset';
 import type { Metric } from '~/data/types';
-import { axisTickFormat } from '~/lib/axis';
+import { axisTickFormat, linearAxisDomain } from '~/lib/axis';
 import { formatValue, ordinal } from '~/lib/format';
 import { chartColors, useTheme } from '~/lib/theme';
 
@@ -71,10 +71,11 @@ export function DotStrip({
       if (row.value < lo) lo = row.value;
       if (row.value > hi) hi = row.value;
     }
-    const tickFormat = axisTickFormat(
-      metric,
-      rows.length > 0 ? [lo, hi] : [0, 1]
-    );
+    // An explicit domain (padded for edge dots, never below 0 for positive data) so the tick
+    // formatter sees the same range as the drawn axis.
+    const domain: [number, number] =
+      rows.length > 0 ? linearAxisDomain(lo, hi, 0.03) : [0, 1];
+    const tickFormat = axisTickFormat(metric, domain);
     return {
       count: rows.length,
       definition: defineChart({
@@ -92,8 +93,7 @@ export function DotStrip({
         ],
         scales: {
           x: {
-            scale: scaleLinear,
-            nice: true,
+            scale: scaleLinear().domain(domain),
             reverse,
             grid: { stroke: colors.grid, strokeOpacity: 1 },
             axis: {
