@@ -3,7 +3,7 @@ import { type ErrorComponentProps, useRouter } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 
 import { EmptyState } from './feedback';
-import { isStaleChunkError, reloadForStaleChunk } from '~/lib/staleChunks';
+import { isStaleChunkError } from '~/lib/staleChunks';
 
 /**
  * Route error view. Most errors here are dataset downloads that failed after
@@ -24,11 +24,10 @@ export function RouteError({ error, reset }: ErrorComponentProps) {
     queryReset.reset();
   }, [queryReset]);
 
-  // A route chunk missing after a deploy: reload onto the new build.
+  // A route chunk missing after a deploy. TanStack Router has already
+  // reloaded once for it; offer a plain reload rather than a retry that
+  // would request the same missing file.
   const staleChunk = isStaleChunkError(error);
-  useEffect(() => {
-    if (staleChunk) reloadForStaleChunk();
-  }, [staleChunk]);
 
   const retry = () => {
     setRetrying(true);
@@ -57,7 +56,7 @@ export function RouteError({ error, reset }: ErrorComponentProps) {
       >
         <p className="mb-4">
           {staleChunk
-            ? 'Loading the latest version. If nothing happens, reload the page.'
+            ? 'Reload the page to get the latest version.'
             : offline
               ? 'Check your connection and try again. The page retries on its own when you come back online.'
               : 'Reloading usually fixes this.'}
@@ -66,10 +65,10 @@ export function RouteError({ error, reset }: ErrorComponentProps) {
         <button
           type="button"
           className="bg-accent-600 rounded-lg px-3 py-1.5 text-sm text-white disabled:opacity-60"
-          onClick={retry}
+          onClick={staleChunk ? () => window.location.reload() : retry}
           disabled={retrying}
         >
-          {retrying ? 'Retrying…' : 'Try again'}
+          {staleChunk ? 'Reload page' : retrying ? 'Retrying…' : 'Try again'}
         </button>
       </EmptyState>
     </div>

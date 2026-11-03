@@ -4,6 +4,7 @@ import { feature } from 'topojson-client';
 import type { GeometryCollection, Topology } from 'topojson-specification';
 
 import { ISO_NUMERIC_TO_A3, NAME_TO_A3 } from './isoNumeric';
+import { importFresh } from '~/lib/staleChunks';
 
 export type GeoKind = 'world' | 'us-states' | 'us-counties';
 
@@ -16,8 +17,9 @@ export interface PlaceFeature extends Feature<Geometry, { name: string }> {
 
 async function load(kind: GeoKind): Promise<PlaceFeature[]> {
   if (kind === 'world') {
-    const topo = (await import('world-atlas/countries-50m.json'))
-      .default as unknown as Topology<{
+    const topo = (
+      await importFresh(() => import('world-atlas/countries-50m.json'))
+    ).default as unknown as Topology<{
       countries: GeometryCollection<{ name: string }>;
     }>;
     const fc = feature(topo, topo.objects.countries) as FeatureCollection<
@@ -34,7 +36,7 @@ async function load(kind: GeoKind): Promise<PlaceFeature[]> {
     });
   }
   if (kind === 'us-states') {
-    const topo = (await import('us-atlas/states-10m.json'))
+    const topo = (await importFresh(() => import('us-atlas/states-10m.json')))
       .default as unknown as Topology<{
       states: GeometryCollection<{ name: string }>;
     }>;
@@ -49,7 +51,7 @@ async function load(kind: GeoKind): Promise<PlaceFeature[]> {
       })
     );
   }
-  const topo = (await import('us-atlas/counties-10m.json'))
+  const topo = (await importFresh(() => import('us-atlas/counties-10m.json')))
     .default as unknown as Topology<{
     counties: GeometryCollection<{ name: string }>;
   }>;

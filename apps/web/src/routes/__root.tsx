@@ -20,7 +20,7 @@ import {
   Sun,
   Trophy,
 } from 'lucide-react';
-import { type ReactNode, Suspense, useEffect } from 'react';
+import { type ReactNode, Suspense } from 'react';
 
 import { BrandMark } from '~/components/BrandMark';
 import {
@@ -37,7 +37,6 @@ import {
 } from '~/features/search/platform';
 import { SearchPalette } from '~/features/search/SearchPalette';
 import { openSearch } from '~/features/search/store';
-import { installStaleChunkReload } from '~/lib/staleChunks';
 import { setTheme, THEME_BOOT_SCRIPT, useTheme } from '~/lib/theme';
 import { absoluteUrl, SITE } from '~/site';
 import appCss from '~/styles.css?url';
@@ -105,8 +104,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 /** The HTML document every page renders into (server and client). */
 function RootDocument({ children }: { children: ReactNode }) {
-  // Open tabs reload instead of failing when a deploy removed their chunks.
-  useEffect(() => installStaleChunkReload(), []);
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
