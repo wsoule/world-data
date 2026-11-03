@@ -47,6 +47,18 @@ Copy patterns from `apps/web/src/charts/Choropleth.tsx` (geoShape maps, layered
   `src/lib/theme.ts` so charts follow light/dark mode. For data-driven colour,
   either a `color` channel with a configured scale or an explicit `fill`
   function (the maps use a d3 quantile scale plus an HTML legend).
+- Value axes use the shared helpers in `src/lib/axis.ts`: give the scale an
+  explicit domain (`linearAxisDomain` for dots and lines, which pads edge dots
+  but never below zero for non-negative data; `barAxisDomain` for bars, which
+  start exactly at zero) and label ticks with `axisTickFormat(metric, domain)`,
+  so every tick on an axis uses one form (`$50K` and `$100K`, never `$50,000`
+  next to `$100K`). Charts that only receive a formatter (the topic charts) get
+  one built from `axisBounds` over every value the page can draw.
+- Maps keep green = better. Pass the metric's polarity to `Choropleth`: `1`
+  greens high values, `-1` uses RdYlGn reversed (low values green, high red),
+  `0` is neutral blue. Pass raw values (never negate them to flip colours); the
+  legend lists a lower-is-better metric from its highest value, so every legend
+  with a better side reads worst (left) to best (right).
 - Maps: features come from `src/charts/geo/useGeo.ts` (world-atlas 50m, us-atlas
   states/counties). Countries join by ISO3 via `isoNumeric.ts`, states by
   2-digit FIPS, counties by 5-digit FIPS.

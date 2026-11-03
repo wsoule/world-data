@@ -43,10 +43,46 @@ types, so a shape change must update both.
   ranking or composites in components.
 - Format every value with `formatValue(metric, v)` from `src/lib/format.ts`.
   `percAlt` values are already percentages and `perc` values are fractions.
-- The compare workbench state lives in the URL and is defined in
-  `src/features/compare/state.ts`: metric basket `m`, view, scatter encodings,
-  weights `w`, direction overrides `d`, highlights `hl` and group filter `g`.
-  Use `effectiveDirection`/`effectiveWeight` rather than reading `pol` directly.
+- Correlation wording ("Weak negative relationship (not statistically
+  significant, p = 0.26)") comes from `describeCorrelation` in
+  `@world-data/stats`; do not write a local copy.
+
+## URL state
+
+Every shareable choice lives in the URL. Prerendered HTML is built without
+search params, so pages read them only after `useHydrated()` (the first render
+uses the defaults). Leave a param out when it equals its default, so default
+views keep clean URLs.
+
+- Compare (`/compare`, `src/features/compare/state.ts`, `CompareSearch`): entity
+  `type`, metric basket `m` (ordered ids), `view`, scatter encodings `x`, `y`,
+  `r`, `c` and `log`, weights `w`, direction overrides `d`, highlights `hl`,
+  group filter `g`, composite `norm` and `cov`, map/ranking focus `f`, overlay
+  axis flips `fl`, and table sort `ts`. Use
+  `effectiveDirection`/`effectiveWeight` rather than reading `pol` directly.
+- `ts` is the compare table's sort: a column id (`avg`, `place`, `group` or
+  `m<metric id>`), prefixed with `-` for descending, e.g. `-avg` (the default,
+  best average percentile first, so it is omitted), `m24419` or `-m24419`.
+  `parseTableSort`/`formatTableSort` in `insights/tableModel.ts` read and write
+  it.
+- Topic pages (`/topics/$type/$slug`, `TopicSearch` in the route file): focus
+  metric `m` (omitted for the lead metric), `year` (a year, or `latest` for the
+  undated series; omitted for the metric's default), and the data table's open
+  tab `tab` (index of the source table; omitted for the tab holding the focus
+  metric), place filter `tq` and sort `tsort`. `tsort` uses the same form as
+  `ts` with the topic table's column ids (`place` or `m<metric id>`), e.g.
+  `-m12610`; it is omitted for the default order (the focus metric, best first).
+  `parseSort`/`formatSort` in `features/topic/model.ts` read and write it, and
+  ignore a column the open table does not have. Switching metric resets `year`,
+  `tab` and `tsort`; switching tab resets `tsort`.
+- History contract: compare views change state with
+  `update(patch, { replace })`. Discrete changes (a view tab, adding or removing
+  a metric, a direction flip, a highlight, an axis or focus choice) push a
+  history entry so Back undoes them. Sliders (weights, coverage), typing and
+  automatic URL normalisation (such as persisting the default scatter axes) pass
+  `{ replace: true }` so Back is not flooded. Re-sorting the compare table also
+  replaces. Topic pages follow the same rule: metric and year switches push; the
+  data table's tab, filter and sort replace.
 
 ## Pipeline
 
