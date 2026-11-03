@@ -36,6 +36,7 @@ import { parseInlineData, parseIslands } from './lib/astro';
 import {
   collapseRepeatedWords,
   dedupeBy,
+  headerYearsFromKey,
   round,
   slugify,
   toNumber,
@@ -458,8 +459,9 @@ function ingestPage(
       };
       T.metrics.set(c.id, m);
     }
-    const header = collapseRepeatedWords(
-      toText(c.header) ?? toText(c.label) ?? m.key
+    const header = headerYearsFromKey(
+      collapseRepeatedWords(toText(c.header) ?? toText(c.label) ?? m.key),
+      m.key
     );
     m.headers.set(header, (m.headers.get(header) ?? 0) + 1);
     if (

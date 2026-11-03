@@ -64,6 +64,25 @@ export function collapseRepeatedWords(s: string): string {
   return s.replace(/\b([A-Z][a-z]+)(?:\s+\1)+\b/g, '$1');
 }
 
+/**
+ * Replaces a year range in a header with the one in the column key when they
+ * disagree. The source sometimes copies a header to the next column: key
+ * "WPSWomensEducation2005To2016" arrives titled "Education 2016 to 2021",
+ * the title of its neighbour "…2016To2021". Keys with no range, or with more
+ * than one, leave the header alone.
+ */
+export function headerYearsFromKey(header: string, key: string): string {
+  const keyRanges = [...key.matchAll(/((?:19|20)\d{2})to((?:19|20)\d{2})/gi)];
+  if (keyRanges.length !== 1) return header;
+  const [, from, to] = keyRanges[0] ?? [];
+  if (from == null || to == null) return header;
+  return header.replace(
+    /\b((?:19|20)\d{2})(\s*(?:to|-|–)\s*)((?:19|20)\d{2})\b/i,
+    (whole, a: string, sep: string, b: string) =>
+      a === from && b === to ? whole : `${from}${sep}${to}`
+  );
+}
+
 /** Trims floating-point noise (0.1 + 0.2) without changing integers. */
 export function round(n: number): number {
   return Number.isInteger(n) ? n : Number(n.toPrecision(10));

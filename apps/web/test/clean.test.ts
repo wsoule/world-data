@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { toNumber } from '../scripts/lib/clean';
+import { headerYearsFromKey, toNumber } from '../scripts/lib/clean';
 
 describe('toNumber', () => {
   test('parses plain, signed, currency and percent numbers', () => {
@@ -30,5 +30,34 @@ describe('toNumber', () => {
     expect(toNumber('—')).toBeNull();
     expect(toNumber('N/A')).toBeNull();
     expect(toNumber('')).toBeNull();
+  });
+});
+
+describe('headerYearsFromKey', () => {
+  test("takes the key's year range when the header copied a neighbour's", () => {
+    expect(
+      headerYearsFromKey(
+        'Education 2016 to 2021',
+        'WPSWomensEducation2005To2016'
+      )
+    ).toBe('Education 2005 to 2016');
+    expect(
+      headerYearsFromKey(
+        '# Change in Prison Pop. 2021 to 2022',
+        'PrisonPopByStateChange_2022to2023'
+      )
+    ).toBe('# Change in Prison Pop. 2022 to 2023');
+  });
+
+  test('leaves matching, range-less and multi-range keys alone', () => {
+    expect(
+      headerYearsFromKey('Growth 2014-2024', 'PctMillionaireGrowth_2014to2024')
+    ).toBe('Growth 2014-2024');
+    expect(headerYearsFromKey('Education 2016 to 2021', 'WPSEducation')).toBe(
+      'Education 2016 to 2021'
+    );
+    expect(
+      headerYearsFromKey('Change 2001 to 2002', 'A_2001to2002_B_2003to2004')
+    ).toBe('Change 2001 to 2002');
   });
 });
