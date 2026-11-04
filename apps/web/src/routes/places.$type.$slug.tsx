@@ -1,6 +1,7 @@
 import { createFileRoute, notFound } from '@tanstack/react-router';
 
 import { notFoundHead } from '~/components/feedback';
+import { storiesIndexQuery } from '~/data/api';
 import { loadDataset } from '~/data/dataset';
 import { isEntityType } from '~/data/types';
 import { PlaceProfilePage } from '~/features/places/PlaceProfilePage';
@@ -15,11 +16,11 @@ export const Route = createFileRoute('/places/$type/$slug')({
     const idx = ds.entityBySlug.get(params.slug);
     if (idx == null) throw notFound();
     // Only the summary and the related place links are embedded in the HTML for hydration.
-    const related = await loadRelatedPlaces(
-      context.queryClient,
-      params.type,
-      ds.entities[idx]
-    );
+    const [related] = await Promise.all([
+      loadRelatedPlaces(context.queryClient, params.type, ds.entities[idx]),
+      // Loaded here so the "Data stories" links render inline in the prerendered HTML.
+      context.queryClient.ensureQueryData(storiesIndexQuery),
+    ]);
     return { seo: placeSummary(ds, idx), related };
   },
   head: ({ loaderData, params }) =>

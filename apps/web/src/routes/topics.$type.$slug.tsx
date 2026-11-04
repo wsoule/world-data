@@ -2,7 +2,7 @@ import { createFileRoute, notFound } from '@tanstack/react-router';
 
 import { notFoundHead } from '~/components/feedback';
 import { type AdjustmentId, adjustmentParam } from '~/data/adjustments';
-import { manifestQuery, topicQuery } from '~/data/api';
+import { manifestQuery, storiesIndexQuery, topicQuery } from '~/data/api';
 import { loadDataset } from '~/data/dataset';
 import { isEntityType } from '~/data/types';
 import { LATEST, type YearRequest } from '~/features/topic/model';
@@ -64,6 +64,9 @@ export const Route = createFileRoute('/topics/$type/$slug')({
           throw notFound();
         }),
       context.queryClient.ensureQueryData(manifestQuery),
+      // Loaded here so the "Data stories" links render inline in the prerendered HTML instead
+      // of streaming in after it.
+      context.queryClient.ensureQueryData(storiesIndexQuery),
     ]);
     // Only this small summary is embedded in the HTML for hydration.
     return { seo: topicSummary(topic, ds, manifest.categories) };

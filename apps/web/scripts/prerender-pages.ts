@@ -36,6 +36,7 @@ import {
   newestDate,
   topicCoverage,
 } from '../src/seo/indexing';
+import { staticPages } from './static-pages';
 
 interface SitemapOptions {
   priority?: number;
@@ -213,6 +214,8 @@ export function prerenderPages(dataDir: string): PrerenderPage[] {
     })),
     // The glossary explains terms, not data, so it has no data date.
     { path: '/glossary', sitemap: { priority: 0.5, changefreq: 'monthly' } },
+    // About, Methodology, Sources, Contact, Privacy and Terms (scripts/static-pages.ts).
+    ...staticPages(),
     // Browser-only app routes: prerendered as shells, kept out of the sitemap.
     { path: '/compare', sitemap: { exclude: true } },
     { path: '/vs', sitemap: { exclude: true } },

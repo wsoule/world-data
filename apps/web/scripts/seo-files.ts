@@ -39,6 +39,11 @@ import type {
 } from '../src/data/types';
 import { leadMetric, openingYear } from '../src/features/topic/headline';
 import { typeNoun } from '../src/lib/format';
+import {
+  canonicalTopicSlug,
+  isIndexableTopic,
+  topicCoverage,
+} from '../src/seo/indexing';
 import { topicAnswers } from '../src/seo/topic-content';
 import { absoluteUrl, SITE, SITE_URL } from '../src/site';
 import { robotsTxt } from './lib/robots';
@@ -280,6 +285,10 @@ async function main(): Promise<void> {
     '',
   ];
   let csvCount = 0;
+  // llms.txt and llms-full.txt list only the topics search engines are asked to index: not
+  // thin pages (noindex) and not aliases whose canonical is another topic. Every topic still
+  // gets its CSV.
+  const listed = new Set<string>();
 
   for (const t of manifest.types) {
     const type: EntityType = t.id;
@@ -293,10 +302,16 @@ async function main(): Promise<void> {
       const topic = await readJson<TopicFile>(
         `${type}/topics/${summary.slug}.json`
       );
-      const fact = topicFact(topic, metrics, entities);
-      full.push(
-        `- [${topic.title}](${SITE_URL}/topics/${type}/${topic.slug})${fact === '' ? '' : `: ${fact}`}`
-      );
+      const indexable =
+        canonicalTopicSlug(type, topic.slug) === topic.slug &&
+        isIndexableTopic(topicCoverage(topic, (id) => metrics.get(id)));
+      if (indexable) {
+        listed.add(`${type}:${topic.slug}`);
+        const fact = topicFact(topic, metrics, entities);
+        full.push(
+          `- [${topic.title}](${SITE_URL}/topics/${type}/${topic.slug})${fact === '' ? '' : `: ${fact}`}`
+        );
+      }
 
       // CSV: one row per place, one column per metric at its default year.
       const cols = topic.metrics
@@ -328,7 +343,11 @@ async function main(): Promise<void> {
   }
 
   const popular = topics
-    .filter((t) => t.type === 'country' || t.type === 'state')
+    .filter(
+      (t) =>
+        (t.type === 'country' || t.type === 'state') &&
+        listed.has(`${t.type}:${t.slug}`)
+    )
     .sort((a, b) => b.metrics.length * b.n - a.metrics.length * a.n)
     .slice(0, 40);
   const llms = [
@@ -346,6 +365,14 @@ async function main(): Promise<void> {
         `- [${t.label}](${SITE_URL}/places/${t.id}): every place with population and links to its report card`
     ),
     `- [Every topic with its key fact](${SITE_URL}/llms-full.txt)`,
+    `- [Data stories](${SITE_URL}/articles): written analyses of what goes with what`,
+    `- [Glossary](${SITE_URL}/glossary): the terms used on every page`,
+    '',
+    '## About the data',
+    '',
+    `- [About ${site.name}](${SITE_URL}/about): what the site is and who it is for`,
+    `- [Methodology](${SITE_URL}/methodology): how figures are compiled, ranked and compared`,
+    `- [Sources and licensing](${SITE_URL}/sources): where the data comes from and how it is credited`,
     '',
     '## Categories',
     '',
@@ -398,7 +425,7 @@ async function main(): Promise<void> {
     .map(([section, n]) => `${n} ${section}`)
     .join(', ');
   console.log(
-    `seo-files: robots.txt, 404.html, sitemap.xml (${sitemap.kept} URLs${dropped === '' ? '' : `; left out as noindex or non-canonical: ${dropped}`}), llms.txt, llms-full.txt (${topics.length} topics), site.webmanifest, ${csvCount} CSV files`
+    `seo-files: robots.txt, 404.html, sitemap.xml (${sitemap.kept} URLs${dropped === '' ? '' : `; left out as noindex or non-canonical: ${dropped}`}), llms.txt, llms-full.txt (${listed.size} of ${topics.length} topics), site.webmanifest, ${csvCount} CSV files`
   );
 }
 

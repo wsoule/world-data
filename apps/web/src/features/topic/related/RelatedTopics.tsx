@@ -14,6 +14,7 @@ import { topicsIndexQuery } from '~/data/api';
 import { type Dataset, useDataset } from '~/data/dataset';
 import type { TopicFile, TopicSummary } from '~/data/types';
 import { formatInt } from '~/lib/format';
+import { canonicalTopicSlug } from '~/seo/indexing';
 
 /**
  * One topic graph per loaded dataset (a place type's topics, title words and rings). The
@@ -28,8 +29,13 @@ function topicGraph(
 ): TopicGraph {
   let graph = graphs.get(dataset);
   if (graph == null) {
-    graph = buildTopicGraph(index, dataset.type.id, (t) =>
-      isRankedTopic(t, (id) => dataset.metric(id))
+    // Never link a page that is noindex (thin) or that names another topic as canonical.
+    graph = buildTopicGraph(
+      index,
+      dataset.type.id,
+      (t) =>
+        canonicalTopicSlug(t.type, t.slug) === t.slug &&
+        isRankedTopic(t, (id) => dataset.metric(id))
     );
     graphs.set(dataset, graph);
   }
