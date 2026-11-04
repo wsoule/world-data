@@ -1,20 +1,12 @@
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query';
 import { Link, useHydrated } from '@tanstack/react-router';
 
+import { CombinedMapCard } from './CombinedMap';
+import { SEQ, shapeId } from './mapStyle';
 import type { HomeMap, MapShapes } from '~/content/mapTypes';
 import { homeMapsQuery, mapShapesQuery } from '~/data/api';
 import { formatValue } from '~/lib/format';
 
-/** Light to dark indigo: seven equal-count bands of a statistic. */
-const SEQ = [
-  '#e0e7ff',
-  '#c7d2fe',
-  '#a5b4fc',
-  '#818cf8',
-  '#6366f1',
-  '#4f46e5',
-  '#3730a3',
-];
 /** Democratic blue to Republican red by margin: <−30, −30…−15, −15…−5, −5…0, 0…5, 5…15, 15…30, >30. */
 const PARTY = [
   '#1d4ed8',
@@ -26,8 +18,6 @@ const PARTY = [
   '#ef4444',
   '#b91c1c',
 ];
-
-const shapeId = (geo: MapShapes['geo'], id: string) => `map-${geo}-${id}`;
 
 /**
  * Each geography's shapes, defined once for the whole page; every map below reuses them with
@@ -132,6 +122,15 @@ function MapCard({
       <div className="mt-3">
         <Legend map={map} />
       </div>
+      <p className="text-muted mt-3 text-sm leading-relaxed">{map.blurb}</p>
+      {map.topicTitle != null ? (
+        <p className="text-accent-700 dark:text-accent-300 mt-2 text-xs font-medium">
+          Open the full ranking
+          {map.topicMetrics > 1
+            ? `, with ${map.topicMetrics} statistics to switch between`
+            : ''}
+        </p>
+      ) : null}
     </>
   );
   const className =
@@ -154,7 +153,8 @@ function MapCard({
  * county shapes (about 120 KB) load after the page, so the first view stays light.
  */
 export function HomeMaps() {
-  const { data: maps } = useSuspenseQuery(homeMapsQuery);
+  const { data: file } = useSuspenseQuery(homeMapsQuery);
+  const maps = file.maps;
   const { data: states } = useSuspenseQuery(mapShapesQuery('us-states'));
   const { data: world } = useSuspenseQuery(mapShapesQuery('world'));
   const hydrated = useHydrated();
@@ -169,7 +169,10 @@ export function HomeMaps() {
       <ShapeDefs shapes={states} />
       <ShapeDefs shapes={world} />
       {counties != null ? <ShapeDefs shapes={counties} /> : null}
-      <ul className="grid gap-4 sm:grid-cols-2">
+      {file.combined != null ? (
+        <CombinedMapCard combined={file.combined} shapes={states} />
+      ) : null}
+      <ul className="mt-4 grid gap-4 sm:grid-cols-2">
         {maps.map((m) => (
           <li key={m.id}>
             <MapCard map={m} shapes={shapesFor(m.geo)} />

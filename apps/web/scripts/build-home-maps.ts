@@ -11,12 +11,18 @@ import { feature } from 'topojson-client';
 import type { GeometryCollection, Topology } from 'topojson-specification';
 
 import { ISO_NUMERIC_TO_A3 } from '../src/charts/geo/isoNumeric';
-import type { HomeMap, MapShapes } from '../src/content/mapTypes';
+import type {
+  CombinedMap,
+  HomeMap,
+  HomeMapsFile,
+  MapShapes,
+} from '../src/content/mapTypes';
 import {
   ACS,
   BLS,
   CDC_PLACES,
   ELECTIONS,
+  FBI_CRIME,
   RPP,
   WORLD_BANK,
 } from '../src/data/external';
@@ -125,7 +131,7 @@ async function shapes(geo: Geo): Promise<MapShapes> {
 }
 
 interface TypeData {
-  entities: { id: string }[];
+  entities: { id: string; name: string }[];
   metrics: Map<number, Metric>;
   values: Map<number, Map<number, number>>;
 }
@@ -162,6 +168,7 @@ interface MapDef {
   metric: number;
   /** 'party' colours the Republican-minus-Democratic margin red to blue */
   scale: 'seq' | 'party';
+  blurb: string;
 }
 
 const MAPS: MapDef[] = [
@@ -172,6 +179,7 @@ const MAPS: MapDef[] = [
     geo: 'us-states',
     metric: ACS.medianHouseholdIncome,
     scale: 'seq',
+    blurb: 'Typical household income in each state, from the Census Bureau.',
   },
   {
     id: 'state-vote',
@@ -180,6 +188,7 @@ const MAPS: MapDef[] = [
     geo: 'us-states',
     metric: ELECTIONS.margin,
     scale: 'party',
+    blurb: 'How far each state leaned Republican or Democratic for president.',
   },
   {
     id: 'state-prices',
@@ -188,6 +197,7 @@ const MAPS: MapDef[] = [
     geo: 'us-states',
     metric: RPP.allItems,
     scale: 'seq',
+    blurb: 'How expensive everyday prices are, compared with the US average.',
   },
   {
     id: 'state-unemployment',
@@ -196,6 +206,7 @@ const MAPS: MapDef[] = [
     geo: 'us-states',
     metric: BLS.unemployment,
     scale: 'seq',
+    blurb: 'The share of people looking for work who can’t find a job.',
   },
   {
     id: 'county-vote',
@@ -204,6 +215,7 @@ const MAPS: MapDef[] = [
     geo: 'us-counties',
     metric: ELECTIONS.margin,
     scale: 'party',
+    blurb: 'Every county’s presidential margin, blue to red.',
   },
   {
     id: 'county-obesity',
@@ -212,6 +224,7 @@ const MAPS: MapDef[] = [
     geo: 'us-counties',
     metric: CDC_PLACES.obesity,
     scale: 'seq',
+    blurb: 'The share of adults with obesity, from CDC health estimates.',
   },
   {
     id: 'world-life',
@@ -220,6 +233,7 @@ const MAPS: MapDef[] = [
     geo: 'world',
     metric: WORLD_BANK.lifeExpectancy,
     scale: 'seq',
+    blurb: 'How long a newborn can expect to live, from the World Bank.',
   },
   {
     id: 'world-gdp',
@@ -228,6 +242,7 @@ const MAPS: MapDef[] = [
     geo: 'world',
     metric: WORLD_BANK.gdpPerCapitaPpp,
     scale: 'seq',
+    blurb: 'Income per person, adjusted for what money buys in each country.',
   },
 ];
 
@@ -250,6 +265,56 @@ const bandOf = (v: number, edges: number[]) => {
   return i;
 };
 
+/** Statistics the combined map offers, with short labels and which end is better. */
+const COMBINED: { id: number; label: string; pol: 1 | -1; on: boolean }[] = [
+  { id: ACS.medianHouseholdIncome, label: 'Income', pol: 1, on: true },
+  { id: RPP.allItems, label: 'Cost of living', pol: -1, on: true },
+  { id: BLS.unemployment, label: 'Unemployment', pol: -1, on: true },
+  { id: ACS.bachelorsShare, label: 'College degrees', pol: 1, on: true },
+  { id: FBI_CRIME.violent, label: 'Violent crime', pol: -1, on: true },
+  { id: ACS.povertyRate, label: 'Poverty', pol: -1, on: false },
+  { id: ACS.commuteMinutes, label: 'Commute time', pol: -1, on: false },
+  { id: ACS.broadbandShare, label: 'Broadband', pol: 1, on: false },
+];
+
+/**
+ * Each state's percentile on each COMBINED statistic, 100 = best given its direction (rank
+ * based, so dollars and rates combine fairly, as the combined ranking does by default).
+ */
+function combinedMap(d: TypeData): CombinedMap | null {
+  const metrics = COMBINED.filter((c) => (d.values.get(c.id)?.size ?? 0) > 0);
+  if (metrics.length === 0) return null;
+  const places: CombinedMap['places'] = {};
+  const names: CombinedMap['names'] = {};
+  d.entities.forEach((e) => {
+    places[e.id] = [];
+    names[e.id] = e.name;
+  });
+  for (const c of metrics) {
+    const vals = d.values.get(c.id) as Map<number, number>;
+    const sorted = [...vals.values()].sort((a, b) => a - b);
+    const n = sorted.length;
+    d.entities.forEach((e, i) => {
+      const v = vals.get(i);
+      if (v == null) {
+        places[e.id].push(null);
+        return;
+      }
+      // Share of other places this one beats, oriented so 100 is the best end.
+      const below = sorted.filter((x) => x < v).length;
+      const equal = sorted.filter((x) => x === v).length;
+      const pct = n > 1 ? ((below + (equal - 1) / 2) / (n - 1)) * 100 : 50;
+      places[e.id].push(Math.round(c.pol === 1 ? pct : 100 - pct));
+    });
+  }
+  return {
+    metrics: metrics.map(({ id, label, pol }) => ({ id, label, pol })),
+    defaults: metrics.filter((c) => c.on).map((c) => c.id),
+    places,
+    names,
+  };
+}
+
 /** Writes public/data/maps. Returns how many home maps were drawn. */
 export async function buildHomeMaps(dataDir: string): Promise<number> {
   const out = path.join(dataDir, 'maps');
@@ -260,6 +325,16 @@ export async function buildHomeMaps(dataDir: string): Promise<number> {
       JSON.stringify(await shapes(geo))
     );
 
+  const topicInfo = new Map(
+    (
+      JSON.parse(await readFile(path.join(dataDir, 'topics.json'), 'utf8')) as {
+        type: string;
+        slug: string;
+        title: string;
+        metrics: number[];
+      }[]
+    ).map((t) => [`${t.type}/${t.slug}`, t])
+  );
   const cache = new Map<EntityType, TypeData>();
   const maps: HomeMap[] = [];
   for (const def of MAPS) {
@@ -289,13 +364,22 @@ export async function buildHomeMaps(dataDir: string): Promise<number> {
         unit: metric.unit,
         year: metric.year,
       },
+      blurb: def.blurb,
       topic: metric.topics[0] ?? null,
+      topicTitle:
+        topicInfo.get(`${def.type}/${metric.topics[0] ?? ''}`)?.title ?? null,
+      topicMetrics:
+        topicInfo.get(`${def.type}/${metric.topics[0] ?? ''}`)?.metrics
+          .length ?? 0,
       edges,
       min: Math.min(...nums),
       max: Math.max(...nums),
       bands,
     });
   }
-  await writeFile(path.join(out, 'home.json'), JSON.stringify(maps));
+  let states = cache.get('state');
+  if (states == null) states = await readType(dataDir, 'state');
+  const file: HomeMapsFile = { maps, combined: combinedMap(states) };
+  await writeFile(path.join(out, 'home.json'), JSON.stringify(file));
   return maps.length;
 }

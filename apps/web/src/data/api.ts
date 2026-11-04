@@ -10,7 +10,7 @@ import type {
   TopicSummary,
   ValuesFile,
 } from './types';
-import type { HomeMap, MapShapes } from '~/content/mapTypes';
+import type { HomeMapsFile, MapShapes } from '~/content/mapTypes';
 import type { StoryData, StorySummary } from '~/content/storyTypes';
 
 const BASE = `${import.meta.env.BASE_URL}data`;
@@ -134,7 +134,7 @@ export const storyQuery = (slug: string) =>
 /** The home page's pre-drawn maps (public/data/maps/home.json). */
 export const homeMapsQuery = queryOptions({
   queryKey: ['home-maps'],
-  queryFn: () => getJson<HomeMap[]>('maps/home.json'),
+  queryFn: () => getJson<HomeMapsFile>('maps/home.json'),
   ...forever,
 });
 

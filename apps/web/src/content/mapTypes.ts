@@ -19,12 +19,43 @@ export interface HomeMap {
   /** Sequential bands, or the party margin (Republican minus Democratic) red to blue */
   scale: 'seq' | 'party';
   metric: Pick<Metric, 'id' | 'label' | 'fmt' | 'unit' | 'year'>;
-  /** Topic page to open */
+  /** One sentence on what the map shows */
+  blurb: string;
+  /** Topic page to open, its title and how many statistics it has */
   topic: string | null;
+  topicTitle: string | null;
+  topicMetrics: number;
   /** Band boundaries (one fewer than the number of bands) */
   edges: number[];
   min: number;
   max: number;
   /** Entity id → band index */
   bands: Record<string, number>;
+}
+
+/** One statistic the home page's combined map can include. */
+export interface CombinedMetric {
+  id: number;
+  /** Short chip label, e.g. "Cost of living" */
+  label: string;
+  /** Which end counts as better: 1 higher, -1 lower */
+  pol: 1 | -1;
+}
+
+/**
+ * The home page's build-your-own map: each state's percentile on each metric (100 = best given
+ * its direction, null without data), averaged over the metrics a visitor switches on.
+ */
+export interface CombinedMap {
+  metrics: CombinedMetric[];
+  /** Metric ids switched on at first */
+  defaults: number[];
+  /** State id → percentile per metric, in `metrics` order */
+  places: Record<string, (number | null)[]>;
+  names: Record<string, string>;
+}
+
+export interface HomeMapsFile {
+  maps: HomeMap[];
+  combined: CombinedMap | null;
 }
