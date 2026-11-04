@@ -92,34 +92,55 @@ export function summarizeCategories(
 }
 
 /**
- * Every topic of a category grouped by place type (ENTITY_TYPES order, empty types left out),
- * A–Z within each group. Feeds the category page's full topic directory.
+ * Orders topics by lower-cased title, then slug. A plain code-unit comparison sorts the same in
+ * Node and every browser, so the server-rendered list always matches the first client render.
  */
-export function topicsByType(
-  topics: readonly TopicSummary[],
-  category: string
-): { type: EntityType; topics: TopicSummary[] }[] {
-  const groups = new Map<EntityType, TopicSummary[]>();
-  for (const t of topics) {
-    if (!t.cats.includes(category)) continue;
-    const list = groups.get(t.type);
-    if (list == null) groups.set(t.type, [t]);
-    else list.push(t);
+export function byTitle(
+  a: Pick<TopicSummary, 'title' | 'slug'>,
+  b: Pick<TopicSummary, 'title' | 'slug'>
+): number {
+  const ka = a.title.toLowerCase();
+  const kb = b.title.toLowerCase();
+  if (ka !== kb) return ka < kb ? -1 : 1;
+  return a.slug < b.slug ? -1 : a.slug > b.slug ? 1 : 0;
+}
+
+/** One place type's share of a category page: its leading rows, then the rest A–Z. */
+export interface TypeGroup<R> {
+  type: EntityType;
+  /** The first `top` rows in the page's current order, shown as table rows */
+  top: R[];
+  /** Every other row, A–Z, listed as plain links in a collapsed <details> */
+  rest: R[];
+}
+
+/**
+ * Splits a category page's sorted rows by place type (ENTITY_TYPES order, empty types left out).
+ * Each type keeps its first `top` rows in the current order (most places first by default) and
+ * the rest move to an A–Z list, so every place type's leading topics show first and every row
+ * lands in exactly one group: the page links each topic once.
+ */
+export function splitByType<R>(
+  rows: readonly R[],
+  topicOf: (row: R) => Pick<TopicSummary, 'type' | 'title' | 'slug'>,
+  top: number
+): TypeGroup<R>[] {
+  const groups = new Map<EntityType, R[]>();
+  for (const row of rows) {
+    const type = topicOf(row).type;
+    const list = groups.get(type);
+    if (list == null) groups.set(type, [row]);
+    else list.push(row);
   }
-  const out: { type: EntityType; topics: TopicSummary[] }[] = [];
+  const out: TypeGroup<R>[] = [];
   for (const type of ENTITY_TYPES) {
     const list = groups.get(type);
     if (list == null) continue;
-    // A plain code-unit comparison of lower-cased titles sorts the same in Node and every
-    // browser, so the server-rendered list always matches the first client render.
-    const key = new Map(list.map((t) => [t, t.title.toLowerCase()]));
-    list.sort((a, b) => {
-      const ka = key.get(a) ?? '';
-      const kb = key.get(b) ?? '';
-      if (ka !== kb) return ka < kb ? -1 : 1;
-      return a.slug < b.slug ? -1 : a.slug > b.slug ? 1 : 0;
+    out.push({
+      type,
+      top: list.slice(0, top),
+      rest: list.slice(top).sort((a, b) => byTitle(topicOf(a), topicOf(b))),
     });
-    out.push({ type, topics: list });
   }
   return out;
 }

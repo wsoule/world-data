@@ -25,7 +25,7 @@ import {
   Trophy,
   X,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 
 import { CategoryGlyph, categoryTint } from './categoryIcons';
 import { TYPE_LABELS, TYPE_NOUNS } from './CategoryMixChart';
@@ -33,10 +33,10 @@ import {
   dominantType,
   latestUpdate,
   overlayPartner,
+  splitByType,
   summarizeCategories,
   topCategoryMetrics,
   topicInfoMap,
-  topicsByType,
 } from './categoryStats';
 import { Spinner } from '~/components/feedback';
 import { PolarityIcon } from '~/components/MetricPicker';
@@ -45,11 +45,18 @@ import { manifestQuery, metricsQuery, topicsIndexQuery } from '~/data/api';
 import type { EntityType, Metric, TopicSummary } from '~/data/types';
 import { TYPE_PLURAL, TYPE_SHORT } from '~/features/search/results';
 import { normalizeText } from '~/features/search/searchIndex';
+import { plural } from '~/lib/format';
 
 const route = getRouteApi('/categories/$category');
 
-/** Rows shown before "Show all". */
+/** Rows shown before "Show all" while filtering by title. */
 const ROW_LIMIT = 60;
+
+/**
+ * Topics of each place type shown as table rows before the rest of that type collapse into an
+ * A–Z list: fewer per type on "All types", where several types share the table.
+ */
+const TOP_PER_TYPE = { all: 10, one: 30 } as const;
 
 interface TopicRow {
   id: string;
@@ -257,6 +264,32 @@ export function CategoryPage() {
 
   const sorted = table.getRowModel().rows;
   const visible = showAll ? sorted : sorted.slice(0, ROW_LIMIT);
+  // Unfiltered, the table is grouped by place type: each type's leading topics as rows, the rest
+  // A–Z behind a <details>. Every topic is linked once, and all links are in the server HTML.
+  const groups =
+    text.trim() === ''
+      ? splitByType(
+          sorted,
+          (row) => row.original,
+          type == null ? TOP_PER_TYPE.all : TOP_PER_TYPE.one
+        )
+      : null;
+  const typeColumnHidden = type != null || groups != null;
+  const renderRow = (row: (typeof sorted)[number]) => (
+    <tr key={row.id} className="border-app hover:bg-surface-2/50 border-t">
+      {row.getAllCells().map((cell) => (
+        <td
+          key={cell.id}
+          className={cx(
+            'px-3 py-2.5 align-middle sm:px-4',
+            columnClass(cell.column.id, typeColumnHidden)
+          )}
+        >
+          <table.FlexRender cell={cell} />
+        </td>
+      ))}
+    </tr>
+  );
   const quickSort: QuickSort =
     sorting[0]?.id === 'title'
       ? 'az'
@@ -382,7 +415,8 @@ export function CategoryPage() {
               ]}
             />
             <span className="text-muted tabular ml-auto text-xs">
-              {rows.length.toLocaleString('en-US')} shown
+              {rows.length.toLocaleString('en-US')}{' '}
+              {groups == null ? 'shown' : 'topics'}
             </span>
           </div>
 
@@ -413,7 +447,7 @@ export function CategoryPage() {
                             }
                             className={cx(
                               'px-3 py-2 font-medium sm:px-4',
-                              columnClass(header.column.id, type != null)
+                              columnClass(header.column.id, typeColumnHidden)
                             )}
                           >
                             <button
@@ -438,29 +472,49 @@ export function CategoryPage() {
                   ))}
                 </thead>
                 <tbody>
-                  {visible.map((row) => (
-                    <tr
-                      key={row.id}
-                      className="border-app hover:bg-surface-2/50 border-t"
-                    >
-                      {row.getAllCells().map((cell) => (
-                        <td
-                          key={cell.id}
-                          className={cx(
-                            'px-3 py-2.5 align-middle sm:px-4',
-                            columnClass(cell.column.id, type != null)
-                          )}
-                        >
-                          <table.FlexRender cell={cell} />
-                        </td>
+                  {groups == null
+                    ? visible.map(renderRow)
+                    : groups.map((g) => (
+                        <Fragment key={g.type}>
+                          {type == null ? (
+                            <tr className="border-app bg-surface-2/40 border-t">
+                              <th
+                                scope="colgroup"
+                                colSpan={columns.length}
+                                className="px-3 py-2 text-left text-xs font-semibold sm:px-4"
+                              >
+                                {TYPE_LABELS[g.type]}{' '}
+                                <span className="text-muted tabular font-normal">
+                                  ·{' '}
+                                  {plural(
+                                    g.top.length + g.rest.length,
+                                    'topic'
+                                  )}
+                                </span>
+                              </th>
+                            </tr>
+                          ) : null}
+                          {g.top.map(renderRow)}
+                          {g.rest.length > 0 ? (
+                            <tr className="border-app border-t">
+                              <td
+                                colSpan={columns.length}
+                                className="px-3 py-1 sm:px-4"
+                              >
+                                <MoreTopics
+                                  label={`${g.rest.length.toLocaleString('en-US')} more topics about ${TYPE_NOUNS[g.type]}, A–Z`}
+                                  topics={g.rest.map((row) => row.original)}
+                                />
+                              </td>
+                            </tr>
+                          ) : null}
+                        </Fragment>
                       ))}
-                    </tr>
-                  ))}
                 </tbody>
               </table>
             </div>
           )}
-          {!showAll && sorted.length > ROW_LIMIT ? (
+          {groups == null && !showAll && sorted.length > ROW_LIMIT ? (
             <div className="border-app border-t p-3 text-center">
               <button
                 type="button"
@@ -482,77 +536,45 @@ export function CategoryPage() {
           topics={topics}
         />
       </div>
-
-      <TopicDirectory
-        category={category}
-        categoryLabel={info.label}
-        total={summary.total}
-        topics={topics}
-      />
     </div>
   );
 }
 
 /**
- * Every topic in the category as a plain link, A–Z, one collapsible group per place type. The
- * groups are native <details>, so all links are in the server-rendered HTML (crawlable, and usable
- * before scripts load) while the page stays short until a reader opens a group.
+ * The rest of one place type's topics as plain links, A–Z, in a native <details>: the links are
+ * in the server-rendered HTML (crawlable, and usable before scripts load) while the table stays
+ * short until a reader opens the list.
  */
-function TopicDirectory({
-  category,
-  categoryLabel,
-  total,
+function MoreTopics({
+  label,
   topics,
 }: {
-  category: string;
-  categoryLabel: string;
-  total: number;
-  topics: readonly TopicSummary[];
+  label: string;
+  topics: readonly Pick<TopicRow, 'type' | 'slug' | 'title'>[];
 }) {
-  const groups = useMemo(
-    () => topicsByType(topics, category),
-    [topics, category]
-  );
   return (
-    <section className="card mt-8 overflow-hidden" aria-labelledby="all-topics">
-      <header className="border-app border-b px-4 py-3">
-        <h2 id="all-topics" className="text-sm font-semibold">
-          All {total.toLocaleString('en-US')} {categoryLabel} topics, A–Z
-        </h2>
-        <p className="text-muted mt-0.5 text-xs">
-          Every topic in this category, grouped by place type.
-        </p>
-      </header>
-      <div className="divide-y divide-[var(--border)]">
-        {groups.map((g) => (
-          <details key={g.type} className="group">
-            <summary className="hover:bg-surface-2/60 flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-medium [&::-webkit-details-marker]:hidden">
-              <ChevronRight
-                className="text-muted size-4 shrink-0 transition-transform group-open:rotate-90"
-                aria-hidden
-              />
-              {TYPE_LABELS[g.type]}
-              <span className="tabular bg-surface-2 text-muted rounded-full px-1.5 text-xs">
-                {g.topics.length.toLocaleString('en-US')}
-              </span>
-            </summary>
-            <ul className="columns-1 gap-x-8 px-4 pt-1 pb-4 text-sm sm:columns-2 lg:columns-3">
-              {g.topics.map((t) => (
-                <li key={t.slug} className="break-inside-avoid py-1">
-                  <Link
-                    to="/topics/$type/$slug"
-                    params={{ type: t.type, slug: t.slug }}
-                    className="hover:text-accent-700 dark:hover:text-accent-300 underline-offset-2 hover:underline"
-                  >
-                    {t.title}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </details>
+    <details className="group">
+      <summary className="text-accent-700 dark:text-accent-300 flex cursor-pointer list-none items-center gap-1.5 py-1.5 text-sm font-medium hover:underline [&::-webkit-details-marker]:hidden">
+        <ChevronRight
+          className="size-4 shrink-0 transition-transform group-open:rotate-90"
+          aria-hidden
+        />
+        {label}
+      </summary>
+      <ul className="columns-1 gap-x-8 pt-1 pb-3 pl-5.5 text-sm sm:columns-2 lg:columns-3">
+        {topics.map((t) => (
+          <li key={t.slug} className="break-inside-avoid py-1">
+            <Link
+              to="/topics/$type/$slug"
+              params={{ type: t.type, slug: t.slug }}
+              className="hover:text-accent-700 dark:hover:text-accent-300 underline-offset-2 hover:underline"
+            >
+              {t.title}
+            </Link>
+          </li>
         ))}
-      </div>
-    </section>
+      </ul>
+    </details>
   );
 }
 

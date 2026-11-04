@@ -8,10 +8,10 @@ import {
   latestUpdate,
   overlayPartner,
   pickExamples,
+  splitByType,
   summarizeCategories,
   topCategoryMetrics,
   topicInfoMap,
-  topicsByType,
 } from '../src/features/categories/categoryStats';
 
 const DATA = join(import.meta.dir, '..', 'public', 'data');
@@ -87,30 +87,39 @@ describe('summarizeCategories (real dataset)', () => {
   });
 });
 
-describe('topicsByType', () => {
-  test('groups a category’s topics by place type, A–Z within each group', () => {
-    const groups = topicsByType(
-      [
-        topic({ slug: 'b', title: 'beta by State' }),
-        topic({ slug: 'z', title: 'Zeta by Country', type: 'country' }),
-        topic({ slug: 'a', title: 'Alpha by State' }),
-        topic({ slug: 'x', title: 'Other', cats: ['health'] }),
-        topic({ slug: 'c', title: 'Alpha by County', type: 'county' }),
-      ],
-      'economics'
-    );
+describe('splitByType', () => {
+  const same = (t: TopicSummary) => t;
+
+  test('keeps each place type’s leading rows in order and lists the rest A–Z', () => {
+    // Rows arrive in the page's sort order (most places first).
+    const rows = [
+      topic({ slug: 's1', title: 'Zeta by State' }),
+      topic({ slug: 'c1', title: 'Zeta by Country', type: 'country' }),
+      topic({ slug: 's2', title: 'Omega by State' }),
+      topic({ slug: 's3', title: 'beta by State' }),
+      topic({ slug: 's4', title: 'Alpha by State' }),
+      topic({ slug: 'k1', title: 'Alpha by County', type: 'county' }),
+    ];
+    const groups = splitByType(rows, same, 2);
     expect(groups.map((g) => g.type)).toEqual(['country', 'state', 'county']);
-    expect(groups[1].topics.map((t) => t.slug)).toEqual(['a', 'b']);
+    expect(groups[1].top.map((t) => t.slug)).toEqual(['s1', 's2']);
+    expect(groups[1].rest.map((t) => t.slug)).toEqual(['s4', 's3']);
+    expect(groups[0].rest).toEqual([]);
   });
 
-  test('lists every topic of a real category exactly once', () => {
+  test('lists every topic of the largest real categories exactly once', () => {
     const topics = read<TopicSummary[]>('topics.json');
-    const health = topics.filter((t) => t.cats.includes('health'));
-    const listed = topicsByType(topics, 'health').flatMap((g) => g.topics);
-    expect(listed).toHaveLength(health.length);
-    expect(new Set(listed.map((t) => `${t.type}:${t.slug}`)).size).toBe(
-      health.length
-    );
+    for (const cat of ['law', 'culture', 'economics']) {
+      const inCat = topics.filter((t) => t.cats.includes(cat));
+      const listed = splitByType(inCat, same, 10).flatMap((g) => [
+        ...g.top,
+        ...g.rest,
+      ]);
+      expect(listed).toHaveLength(inCat.length);
+      expect(new Set(listed.map((t) => `${t.type}:${t.slug}`)).size).toBe(
+        inCat.length
+      );
+    }
   });
 });
 
