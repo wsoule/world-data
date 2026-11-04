@@ -173,6 +173,39 @@ export function topicPageTitle(title: string, ranked: boolean): string {
   return forms.find((f) => f.length <= TITLE_ROOM) ?? title;
 }
 
+/** Characters of a meta description a search snippet shows (clampDescription's default). */
+const META_LENGTH = 158;
+
+/**
+ * A topic's meta description: an answer, then the closing sentence that names the topic, so that
+ * what a search snippet shows names the topic and two pages over the same table ("Oil
+ * Production by Country" and "Oil Producing Countries", or "Single-Party Consent States" and
+ * "Two-Party Consent States") never read the same. `answers` are the answer's forms, longest
+ * first (the short answer, then its first sentence alone): the longest that leaves the topic's
+ * `name` (its title) inside the first META_LENGTH characters is used. When even the shortest
+ * leaves no room (a long breakdown of a categorical column), the closing leads.
+ */
+export function topicDescription(
+  answers: readonly string[],
+  closing: string,
+  name: string
+): string {
+  const bare = name.replace(/[?.!]$/, '');
+  // clampDescription cuts at a word boundary at most 20 characters before the limit.
+  const fits = (text: string): boolean => {
+    const at = text.indexOf(bare);
+    return (
+      text.length <= META_LENGTH ||
+      (at >= 0 && at + bare.length <= META_LENGTH - 20)
+    );
+  };
+  for (const answer of answers) {
+    const text = `${answer} ${closing}`;
+    if (fits(text)) return text;
+  }
+  return `${closing} ${answers[0] ?? ''}`.trim();
+}
+
 /**
  * The closing sentence of a topic's description, after the answer: what the page holds, named
  * by its title so pages over the same table still read apart ("Coldest States: 50 US states
@@ -260,7 +293,7 @@ export function topicSummary(
   const type = ds.type;
   const path = `/topics/${type.id}/${topic.slug}`;
   const metric = leadMetric(topic, ds);
-  const { summary, short, faq } = topicAnswers(
+  const { summary, short, lead, faq } = topicAnswers(
     topic,
     ds,
     metric,
@@ -284,8 +317,8 @@ export function topicSummary(
     .sort((a, b) => a - b);
   const variables = shown.slice(0, 25);
   // The answer comes first, then one closing sentence naming the topic and what the page
-  // holds. The meta description quotes the short answer, so the closing still fits in a search
-  // snippet and pages over the same table read apart; the Dataset keeps the full summary.
+  // holds. The meta description quotes the short answer (see topicDescription), so pages over
+  // the same table read apart; the Dataset keeps the full summary.
   const closing = topicClosing(
     short.startsWith(`${topic.title}:`) ? null : topic.title,
     topic.entities.length,
@@ -293,7 +326,7 @@ export function topicSummary(
     metric != null,
     type
   );
-  const description = `${short} ${closing}`;
+  const description = topicDescription([short, lead], closing, topic.title);
 
   const dataset: Record<string, unknown> = {
     '@type': 'Dataset',

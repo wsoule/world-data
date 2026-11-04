@@ -41,10 +41,13 @@ export interface TopicAnswers {
 
 /**
  * The answers plus `short`, the summary without runners-up or notes ("A has the highest X (v).
- * B has the lowest (w)."), which leaves the meta description room to name the topic.
+ * B has the lowest (w)."), which leaves the meta description room to name the topic, and `lead`,
+ * its first sentence alone ("A has the highest X (v).") for a meta description where even the
+ * short answer leaves no room.
  */
 export interface TopicText extends TopicAnswers {
   short: string;
+  lead: string;
 }
 
 /** Places named in a sentence before the rest are counted ("A, B, C and 4 more"). */
@@ -240,6 +243,7 @@ function valueAnswers(
     return {
       summary: text,
       short: text,
+      lead: text,
       faq: [
         { question: `What is the ${label} across ${plural}?`, answer: text },
       ],
@@ -289,6 +293,7 @@ function valueAnswers(
     return {
       summary: text,
       short: text,
+      lead: text,
       faq: [
         {
           question: endQuestion(first, leadWord),
@@ -375,6 +380,7 @@ function valueAnswers(
   return {
     summary: `${leadText}${other}${commonText}`,
     short: `${leadShort}${other}`,
+    lead: leadShort,
     faq,
   };
 }
@@ -429,6 +435,7 @@ function rankAnswers(
     return {
       summary: `${lastText}; rank 1 is the ${rankEnd}. ${firstText}`,
       short: `${lastClause}; rank 1 is the ${rankEnd}. ${firstText}`,
+      lead: `${lastClause}; rank 1 is the ${rankEnd}.`,
       faq: [
         {
           question: `Which ${singular} ranks last on ${label}?`,
@@ -463,6 +470,7 @@ function rankAnswers(
   return {
     summary: `${firstText}; rank 1 is the ${rankEnd}.${lastText}`,
     short: `${firstClause}; rank 1 is the ${rankEnd}.${lastText}`,
+    lead: `${firstClause}; rank 1 is the ${rankEnd}.`,
     faq,
   };
 }
@@ -704,7 +712,8 @@ function categoricalAnswers(ctx: Ctx): TopicText {
       answer: `${someNames(places.map(name), LIST_NAMES)} (${formatInt(n)} in all).`,
     });
   }
-  return { summary: sentences.join(' '), short: sentences[0] ?? '', faq };
+  const first = sentences[0] ?? '';
+  return { summary: sentences.join(' '), short: first, lead: first, faq };
 }
 
 const MONTHS = [
@@ -792,6 +801,7 @@ export function topicAnswers(
   return {
     summary: `${body.summary}${note}`,
     short: body.short,
+    lead: body.lead,
     faq: [
       ...body.faq,
       {

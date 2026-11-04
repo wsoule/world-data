@@ -21,6 +21,7 @@ import { rankingOrderLabel } from '../src/features/topic/model';
 import {
   shorterTitles,
   topicClosing,
+  topicDescription,
   topicPageTitle,
 } from '../src/seo/content';
 import {
@@ -620,6 +621,54 @@ describe('topicPageTitle', () => {
         true
       );
     }
+  });
+
+  test('names the topic within what a search snippet shows', () => {
+    const closing =
+      'Oil Producing Countries: 50 countries ranked on 2 metrics, mapped and compared.';
+    const short =
+      'United States has the highest Daily Oil Production of the 50 countries listed in 2025 (21.1M barrels/day). Yemen ranks last of the 50 listed (22K barrels/day).';
+    const lead =
+      'United States has the highest Daily Oil Production of the 50 countries listed in 2025 (21.1M barrels/day).';
+    // The whole short answer would push the name past the snippet: its first sentence leads.
+    expect(
+      topicDescription([short, lead], closing, 'Oil Producing Countries')
+    ).toBe(`${lead} ${closing}`);
+    // A short answer that leaves room stays whole.
+    expect(
+      topicDescription(
+        [
+          'A has the highest X (1). B has the lowest (0).',
+          'A has the highest X (1).',
+        ],
+        'Coldest States: 50 US states ranked on 1 metric, mapped and compared.',
+        'Coldest States'
+      )
+    ).toBe(
+      'A has the highest X (1). B has the lowest (0). Coldest States: 50 US states ranked on 1 metric, mapped and compared.'
+    );
+    // An answer that already names the topic needs no room for the closing.
+    const list =
+      '10 countries are on the Polynesian Countries list: New Zealand, French Polynesia, Samoa, Tonga, American Samoa, Cook Islands, Wallis and Futuna, Tuvalu, Niue and Tokelau.';
+    expect(
+      topicDescription(
+        [list, list],
+        'Polynesian Countries: 10 countries and 1 metric in one table.',
+        'Polynesian Countries'
+      )
+    ).toStartWith(list);
+    // A long categorical breakdown: the closing leads.
+    const breakdown =
+      'Call Recordings Law: “Single-Party Consent” in 38 of 51 US states; “Two-Party Consent” in 10 and “Mixed Consent” in 3 (Oregon, Connecticut and Hawaii).';
+    expect(
+      topicDescription(
+        [breakdown, breakdown],
+        'Two-Party Consent States: 51 US states and 2 metrics in one table.',
+        'Two-Party Consent States'
+      )
+    ).toBe(
+      `Two-Party Consent States: 51 US states and 2 metrics in one table. ${breakdown}`
+    );
   });
 
   test('names the topic in the closing sentence of its description', () => {
