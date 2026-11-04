@@ -79,7 +79,7 @@ export const GOALS: Goal[] = [
         id: 'move-vs',
         title: 'Compare two states, adjusted for cost of living',
         subtitle: 'Head to head on every shared statistic',
-        href: siteHref('/vs', { type: 'state', e: [], col: true }),
+        href: siteHref('/vs', { type: 'state', e: [], adj: 'col' }),
         keywords: 'wages salary pay income',
       },
       {

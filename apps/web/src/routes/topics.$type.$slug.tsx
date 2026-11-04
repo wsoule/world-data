@@ -1,6 +1,7 @@
 import { createFileRoute, notFound } from '@tanstack/react-router';
 
 import { notFoundHead } from '~/components/feedback';
+import { type AdjustmentId, adjustmentParam } from '~/data/adjustments';
 import { manifestQuery, topicQuery } from '~/data/api';
 import { loadDataset } from '~/data/dataset';
 import { isEntityType } from '~/data/types';
@@ -20,7 +21,9 @@ export interface TopicSearch {
   tq?: string;
   /** Data table: sorted column id, "-" prefixed when descending */
   tsort?: string;
-  /** Show wages and incomes adjusted for each place's cost of living */
+  /** Adjustment: cost of living, share of income or per person (see data/adjustments.ts) */
+  adj?: AdjustmentId;
+  /** Older links' cost-of-living switch, read as adj=col */
   col?: true;
 }
 
@@ -44,7 +47,8 @@ export const Route = createFileRoute('/topics/$type/$slug')({
     tab: numberParam(raw.tab),
     tq: textParam(raw.tq),
     tsort: textParam(raw.tsort),
-    col: raw.col === true || raw.col === 'true' ? true : undefined,
+    adj: adjustmentParam(raw),
+    col: undefined,
   }),
   // The summary depends only on the path, so search changes (metric, year,
   // table filter) never rerun the loader.

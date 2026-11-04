@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 
+import { type AdjustmentId, adjustmentParam } from '~/data/adjustments';
 import { loadDataset } from '~/data/dataset';
 import { type EntityType, isEntityType } from '~/data/types';
 import { VersusPage } from '~/features/vs/VersusPage';
@@ -11,8 +12,8 @@ export interface VersusSearch {
   e: string[];
   /** optional category filter */
   cat?: string;
-  /** compare wages and incomes adjusted for each place's cost of living */
-  col?: true;
+  /** adjustment: cost of living, share of income or per person (see data/adjustments.ts) */
+  adj?: AdjustmentId;
 }
 
 export const Route = createFileRoute('/vs')({
@@ -26,10 +27,7 @@ export const Route = createFileRoute('/vs')({
         ? raw.e.split(',')
         : [],
     cat: typeof raw.cat === 'string' && raw.cat !== '' ? raw.cat : undefined,
-    col:
-      raw.col === true || raw.col === 'true' || raw.col === 1
-        ? true
-        : undefined,
+    adj: adjustmentParam(raw),
   }),
   loaderDeps: ({ search }) => ({ type: search.type }),
   loader: ({ context, deps }) =>

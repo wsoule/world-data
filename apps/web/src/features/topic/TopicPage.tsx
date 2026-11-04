@@ -33,8 +33,15 @@ import { Choropleth } from '~/charts/Choropleth';
 import { EmptyState, NotFound } from '~/components/feedback';
 import { QuickAnswers } from '~/components/QuickAnswers';
 import { Card } from '~/components/ui';
+import {
+  adjustContext,
+  type AdjustmentId,
+  adjustTopicFile,
+  availableAdjustments,
+  canAdjust,
+  withAdjustment,
+} from '~/data/adjustments';
 import { topicQuery } from '~/data/api';
-import { adjustTopic, isIncomeLike, priceLevels } from '~/data/costOfLiving';
 import { type Dataset, useDataset } from '~/data/dataset';
 import { isRankColumn, rankOrder, rankOrderNote } from '~/data/rankOrder';
 import {
@@ -44,6 +51,7 @@ import {
   type TopicFile,
   type TopicTable,
 } from '~/data/types';
+import { datasetFacts } from '~/features/places/datasetFacts';
 import { finiteExtent } from '~/lib/axis';
 import { labelFormat } from '~/lib/format';
 import type { TopicSearch } from '~/routes/topics.$type.$slug';
@@ -61,7 +69,7 @@ export function TopicPage() {
 
 function TopicView({ type, slug }: { type: EntityType; slug: string }) {
   const { data: topic } = useSuspenseQuery(topicQuery(type, slug));
-  const dataset = useDataset(type);
+  const base = useDataset(type);
   const { seo } = route.useLoaderData();
   // Prerendered HTML is built without search params, so the first (hydrating)
   // render uses the defaults and ?m / ?year apply right after hydration.
@@ -69,6 +77,45 @@ function TopicView({ type, slug }: { type: EntityType; slug: string }) {
   const urlSearch = route.useSearch();
   const search: TopicSearch = hydrated ? urlSearch : {};
   const navigate = route.useNavigate();
+
+  // Adjustments (?adj) offered for this topic's statistics: cost of living for wages, share of
+  // income for household costs, per person for totals. `dataset` and `shown` carry the chosen
+  // one, so every chart, table and sentence below reads adjusted values and labels.
+  const sizeDriven = useMemo(() => datasetFacts(base).sizeDriven, [base]);
+  const adjustCtx = useMemo(
+    () => adjustContext(base, sizeDriven),
+    [base, sizeDriven]
+  );
+  const adjustOptions = useMemo(
+    () =>
+      availableAdjustments(
+        topic.metrics.flatMap((id) => {
+          const m = base.metric(id);
+          return m == null ? [] : [m];
+        }),
+        adjustCtx
+      ),
+    [topic, base, adjustCtx]
+  );
+  const adj =
+    search.adj != null && adjustOptions.includes(search.adj)
+      ? search.adj
+      : undefined;
+  const dataset = useMemo(
+    () => withAdjustment(base, adj, sizeDriven),
+    [base, adj, sizeDriven]
+  );
+  const shown = useMemo(
+    () =>
+      adjustTopicFile(
+        topic,
+        adj,
+        (id) => base.metric(id),
+        adjustCtx,
+        base.entities.length
+      ),
+    [topic, adj, base, adjustCtx]
+  );
 
   const tables = useMemo(
     () => displayTables(topic, (id) => dataset.metric(id) != null),
@@ -93,37 +140,20 @@ function TopicView({ type, slug }: { type: EntityType; slug: string }) {
     focus == null ? null : resolveYear(years, undefined, focus.year, undated);
   const year =
     focus == null ? null : resolveYear(years, search.year, focus.year, undated);
-  // Cost-of-living adjustment (?col): offered when the place type has price levels and the
-  // topic has wages or incomes; `shown` is the topic every chart and table below reads.
-  const prices = useMemo(() => priceLevels(dataset), [dataset]);
-  const canAdjust =
-    prices != null &&
-    topic.metrics.some((id) => {
-      const m = dataset.metric(id);
-      return m != null && isIncomeLike(m);
-    });
-  const adjusted = canAdjust && search.col === true;
-  const shown = useMemo(
-    () =>
-      adjusted && prices != null
-        ? adjustTopic(topic, (id) => dataset.metric(id), prices.levels)
-        : topic,
-    [adjusted, prices, topic, dataset]
-  );
   // The default view shows the loader's text, which is also the page's FAQPage
   // JSON-LD; any other metric, year or adjustment gets the same sentences recomputed.
   const answers = useMemo<TopicAnswers>(
     () =>
       focus == null ||
-      (focus.id === lead?.id && year === defaultYear && !adjusted)
+      (focus.id === lead?.id && year === defaultYear && adj == null)
         ? seo
         : topicAnswers(shown, dataset, focus, year),
-    [seo, shown, dataset, focus, lead, year, defaultYear, adjusted]
+    [seo, shown, dataset, focus, lead, year, defaultYear, adj]
   );
-  const setAdjusted = useCallback(
-    (on: boolean) =>
+  const setAdjust = useCallback(
+    (id: AdjustmentId | undefined) =>
       void navigate({
-        search: (prev) => ({ ...prev, col: on ? true : undefined }),
+        search: (prev) => ({ ...prev, adj: id, col: undefined }),
         resetScroll: false,
       }),
     [navigate]
@@ -180,16 +210,17 @@ function TopicView({ type, slug }: { type: EntityType; slug: string }) {
       ) : focus != null ? (
         <NumericTopic
           topic={shown}
-          costAdjust={
-            canAdjust
-              ? {
-                  on: adjusted,
-                  year: prices?.year ?? null,
-                  applies: focus != null && isIncomeLike(focus),
-                  set: setAdjusted,
-                }
-              : null
-          }
+          adjust={{
+            options: adjustOptions,
+            value: adj,
+            set: setAdjust,
+            note:
+              adj != null &&
+              focus != null &&
+              !canAdjust(adj, base.metric(focus.id) ?? focus, adjustCtx)
+                ? 'This statistic is shown as reported; the adjustment applies to others on this page.'
+                : null,
+          }}
           dataset={dataset}
           tables={tables}
           focusables={focusables}
@@ -218,19 +249,17 @@ function TopicView({ type, slug }: { type: EntityType; slug: string }) {
   );
 }
 
-/** The cost-of-living toggle's state, or null when it is not offered. */
-export interface CostAdjustControl {
-  on: boolean;
-  /** Year of the price levels */
-  year: number | null;
-  /** The focused metric is one the adjustment changes */
-  applies: boolean;
-  set: (on: boolean) => void;
+/** The adjustment choice offered on a topic page. */
+export interface AdjustControl {
+  options: readonly AdjustmentId[];
+  value: AdjustmentId | undefined;
+  set: (id: AdjustmentId | undefined) => void;
+  note: string | null;
 }
 
 interface NumericTopicProps {
   topic: TopicFile;
-  costAdjust: CostAdjustControl | null;
+  adjust: AdjustControl;
   dataset: Dataset;
   tables: TopicTable[];
   focusables: Metric[];
@@ -268,7 +297,7 @@ const MIN_DISTRIBUTION = 5;
 /** Everything shown for a topic with at least one numeric metric. */
 function NumericTopic({
   topic,
-  costAdjust,
+  adjust,
   dataset,
   tables,
   focusables,
@@ -382,7 +411,7 @@ function NumericTopic({
         onFocus={onFocus}
         onYear={onYear}
         onClearSelected={onClearSelected}
-        costAdjust={costAdjust}
+        adjust={adjust}
       />
 
       {ranked.length === 0 ? (

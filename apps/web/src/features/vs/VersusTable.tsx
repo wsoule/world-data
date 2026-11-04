@@ -98,7 +98,7 @@ export function VersusTable({
                   {adjusted.has(s.metric.id) ? (
                     <span
                       className="border-accent-300 text-accent-700 dark:text-accent-300 shrink-0 rounded border px-1 text-[10px] leading-4"
-                      title="Adjusted for cost of living: dollars at the US-average price level"
+                      title="Adjusted: see the Adjust choice above for how"
                     >
                       adjusted
                     </span>

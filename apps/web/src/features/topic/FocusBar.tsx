@@ -3,7 +3,8 @@ import { BarChart3, Map as MapIcon, Trophy, X } from 'lucide-react';
 import { useId } from 'react';
 
 import { LATEST, placeNoun, tableLabels } from './model';
-import type { CostAdjustControl } from './TopicPage';
+import type { AdjustControl } from './TopicPage';
+import { AdjustPicker } from '~/components/AdjustPicker';
 import { Flag } from '~/components/Flag';
 import { InfoTip } from '~/components/InfoTip';
 import { PolarityIcon } from '~/components/MetricPicker';
@@ -48,7 +49,7 @@ export function FocusBar({
   onFocus,
   onYear,
   onClearSelected,
-  costAdjust,
+  adjust,
 }: {
   dataset: Dataset;
   tables: readonly TopicTable[];
@@ -67,7 +68,7 @@ export function FocusBar({
   /** A year, or null for the undated series */
   onYear: (year: number | null) => void;
   onClearSelected: () => void;
-  costAdjust: CostAdjustControl | null;
+  adjust: AdjustControl;
 }) {
   const metricId = useId();
   const yearId = useId();
@@ -254,34 +255,14 @@ export function FocusBar({
         </div>
       </div>
 
-      {costAdjust != null ? (
-        <div className="border-app mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 border-t pt-2 text-xs">
-          <span className="inline-flex items-center gap-1">
-            <label className="inline-flex cursor-pointer items-center gap-2 font-medium">
-              <input
-                type="checkbox"
-                checked={costAdjust.on}
-                onChange={(e) => costAdjust.set(e.target.checked)}
-                className="accent-accent-600"
-              />
-              <span>
-                Adjust wages and incomes for cost of living
-                {costAdjust.year != null ? (
-                  <span className="text-muted font-normal">
-                    {' '}
-                    ({costAdjust.year} prices)
-                  </span>
-                ) : null}
-              </span>
-            </label>
-            <InfoTip term="cost-of-living" />
-          </span>
-          {costAdjust.on && !costAdjust.applies ? (
-            <span className="text-muted">
-              This metric is not a wage or income, so it is shown as is.
-            </span>
-          ) : null}
-        </div>
+      {adjust.options.length > 0 ? (
+        <AdjustPicker
+          options={adjust.options}
+          value={adjust.value}
+          onChange={adjust.set}
+          note={adjust.note}
+          className="border-app mt-2 border-t pt-2"
+        />
       ) : null}
 
       {selected != null ? (

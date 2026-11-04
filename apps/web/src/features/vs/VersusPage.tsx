@@ -1,6 +1,6 @@
 import { getRouteApi, Link } from '@tanstack/react-router';
 import { ArrowRight, Scale, X } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { type ReactNode, useCallback, useMemo, useState } from 'react';
 
 import { MAX_PLACES, placePalette } from './palette';
 import { VersusChart } from './VersusChart';
@@ -13,6 +13,7 @@ import {
   sharedMetrics,
 } from './versusModel';
 import { VersusTable } from './VersusTable';
+import { AdjustPicker } from '~/components/AdjustPicker';
 import { EntityPicker } from '~/components/EntityPicker';
 import { EmptyState } from '~/components/feedback';
 import { Flag } from '~/components/Flag';
@@ -20,10 +21,12 @@ import { InfoTip } from '~/components/InfoTip';
 import { TypeTabs } from '~/components/TypeTabs';
 import { Card, cx, PageHeader } from '~/components/ui';
 import {
-  isIncomeLike,
-  priceLevels,
-  withCostAdjustment,
-} from '~/data/costOfLiving';
+  adjustContext,
+  type AdjustmentId,
+  availableAdjustments,
+  canAdjust,
+  withAdjustment,
+} from '~/data/adjustments';
 import { type Dataset, useDataset } from '~/data/dataset';
 import type { Entity, EntityType } from '~/data/types';
 import { datasetFacts, placeNoun } from '~/features/places/datasetFacts';
@@ -169,8 +172,8 @@ export function VersusPage() {
           places={places}
           category={search.cat}
           onCategory={(cat) => update({ cat })}
-          costAdjusted={search.col === true}
-          onCostAdjusted={(on) => update({ col: on ? true : undefined })}
+          adj={search.adj}
+          onAdjust={(adj) => update({ adj })}
         />
       )}
     </div>
@@ -290,15 +293,15 @@ function Comparison({
   places,
   category,
   onCategory,
-  costAdjusted,
-  onCostAdjusted,
+  adj,
+  onAdjust,
 }: {
   dataset: Dataset;
   places: readonly Entity[];
   category: string | undefined;
   onCategory: (category: string | undefined) => void;
-  costAdjusted: boolean;
-  onCostAdjusted: (on: boolean) => void;
+  adj: AdjustmentId | undefined;
+  onAdjust: (adj: AdjustmentId | undefined) => void;
 }) {
   const theme = useTheme();
   const palette = placePalette(theme);
@@ -310,29 +313,42 @@ function Comparison({
     () => places.map((p) => dataset.entityIndex.get(p.id) ?? -1),
     [places, dataset]
   );
-  // With the adjustment on, wages and incomes are compared (and ranked among all places) at
-  // equal buying power; see withCostAdjustment.
-  const prices = useMemo(() => priceLevels(dataset), [dataset]);
-  const adjust = costAdjusted && prices != null;
+  // An adjustment (?adj) compares, and ranks among all places, the metrics it applies to: wages
+  // at equal buying power, household costs as a share of income, totals per person.
+  const adjustCtx = useMemo(
+    () => adjustContext(dataset, facts.sizeDriven),
+    [dataset, facts]
+  );
+  const adjustOptions = useMemo(
+    () => availableAdjustments(dataset.metrics, adjustCtx),
+    [dataset, adjustCtx]
+  );
+  const active = adj != null && adjustOptions.includes(adj) ? adj : undefined;
   const source = useMemo(
-    () => (adjust ? withCostAdjustment(dataset) : dataset),
-    [adjust, dataset]
+    () => withAdjustment(dataset, active, facts.sizeDriven),
+    [dataset, active, facts]
   );
   const adjustedIds = useMemo(
     () =>
-      adjust
-        ? new Set(dataset.metrics.filter(isIncomeLike).map((m) => m.id))
-        : new Set<number>(),
-    [adjust, dataset]
+      active == null
+        ? new Set<number>()
+        : new Set(
+            dataset.metrics
+              .filter((m) => canAdjust(active, m, adjustCtx))
+              .map((m) => m.id)
+          ),
+    [active, dataset, adjustCtx]
   );
+  // Per person turns population-tracking totals into fair figures, so they stay in.
+  const leaveOutSize = hideSize && active !== 'pc';
   const shared = useMemo(
     () =>
       sharedMetrics(
         source,
         indexes,
-        hideSize ? facts.sizeDriven : new Set<number>()
+        leaveOutSize ? facts.sizeDriven : new Set<number>()
       ),
-    [source, indexes, hideSize, facts]
+    [source, indexes, leaveOutSize, facts]
   );
   const score = useMemo(
     () => scoreboard(shared, places.length),
@@ -388,10 +404,16 @@ function Comparison({
         leads={leads}
         palette={palette}
         hideSize={hideSize}
-        onHideSize={facts.sizeDriven.size > 0 ? setHideSize : undefined}
-        costAdjusted={adjust}
-        onCostAdjusted={prices != null ? onCostAdjusted : undefined}
-        priceYear={prices?.year ?? null}
+        adjust={
+          <AdjustPicker
+            options={adjustOptions}
+            value={active}
+            onChange={onAdjust}
+          />
+        }
+        onHideSize={
+          facts.sizeDriven.size > 0 && active !== 'pc' ? setHideSize : undefined
+        }
       />
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <Card
@@ -490,9 +512,7 @@ function ScoreCard({
   palette,
   hideSize,
   onHideSize,
-  costAdjusted,
-  onCostAdjusted,
-  priceYear,
+  adjust,
 }: {
   dataset: Dataset;
   places: readonly Entity[];
@@ -502,11 +522,8 @@ function ScoreCard({
   palette: readonly string[];
   hideSize: boolean;
   onHideSize: ((hide: boolean) => void) | undefined;
-  costAdjusted: boolean;
-  /** Absent for place types without price levels */
-  onCostAdjusted: ((on: boolean) => void) | undefined;
-  /** Year of the price levels used */
-  priceYear: number | null;
+  /** The Adjust choice */
+  adjust: ReactNode;
 }) {
   const type = dataset.type.id;
   const order = places
@@ -537,28 +554,7 @@ function ScoreCard({
           </p>
         </div>
         <div className="flex flex-col items-start gap-1.5">
-          {onCostAdjusted != null ? (
-            <span className="inline-flex items-center gap-1">
-              <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-medium">
-                <input
-                  type="checkbox"
-                  checked={costAdjusted}
-                  onChange={(e) => onCostAdjusted(e.target.checked)}
-                  className="accent-accent-600"
-                />
-                <span>
-                  Adjust wages and incomes for cost of living
-                  {priceYear != null ? (
-                    <span className="text-muted font-normal">
-                      {' '}
-                      ({priceYear} prices)
-                    </span>
-                  ) : null}
-                </span>
-              </label>
-              <InfoTip term="cost-of-living" />
-            </span>
-          ) : null}
+          {adjust}
           {onHideSize != null ? (
             <span className="inline-flex items-center gap-1">
               <label className="text-muted inline-flex cursor-pointer items-center gap-2 text-xs">

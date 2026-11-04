@@ -43,6 +43,7 @@ import { ParallelView } from './views/ParallelView';
 import { RankingView } from './views/RankingView';
 import { ScatterView } from './views/ScatterView';
 import { TableView } from './views/TableView';
+import { AdjustPicker } from '~/components/AdjustPicker';
 import { EntityPicker } from '~/components/EntityPicker';
 import { Flag } from '~/components/Flag';
 import { InfoTip } from '~/components/InfoTip';
@@ -50,12 +51,15 @@ import { MetricPicker } from '~/components/MetricPicker';
 import { TypeTabs } from '~/components/TypeTabs';
 import { Badge, cx, PageHeader } from '~/components/ui';
 import {
-  isIncomeLike,
-  priceLevels,
-  withCostAdjustment,
-} from '~/data/costOfLiving';
+  adjustContext,
+  type AdjustmentId,
+  availableAdjustments,
+  canAdjust,
+  withAdjustment,
+} from '~/data/adjustments';
 import { useDataset } from '~/data/dataset';
 import type { EntityType } from '~/data/types';
+import { datasetFacts } from '~/features/places/datasetFacts';
 
 const route = getRouteApi('/compare');
 
@@ -191,18 +195,21 @@ export function CompareShell() {
     [update]
   );
 
-  // With ?col every view reads wages and incomes at the US-average price level.
+  // With ?adj every view reads adjusted values and labels (cost of living for wages, share of
+  // income for household costs, per person for totals) for the basket metrics it applies to.
+  const sizeDriven = useMemo(() => datasetFacts(dataset).sizeDriven, [dataset]);
   const adjusted = useMemo(
-    () =>
-      search.col === true && priceLevels(dataset) != null
-        ? withCostAdjustment(dataset)
-        : dataset,
-    [search.col, dataset]
+    () => withAdjustment(dataset, search.adj, sizeDriven),
+    [dataset, search.adj, sizeDriven]
+  );
+  const shownMetrics = useMemo(
+    () => metrics.map((m) => adjusted.metric(m.id) ?? m),
+    [metrics, adjusted]
   );
   const props: CompareViewProps = {
     dataset: adjusted,
     search,
-    metrics,
+    metrics: shownMetrics,
     entityIdx,
     direction,
     weight,
@@ -256,7 +263,18 @@ export function CompareShell() {
             showPanel ? 'grid' : 'hidden'
           )}
         >
-          <Basket {...props} />
+          <Basket
+            {...props}
+            adjust={
+              // The originals, not the relabelled props, decide which adjustments apply.
+              <AdjustToggle
+                dataset={dataset}
+                search={search}
+                metrics={metrics}
+                update={update}
+              />
+            }
+          />
           {/* Occasional tools share one folded card; it opens itself when either is in use. */}
           <details
             className="card group p-4"
@@ -440,7 +458,11 @@ function Basket({
   addMetric,
   removeMetric,
   update,
-}: CompareViewProps) {
+  adjust,
+}: CompareViewProps & {
+  /** The Adjust choice, built from the unadjusted dataset */
+  adjust: ReactNode;
+}) {
   const total = entityIdx.length;
   const coverage = useCoverage(dataset, metrics, entityIdx);
   const noun = typeNoun(dataset.type.label);
@@ -617,59 +639,44 @@ function Basket({
           “crime” or “happiness”.
         </p>
       ) : null}
-      <CostToggle
-        dataset={dataset}
-        search={search}
-        metrics={metrics}
-        update={update}
-      />
+      {adjust}
     </section>
   );
 }
 
 /**
- * "Adjust wages and incomes for cost of living", shown when the basket holds a wage or income
- * and the place type has price levels. Lists which basket metrics it changes.
+ * The Adjust choice for the basket: only the adjustments that apply to at least one basket
+ * metric, with a note naming the metrics it changes.
  */
-function CostToggle({
+function AdjustToggle({
   dataset,
   search,
   metrics,
   update,
 }: Pick<CompareViewProps, 'dataset' | 'search' | 'metrics' | 'update'>) {
-  const prices = priceLevels(dataset);
-  const income = metrics.filter(isIncomeLike);
-  if (prices == null || income.length === 0) return null;
+  const ctx = adjustContext(dataset, datasetFacts(dataset).sizeDriven);
+  const originals = metrics;
+  const options = availableAdjustments(originals, ctx);
+  const changed =
+    search.adj == null
+      ? []
+      : originals.filter((m) => canAdjust(search.adj as AdjustmentId, m, ctx));
   return (
-    <div className="border-app mt-3 border-t pt-3 text-xs">
-      <span className="inline-flex items-center gap-1">
-        <label className="inline-flex cursor-pointer items-center gap-2 font-medium">
-          <input
-            type="checkbox"
-            checked={search.col === true}
-            onChange={(e) =>
-              update({ col: e.target.checked ? true : undefined })
-            }
-            className="accent-accent-600"
-          />
-          <span>
-            Adjust for cost of living
-            {prices.year != null ? (
-              <span className="text-muted font-normal">
-                {' '}
-                ({prices.year} prices)
-              </span>
-            ) : null}
-          </span>
-        </label>
-        <InfoTip term="cost-of-living" />
-      </span>
-      {search.col === true ? (
-        <p className="text-muted mt-1">
-          Adjusted: {income.map((m) => m.label).join(', ')}
-        </p>
-      ) : null}
-    </div>
+    <AdjustPicker
+      options={options}
+      value={
+        search.adj != null && options.includes(search.adj)
+          ? search.adj
+          : undefined
+      }
+      onChange={(adj) => update({ adj })}
+      note={
+        changed.length > 0
+          ? `Adjusted: ${changed.map((m) => m.label).join(', ')}`
+          : null
+      }
+      className="border-app mt-3 border-t pt-3"
+    />
   );
 }
 

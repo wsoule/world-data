@@ -53,7 +53,7 @@ export function useBasket(props: CompareViewProps): BasketColumns {
     entityIdx.length,
     (search.g ?? []).join('|'),
     // Cost-of-living adjustment changes the income columns' values.
-    search.col === true ? 'col' : '',
+    search.adj ?? '',
   ].join(';');
   return useKeyed(key, () => {
     const position = new Map<number, number>();

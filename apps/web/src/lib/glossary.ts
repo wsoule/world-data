@@ -12,6 +12,8 @@ export type GlossaryId =
   | 'median'
   | 'tracks-population'
   | 'cost-of-living'
+  | 'share-of-income'
+  | 'per-person'
   | 'combined-score'
   | 'weight'
   | 'normalisation'
@@ -90,6 +92,20 @@ const ENTRIES: GlossaryEntry[] = [
     short:
       'Converts wages and incomes to what they would buy at average US prices, so $100k in a cheap state and $100k in an expensive one are not treated as equal.',
     long: 'The adjustment divides each value by the place’s price level from the Bureau of Economic Analysis (Regional Price Parities, US average = 100) and multiplies by 100. A state with a price level of 110 has prices 10% above average, so $110,000 there buys what $100,000 does on average. It applies only to earnings and income; prices, rents and taxes are shown as they are, since adjusting a price by a price index would count the same difference twice. Price levels cover US states, US cities (from their metro area) and countries; for countries they come from the World Bank, as GDP per person in dollars over GDP per person at purchasing power parity, so an adjusted dollar figure is close to its purchasing-power-parity value.',
+  },
+  {
+    id: 'share-of-income',
+    term: 'Share of income',
+    short:
+      'Household costs such as rent, home values or child care divided by the place’s median household income, so a $2,000 rent in a high-income state and a low-income state are not treated as equal.',
+    long: 'Monthly costs are counted over a year (rent × 12) and divided by the median household income from the Census Bureau; for countries the divisor is GDP per person. Most costs read as a percentage of income. Large amounts such as home values read as years of income: a home worth 7 years of income is far harder to afford than one worth 3. Costs priced per unit (a gallon of gas, a pack of cigarettes) and government totals are left as they are.',
+  },
+  {
+    id: 'per-person',
+    term: 'Per person',
+    short:
+      'Totals that grow with population, such as the number of burglaries or GDP, divided by the number of residents: per 100,000 people for counts, per person for money.',
+    long: 'Big places have more of almost everything. Dividing by population shows how common something is for the people who live there, so a large state and a small one can be compared fairly. Only totals that mostly track population are offered this adjustment; rates and averages already are.',
   },
   {
     id: 'combined-score',
@@ -207,6 +223,8 @@ export const GLOSSARY_SECTIONS: GlossarySection[] = [
       'median',
       'tracks-population',
       'cost-of-living',
+      'share-of-income',
+      'per-person',
     ],
   },
   {

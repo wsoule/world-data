@@ -1,6 +1,7 @@
 import type { Normalization } from '@world-data/stats';
 
 import { type BundleId, isBundleId } from './ranking/bundles';
+import { type AdjustmentId, adjustmentParam } from '~/data/adjustments';
 import type { Dataset } from '~/data/dataset';
 import { type EntityType, isEntityType, type Metric } from '~/data/types';
 
@@ -60,8 +61,8 @@ export interface CompareSearch {
    * search palette's goal ideas). The page swaps it for the bundle's metrics on arrival.
    */
   bundle?: BundleId;
-  /** Show wages and incomes at the US-average price level (see data/costOfLiving.ts) */
-  col?: true;
+  /** Adjustment: cost of living, share of income or per person (see data/adjustments.ts) */
+  adj?: AdjustmentId;
 }
 
 /**
@@ -153,7 +154,7 @@ export function validateCompareSearch(
     fl: record(raw.fl, (x) => (typeof x === 'boolean' ? x : undefined)),
     ts: typeof raw.ts === 'string' && raw.ts !== '' ? raw.ts : undefined,
     bundle: isBundleId(raw.bundle) ? raw.bundle : undefined,
-    col: raw.col === true || raw.col === 'true' ? true : undefined,
+    adj: adjustmentParam(raw),
   };
 }
 
