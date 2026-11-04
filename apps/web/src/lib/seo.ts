@@ -2,6 +2,7 @@
 // Twitter card, robots and JSON-LD) from one description of the page, so
 // every route emits the same complete set of tags.
 
+import { REPO_URL } from '~/features/trust/links';
 import { absoluteUrl, SITE } from '~/site';
 
 type MetaTag =
@@ -110,7 +111,70 @@ export function faqPage(
   };
 }
 
-/** The organization credited as publisher in structured data. */
+/** Site path of the square brand logo (512×512 PNG of the favicon mark). */
+export const LOGO_PATH = '/logo.png';
+export const LOGO_SIZE = 512;
+
+/**
+ * JSON-LD node ids. The root route emits the Organization and WebSite nodes on every page;
+ * everything else (Dataset, Article, the trust pages) can point at them with `{ '@id': … }`, so
+ * search engines read one organization instead of several unlinked copies.
+ */
+export const ORGANIZATION_ID = absoluteUrl('/#organization');
+export const WEBSITE_ID = absoluteUrl('/#website');
+
+/**
+ * The full schema.org Organization behind the site: name, home URL, logo and the public
+ * repository as sameAs. The root route emits it once per page; other nodes reference it with
+ * publisherRef().
+ */
+export function organization(): Record<string, unknown> {
+  return {
+    '@type': 'Organization',
+    '@id': ORGANIZATION_ID,
+    name: SITE.name,
+    url: absoluteUrl('/'),
+    logo: {
+      '@type': 'ImageObject',
+      url: absoluteUrl(LOGO_PATH),
+      width: LOGO_SIZE,
+      height: LOGO_SIZE,
+    },
+    sameAs: [REPO_URL],
+  };
+}
+
+/** The schema.org WebSite node, with its site search and the Organization as publisher. */
+export function website(): Record<string, unknown> {
+  return {
+    '@type': 'WebSite',
+    '@id': WEBSITE_ID,
+    name: SITE.name,
+    url: absoluteUrl('/'),
+    description: SITE.description,
+    inLanguage: 'en',
+    publisher: publisherRef(),
+    potentialAction: {
+      '@type': 'SearchAction',
+      target: {
+        '@type': 'EntryPoint',
+        urlTemplate: `${absoluteUrl('/search')}?q={search_term_string}`,
+      },
+      'query-input': 'required name=search_term_string',
+    },
+  };
+}
+
+/**
+ * The organization credited as publisher or creator in structured data: the full Organization
+ * node with the same @id as the copy the root route emits, so the two merge into one. Inside a
+ * node on a rendered page, publisherRef() says the same in less markup.
+ */
 export function publisher(): Record<string, unknown> {
-  return { '@type': 'Organization', name: SITE.name, url: absoluteUrl('/') };
+  return organization();
+}
+
+/** A reference to the site's Organization node by @id, for publisher, creator or author fields. */
+export function publisherRef(): { '@id': string } {
+  return { '@id': ORGANIZATION_ID };
 }

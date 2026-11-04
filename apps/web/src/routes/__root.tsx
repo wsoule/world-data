@@ -38,6 +38,7 @@ import {
 } from '~/features/search/platform';
 import { SearchPalette } from '~/features/search/SearchPalette';
 import { openSearch } from '~/features/search/store';
+import { organization, website } from '~/lib/seo';
 import { setTheme, THEME_BOOT_SCRIPT, useTheme } from '~/lib/theme';
 import { absoluteUrl, SITE } from '~/site';
 import appCss from '~/styles.css?url';
@@ -77,26 +78,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' },
         { rel: 'manifest', href: '/site.webmanifest' },
       ],
-      scripts: [
-        {
-          type: 'application/ld+json',
-          children: JSON.stringify({
-            '@context': 'https://schema.org',
-            '@type': 'WebSite',
-            name: SITE.name,
-            url: absoluteUrl('/'),
-            description: SITE.description,
-            potentialAction: {
-              '@type': 'SearchAction',
-              target: {
-                '@type': 'EntryPoint',
-                urlTemplate: `${absoluteUrl('/search')}?q={search_term_string}`,
-              },
-              'query-input': 'required name=search_term_string',
-            },
-          }),
-        },
-      ],
+      // The site's Organization and WebSite, on every page: other JSON-LD nodes (Dataset,
+      // Article, the trust pages) name them by @id instead of repeating them.
+      scripts: [organization(), website()].map((node) => ({
+        type: 'application/ld+json',
+        children: JSON.stringify({
+          '@context': 'https://schema.org',
+          ...node,
+        }),
+      })),
     }),
     shellComponent: RootDocument,
     component: RootLayout,
