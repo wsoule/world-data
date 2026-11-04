@@ -22,10 +22,12 @@
 // Run by the web:build moon task (and the Dockerfile) after `vite build`, from
 // apps/web: 404.html needs the server bundle that build leaves in dist/server.
 
+import { readFileSync } from 'node:fs';
 import { mkdir, open, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+import { Dataset } from '../src/data/dataset';
 import type {
   Entity,
   EntityType,
@@ -33,8 +35,11 @@ import type {
   Metric,
   TopicFile,
   TopicSummary,
+  ValuesFile,
 } from '../src/data/types';
-import { formatValue, typeNoun } from '../src/lib/format';
+import { leadMetric, openingYear } from '../src/features/topic/headline';
+import { typeNoun } from '../src/lib/format';
+import { topicAnswers } from '../src/seo/topic-content';
 import { absoluteUrl, SITE, SITE_URL } from '../src/site';
 import { robotsTxt } from './lib/robots';
 import {
@@ -195,28 +200,45 @@ function topicColumn(
   return out;
 }
 
-/** One answer-first sentence: who leads and who trails on the topic's first numeric metric. */
+/** Datasets built for topicFact(), one per place type, from the files main() also reads. */
+const factDatasets = new Map<EntityType, Dataset>();
+
+/**
+ * The answer-first fact of a topic for llms-full.txt: the short answer of the topic page itself
+ * (topicAnswers() for the lead metric at the year the page opens on), so the file says what the
+ * page, its meta description and its Dataset say: the end the title asks for, ties as ties and
+ * a partial list's ends as "of those listed". Builds each type's Dataset once from `metrics` and
+ * `entities` plus the values and manifest files.
+ */
 function topicFact(
   topic: TopicFile,
   metrics: Map<number, Metric>,
   entities: Entity[]
 ): string {
-  const metric = topic.metrics
-    .map((id) => metrics.get(id))
-    .find((m) => m?.kind === 'num');
-  if (metric == null) return '';
-  const col = [...topicColumn(topic, metric)].filter(
-    (e): e is [number, number] => typeof e[1] === 'number'
-  );
-  if (col.length < 2) return '';
-  const better = metric.pol === -1 ? 1 : -1;
-  col.sort((a, b) => better * (a[1] - b[1]));
-  const [topI, topV] = col[0];
-  const [lowI, lowV] = col[col.length - 1];
-  const year = metric.year == null ? '' : ` (${metric.year})`;
-  const lead = metric.pol === -1 ? 'lowest' : 'highest';
-  const tail = metric.pol === -1 ? 'highest' : 'lowest';
-  return `${metric.label}${year}: ${entities[topI].name} has the ${lead} (${formatValue(metric, topV)}); ${entities[lowI].name} the ${tail} (${formatValue(metric, lowV)}).`;
+  let ds = factDatasets.get(topic.type);
+  if (ds == null) {
+    const read = <T>(file: string): T =>
+      JSON.parse(readFileSync(path.join(DATA, file), 'utf8')) as T;
+    const info = read<Manifest>('manifest.json').types.find(
+      (t) => t.id === topic.type
+    );
+    if (info == null) return '';
+    ds = new Dataset(
+      info,
+      entities,
+      [...metrics.values()],
+      read<ValuesFile>(`${topic.type}/values.json`),
+      read<TopicSummary[]>('topics.json')
+    );
+    factDatasets.set(topic.type, ds);
+  }
+  const lead = leadMetric(topic, ds);
+  return topicAnswers(
+    topic,
+    ds,
+    lead,
+    lead == null ? null : openingYear(topic, lead)
+  ).short;
 }
 
 /**

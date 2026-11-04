@@ -16,6 +16,7 @@ import { manifestQuery, topicsIndexQuery } from '~/data/api';
 import type { Dataset } from '~/data/dataset';
 import type { TopicFile } from '~/data/types';
 import { formatInt } from '~/lib/format';
+import { shownMetrics } from '~/seo/content';
 import { formatDay, sourceTitle } from '~/seo/topic-content';
 import { SITE } from '~/site';
 
@@ -155,6 +156,7 @@ export function TopicHeader({
     return hit != null ? [hit] : [];
   });
   const places = topic.entities.length;
+  const metricCount = shownMetrics(topic, dataset).length;
 
   return (
     <header className="space-y-3">
@@ -187,8 +189,7 @@ export function TopicHeader({
         ))}
         <span className="tabular">
           {formatInt(places)} {placeNoun(topic.type, places)} ·{' '}
-          {formatInt(topic.metrics.length)}{' '}
-          {topic.metrics.length === 1 ? 'metric' : 'metrics'}
+          {formatInt(metricCount)} {metricCount === 1 ? 'metric' : 'metrics'}
         </span>
         {updated != null ? (
           <span className="inline-flex items-center gap-1">

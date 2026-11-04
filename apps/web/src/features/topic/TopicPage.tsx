@@ -7,11 +7,11 @@ import { type ReactNode, useCallback, useMemo, useState } from 'react';
 import { CategoricalTopic } from './CategoricalTopic';
 import { CorrelationsCard } from './CorrelationsCard';
 import { FocusBar } from './FocusBar';
+import { isYearValued, leadMetric, topicListOrder } from './headline';
 import {
   displayTables,
   focusableMetrics,
   hasUndated,
-  listDirection,
   numericColumn,
   rankEntries,
   resolveYear,
@@ -55,7 +55,6 @@ import { datasetFacts } from '~/features/places/datasetFacts';
 import { finiteExtent } from '~/lib/axis';
 import { labelFormat } from '~/lib/format';
 import type { TopicSearch } from '~/routes/topics.$type.$slug';
-import { leadMetric } from '~/seo/content';
 import { topicAnswers, type TopicAnswers } from '~/seo/topic-content';
 
 const route = getRouteApi('/topics/$type/$slug');
@@ -317,8 +316,18 @@ function NumericTopic({
     [topic, focus, year, dataset]
   );
   // Rank columns list rank 1 first (a worst-first list opens on its worst place); other
-  // metrics list best first.
-  const direction = listDirection(focus);
+  // metrics list best first, unless the title asks for an end ("Coldest" lists lowest first).
+  const order = useMemo(
+    () =>
+      topicListOrder(
+        topic,
+        focus,
+        leadMetric(topic, dataset),
+        isYearValued(focus, values)
+      ),
+    [topic, focus, dataset, values]
+  );
+  const direction = order.direction;
   const ranked = useMemo(
     () => rankEntries(values, direction),
     [values, direction]
@@ -441,6 +450,7 @@ function NumericTopic({
               dataset={dataset}
               focus={focus}
               ranked={ranked}
+              order={order}
               formats={formats}
               selected={selected}
               onSelect={onSelect}

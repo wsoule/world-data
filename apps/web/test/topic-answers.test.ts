@@ -12,6 +12,7 @@ import type {
   TopicSummary,
   ValuesFile,
 } from '../src/data/types';
+import { leadMetric } from '../src/features/topic/headline';
 import {
   displayTables,
   focusableMetrics,
@@ -19,7 +20,7 @@ import {
   resolveYear,
   seriesYears,
 } from '../src/features/topic/model';
-import { leadMetric, topicSummary } from '../src/seo/content';
+import { topicSummary } from '../src/seo/content';
 import { topicAnswers } from '../src/seo/topic-content';
 
 const DATA = join(import.meta.dir, '../public/data');
@@ -70,6 +71,9 @@ describe('topicAnswers', () => {
         const topic = read<TopicFile>(`${type}/topics/${file}`);
         const def = pageDefault(topic, ds);
         if (def == null || def.year !== def.focus.year) continue;
+        // A hand-picked headline the page cannot focus (a statistic from another topic, or a
+        // text column) is described by the loader text alone.
+        if (leadMetric(topic, ds)?.id !== def.focus.id) continue;
         const seo = topicSummary(topic, ds, manifest.categories);
         const answers = topicAnswers(topic, ds, def.focus, def.year);
         expect(answers.summary).toBe(seo.summary);
@@ -135,12 +139,75 @@ describe('topicAnswers', () => {
     expect(faq[2].answer).toMatch(/across the 186 countries with data\.$/);
   });
 
-  test('falls back to a generic summary without a numeric metric', () => {
+  test('answers a list topic with its places and a breakdown by value', () => {
     const ds = dataset('country');
     const topic = read<TopicFile>('country/topics/14-eyes-countries.json');
     const { summary, faq } = topicAnswers(topic, ds, null, null);
-    expect(summary).toStartWith('14 Eyes Countries: compare');
-    expect(faq).toHaveLength(1);
+    expect(summary).toStartWith(
+      '14 countries are on the 14 Eyes Countries list: United States, Germany,'
+    );
+    expect(summary).toContain(
+      'Member of 5 Eyes: “No” in 9 of 14 countries and “Yes” in 5 (United States, United Kingdom, Canada, Australia and New Zealand).'
+    );
+    expect(faq.length).toBeGreaterThan(1);
+  });
+
+  test('reads opposite titles over one table from opposite ends', () => {
+    const ds = dataset('state');
+    const cold = topicSummary(
+      read<TopicFile>('state/topics/coldest-states.json'),
+      ds,
+      manifest.categories
+    );
+    const hot = topicSummary(
+      read<TopicFile>('state/topics/hottest-states.json'),
+      ds,
+      manifest.categories
+    );
+    expect(cold.summary).toStartWith(
+      'Alaska has the lowest Average Temperature'
+    );
+    expect(hot.summary).toStartWith(
+      'Florida and Georgia tie for the highest Average Temperature'
+    );
+    expect(cold.description).not.toBe(hot.description);
+  });
+
+  test('answers better- and worse-end titles by what the index means', () => {
+    const ds = dataset('country');
+    const lead = (slug: string) =>
+      topicSummary(
+        read<TopicFile>(`country/topics/${slug}.json`),
+        ds,
+        manifest.categories
+      ).summary;
+    expect(lead('safest-countries-in-the-world')).toStartWith(
+      'Iceland has the lowest Global Peace Index'
+    );
+    expect(lead('poorest-countries-in-the-world')).toStartWith(
+      'Burundi has the lowest GDP per Capita'
+    );
+    expect(lead('least-corrupt-countries')).toStartWith(
+      'Denmark has the highest Corruption Perception Index'
+    );
+    expect(lead('most-corrupt-countries')).toStartWith(
+      'Somalia and South Sudan tie for the lowest Corruption Perception Index'
+    );
+  });
+
+  test('leads median household income with the all-households Census figure', () => {
+    const ds = dataset('state');
+    const topic = read<TopicFile>(
+      'state/topics/median-household-income-by-state.json'
+    );
+    expect(leadMetric(topic, ds)?.id).toBe(900603);
+    const { summary } = topicSummary(topic, ds, manifest.categories);
+    expect(summary).toStartWith(
+      'District of Columbia has the highest Median Household Income in 2024'
+    );
+    expect(summary).toContain(
+      'American Community Survey 5-year estimate (2020–2024)'
+    );
   });
 
   test('credits Rankodex and the agency on a topic built from a primary source', () => {
@@ -156,4 +223,26 @@ describe('topicAnswers', () => {
     expect(dataset_.creator).toMatchObject({ name: 'Rankodex' });
     expect(dataset_.isBasedOn).toEqual(topic.sources.map((s) => s.url));
   });
+
+  for (const type of manifest.types.map((t) => t.id)) {
+    test(`writes no boilerplate and one metric count for every ${type} topic`, () => {
+      const ds = dataset(type);
+      for (const file of readdirSync(join(DATA, type, 'topics'))) {
+        if (!file.endsWith('.json')) continue;
+        const topic = read<TopicFile>(`${type}/topics/${file}`);
+        const seo = topicSummary(topic, ds, manifest.categories);
+        expect(seo.description).not.toMatch(
+          /: compare [\d,]+ .* on [\d,]+ metrics?\./
+        );
+        const counts = new Set(
+          [...seo.description.matchAll(/([\d,]+) metrics?\b/g)].map((m) => m[1])
+        );
+        expect(counts.size).toBeLessThanOrEqual(1);
+        // Years print without a thousands separator ("latest Year Joined (2024)").
+        expect(seo.summary).not.toMatch(
+          /\b(?:latest|earliest)\b[^.]*\([12],\d{3}\)/
+        );
+      }
+    });
+  }
 });

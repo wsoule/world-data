@@ -42,6 +42,18 @@ export function listDirection(metric: Pick<Metric, 'pol' | 'fmt'>): Direction {
   return isRankColumn(metric) ? -1 : directionOf(metric);
 }
 
+/**
+ * How a topic page lists a metric (see `topicListOrder` in ./headline.ts): `direction` ranks the
+ * values (rank columns keep -1, rank 1 first, so their positions stay true); `fromLast` shows a
+ * rank column from its last rank; `byTitle` is true when the title, not the metric's polarity,
+ * chose the order, which the ranking then labels by value ("Lowest first").
+ */
+export interface ListOrder {
+  direction: Direction;
+  fromLast: boolean;
+  byTitle: boolean;
+}
+
 /** Years with data for one metric in a topic, oldest first. The undated key is not a year. */
 export function seriesYears(topic: TopicFile, metricId: number): number[] {
   const series = topic.series[String(metricId)];
@@ -480,17 +492,27 @@ export function moverTitles(metric: Pick<Metric, 'fmt' | 'pol'>): {
 /**
  * "Best first" / "Worst first" / "Highest first" for a ranking listed in `listDirection` order
  * (or the reverse). Values list best first by polarity (highest first when neutral); a rank
- * column lists rank 1 first, which is the worst place on a worst-first list.
+ * column lists rank 1 first, which is the worst place on a worst-first list. With a `list`
+ * order the title chose, values are labelled by value ("Lowest first" on "Coldest Countries",
+ * "Earliest first" for years), since the title's end need not be the better one, and a rank
+ * column shown from its last rank reads the other way round.
  */
 export function rankingOrderLabel(
   metric: Pick<Metric, 'fmt' | 'pol'>,
-  reversed: boolean
+  reversed: boolean,
+  list?: ListOrder & { years?: boolean }
 ): string {
   const order = rankOrder(metric);
+  if (order == null && list?.byTitle === true) {
+    const high = (list.direction === 1) !== reversed;
+    if (list.years === true) return high ? 'Latest first' : 'Earliest first';
+    return high ? 'Highest first' : 'Lowest first';
+  }
+  const flipped = reversed !== (list?.fromLast === true);
   if (order == null && metric.pol === 0)
-    return reversed ? 'Lowest first' : 'Highest first';
+    return flipped ? 'Lowest first' : 'Highest first';
   const bestFirst = order !== 'worst-first';
-  return bestFirst !== reversed ? 'Best first' : 'Worst first';
+  return bestFirst !== flipped ? 'Best first' : 'Worst first';
 }
 
 /** The two years a "biggest changes" view compares: the previous year into the selected one. */

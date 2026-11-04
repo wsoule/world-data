@@ -25,9 +25,10 @@ import {
   useState,
 } from 'react';
 
+import { isYearValued, leadMetric, topicListOrder } from './headline';
 import {
   formatSort,
-  listDirection,
+  type ListOrder,
   numericColumn,
   parseSort,
   placeNoun,
@@ -92,14 +93,20 @@ interface MetricColumn {
   metric: Metric;
   year: number | null;
   raw: (number | string | null)[];
-  /** Competition rank per entity (numeric metrics only) */
+  /** Competition rank per entity in the page's list order (numeric metrics only) */
   ranks: Float64Array | null;
+  /** How the page lists this metric (see topicListOrder); null for text columns */
+  order: ListOrder | null;
   coverage: number;
   /** Long free text gets a wider, wrapping column */
   long: boolean;
   /** Shows the undated series while the metric also has dated ones */
   latest: boolean;
 }
+
+/** True when a column's list order starts from its highest values (or last rank). */
+const startsHigh = (order: ListOrder | null): boolean =>
+  order != null && (order.fromLast || order.direction === 1);
 
 /** URL params of the data table (see TopicSearch). */
 type TableSearch = Pick<TopicSearch, 'tab' | 'tq' | 'tsort'>;
@@ -308,6 +315,8 @@ function DataTable({
 
   const cols = useMemo<MetricColumn[]>(() => {
     const out: MetricColumn[] = [];
+    // The title's end ("Coldest") orders the headline and akin metrics, as in the ranking.
+    const lead = leadMetric(topic, dataset);
     for (const id of source.metrics) {
       const metric = dataset.metric(id);
       if (metric == null) continue;
@@ -320,17 +329,21 @@ function DataTable({
         coverage++;
         if (typeof v === 'string') longest = Math.max(longest, v.length);
       }
+      const numeric =
+        metric.kind === 'num' ? numericColumn(topic, id, y, entityCount) : null;
+      const order =
+        numeric == null
+          ? null
+          : topicListOrder(topic, metric, lead, isYearValued(metric, numeric));
       out.push({
         metric,
         year: y,
         raw,
         ranks:
-          metric.kind === 'num'
-            ? rankColumn(
-                numericColumn(topic, id, y, entityCount),
-                listDirection(metric)
-              )
-            : null,
+          numeric == null || order == null
+            ? null
+            : rankColumn(numeric, order.direction),
+        order,
         coverage,
         long: longest > 60,
         latest: y == null && seriesYears(topic, id).length > 0,
@@ -352,13 +365,14 @@ function DataTable({
   }, [topic, dataset, cols]);
 
   // Default order: the focus metric (or the first numeric one) in the page's list order: best
-  // first by polarity, or rank 1 first for a rank column.
+  // first by polarity, or rank 1 first for a rank column, unless the title asks for an end
+  // ("Coldest" lowest first, "Least Educated" from the last rank).
   const defaultSorting = useMemo<SortingState>(() => {
     const lead =
       cols.find((c) => c.metric.id === focusId) ??
       cols.find((c) => c.ranks != null);
     return lead != null
-      ? [{ id: `m${lead.metric.id}`, desc: listDirection(lead.metric) === 1 }]
+      ? [{ id: `m${lead.metric.id}`, desc: startsHigh(lead.order) }]
       : [{ id: 'place', desc: false }];
   }, [cols, focusId]);
   const columnIds = useMemo(
@@ -438,7 +452,7 @@ function DataTable({
               id: `m${c.metric.id}`,
               header: c.metric.label,
               sortUndefined: 'last',
-              sortDescFirst: c.ranks != null && listDirection(c.metric) === 1,
+              sortDescFirst: c.ranks != null && startsHigh(c.order),
               ...(c.ranks == null ? { sortFn: 'alphanumeric' as const } : {}),
               cell: (info) => (
                 <ValueCell

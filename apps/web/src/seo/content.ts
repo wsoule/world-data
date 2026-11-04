@@ -25,7 +25,8 @@ import {
   rankableMetrics,
   sizeDrivenMetrics,
 } from '~/features/places/profileModel';
-import { hasUndated, resolveYear, seriesYears } from '~/features/topic/model';
+import { leadMetric, openingYear } from '~/features/topic/headline';
+import { seriesYears } from '~/features/topic/model';
 import { formatInt, ordinal, typeNoun } from '~/lib/format';
 import { breadcrumbs, faqPage, publisher } from '~/lib/seo';
 import { absoluteUrl, SITE } from '~/site';
@@ -66,28 +67,35 @@ const SPATIAL: Record<EntityType, string> = {
   county: 'United States',
 };
 
-/** The metric a topic leads with: the first numeric metric of its first table. */
-export function leadMetric(topic: TopicFile, ds: Dataset): Metric | null {
-  const ordered = [...(topic.tables[0]?.metrics ?? []), ...topic.metrics];
-  for (const id of ordered) {
-    const m = ds.metric(id);
-    if (m?.kind === 'num' && m.meta !== true) return m;
-  }
-  return null;
+/**
+ * Metrics a topic shows, counted the same way wherever a count is printed (the page header,
+ * the meta description, the Dataset): known to the catalog and not bookkeeping columns.
+ */
+export function shownMetrics(topic: TopicFile, ds: Dataset): Metric[] {
+  return topic.metrics
+    .map((id) => ds.metric(id))
+    .filter((m): m is Metric => m != null && m.meta !== true);
 }
 
 /**
- * The year a topic page opens a metric on (null for its undated series): the metric's default
- * year when the topic has it, else the undated series, else the latest year. Same rule as the
- * page's own year picker (resolveYear), so the build-time text describes the view it opens on.
+ * The closing sentence of a topic's description, after the answer: what the page holds, named
+ * by its title so pages over the same table still read apart ("Coldest States: 50 US states
+ * ranked on 3 metrics, mapped and compared."). A null title leaves the name out, for an answer
+ * that already opens with it.
  */
-function openingYear(topic: TopicFile, metric: Metric): number | null {
-  return resolveYear(
-    seriesYears(topic, metric.id),
-    undefined,
-    metric.year,
-    hasUndated(topic, metric.id)
-  );
+export function topicClosing(
+  title: string | null,
+  places: number,
+  metrics: number,
+  ranked: boolean,
+  type: EntityTypeInfo
+): string {
+  const where = `${formatInt(places)} ${places === 1 ? singular(type) : plural(type)}`;
+  const what = `${formatInt(metrics)} ${metrics === 1 ? 'metric' : 'metrics'}`;
+  const name = title == null ? '' : `${title.replace(/[?.!]$/, '')}: `;
+  return ranked
+    ? `${name}${where} ranked on ${what}, mapped and compared.`
+    : `${name}${where} and ${what} in one table.`;
 }
 
 /**
@@ -104,7 +112,7 @@ export function topicSummary(
   const type = ds.type;
   const path = `/topics/${type.id}/${topic.slug}`;
   const metric = leadMetric(topic, ds);
-  const { summary, faq } = topicAnswers(
+  const { summary, short, faq } = topicAnswers(
     topic,
     ds,
     metric,
@@ -119,19 +127,30 @@ export function topicSummary(
       : [{ name: category.label, path: `/categories/${category.id}` }]),
     { name: topic.title, path },
   ];
-  const years = (metric?.years ?? []).filter(
-    (y) => y <= new Date().getUTCFullYear()
+  const shown = shownMetrics(topic, ds);
+  // The years the topic's own table covers (the CSV download), not a headline borrowed from
+  // another topic.
+  const thisYear = new Date().getUTCFullYear();
+  const years = [...new Set(shown.flatMap((m) => seriesYears(topic, m.id)))]
+    .filter((y) => y <= thisYear)
+    .sort((a, b) => a - b);
+  const variables = shown.slice(0, 25);
+  // The answer comes first, then one closing sentence naming the topic and what the page
+  // holds. The meta description quotes the short answer, so the closing still fits in a search
+  // snippet and pages over the same table read apart; the Dataset keeps the full summary.
+  const closing = topicClosing(
+    short.startsWith(`${topic.title}:`) ? null : topic.title,
+    topic.entities.length,
+    shown.length,
+    metric != null,
+    type
   );
-  const variables = topic.metrics
-    .map((id) => ds.metric(id))
-    .filter((m): m is Metric => m != null && m.meta !== true)
-    .slice(0, 25);
-  const description = `${summary} Compare ${formatInt(topic.entities.length)} ${plural(type)} on ${formatInt(variables.length)} ${variables.length === 1 ? 'metric' : 'metrics'}, overlay them with any other statistic and see what correlates.`;
+  const description = `${short} ${closing}`;
 
   const dataset: Record<string, unknown> = {
     '@type': 'Dataset',
     name: topic.title,
-    description,
+    description: `${summary} ${closing}`,
     url: absoluteUrl(path),
     keywords: [
       type.label,
@@ -164,8 +183,14 @@ export function topicSummary(
     dataset.temporalCoverage =
       first === last ? String(first) : `${first}/${last}`;
   }
-  if (topic.sources.length > 0)
-    dataset.isBasedOn = topic.sources.map((s) => s.url);
+  // What the table is based on: the source page it mirrors (none for a topic Rankodex built
+  // from a primary source, whose creator is Rankodex alone) and the sources that page or that
+  // build cites.
+  const basedOn = [
+    ...(topic.url == null ? [] : [topic.url]),
+    ...topic.sources.map((s) => s.url),
+  ];
+  if (basedOn.length > 0) dataset.isBasedOn = [...new Set(basedOn)];
 
   return {
     title: topic.title,

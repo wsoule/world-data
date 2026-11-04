@@ -5,8 +5,10 @@ import { useMemo, useState } from 'react';
 import { DistributionChart } from './charts/DistributionChart';
 import { RankedBars } from './charts/RankedBars';
 import { TrendChart, type TrendSeries } from './charts/TrendChart';
+import { isYearValued } from './headline';
 import {
   isSkewed,
+  type ListOrder,
   placeNoun,
   type RankedEntry,
   rankingOrderLabel,
@@ -40,12 +42,14 @@ const SHOW_ALL_LIMIT = 300;
  * Ranked bars for the focus metric: every place when the list is short, otherwise the first 15
  * and last 5 with a toggle for all. The order can be flipped, keeping true ranks. Rank columns
  * keep their own order (rank 1 first, with the longest bar), so a worst-first list opens on its
- * worst place.
+ * worst place, unless the page's `order` starts them from the last rank ("Least Educated
+ * States"); `ranked` comes in that order's direction.
  */
 export function RankingCard({
   dataset,
   focus,
   ranked,
+  order: list,
   formats,
   selected,
   onSelect,
@@ -53,6 +57,7 @@ export function RankingCard({
   dataset: Dataset;
   focus: Metric;
   ranked: readonly RankedEntry[];
+  order?: ListOrder;
   formats: Formats;
   selected: number | null;
   onSelect: (i: number) => void;
@@ -62,15 +67,28 @@ export function RankingCard({
   const short = ranked.length <= SHORT_RANKING;
   const showAll = short || mode === 'all';
   const order = rankOrder(focus);
+  const flipped = reversed !== (list?.fromLast === true);
   const slice = useMemo(() => {
-    const ordered = reversed ? [...ranked].reverse() : [...ranked];
+    const ordered = flipped ? [...ranked].reverse() : [...ranked];
     return showAll
       ? rankWindow(ordered, ordered.length, 0)
       : rankWindow(ordered);
-  }, [ranked, showAll, reversed]);
+  }, [ranked, showAll, flipped]);
   const noun = placeNoun(dataset.type.id);
   const canToggle = !short && ranked.length <= SHOW_ALL_LIMIT;
-  const firstLabel = rankingOrderLabel(focus, reversed);
+  const years = useMemo(
+    () =>
+      isYearValued(
+        focus,
+        ranked.map((e) => e.value)
+      ),
+    [focus, ranked]
+  );
+  const firstLabel = rankingOrderLabel(
+    focus,
+    reversed,
+    list == null ? undefined : { ...list, years }
+  );
   const bars = (
     <RankedBars
       dataset={dataset}
