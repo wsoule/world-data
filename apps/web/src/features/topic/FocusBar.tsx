@@ -24,7 +24,8 @@ const LATEST_TITLE =
 
 const pill = (on: boolean) =>
   cx(
-    'rounded-md px-2.5 py-1 text-sm font-medium whitespace-nowrap transition-colors',
+    // Long statistic names wrap on phones instead of widening the page.
+    'rounded-md px-2.5 py-1 text-left text-sm font-medium transition-colors sm:whitespace-nowrap',
     on ? 'bg-surface text-app shadow-sm' : 'text-muted hover:text-app'
   );
 

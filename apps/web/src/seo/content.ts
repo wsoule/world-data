@@ -391,7 +391,8 @@ export function placeSummary(ds: Dataset, index: number): PageSummary {
     new Set([...facts.selectedLists, ...facts.sizeDriven])
   ).length;
   return {
-    title: `${e.name}: rankings and statistics`,
+    // The place type keeps same-named places apart (Georgia the state and the country).
+    title: `${e.name}: ${singular(ds.type)} rankings and statistics`,
     description: summary,
     summary,
     faq,

@@ -1,20 +1,19 @@
 import { createFileRoute, notFound } from '@tanstack/react-router';
 
 import { notFoundHead } from '~/components/feedback';
-import { manifestQuery, storiesIndexQuery, storyQuery } from '~/data/api';
+import { storiesIndexQuery, storyQuery } from '~/data/api';
 import { ArticlePage } from '~/features/articles/ArticlePage';
 import { storyText } from '~/features/articles/prose';
-import { breadcrumbs, pageHead } from '~/lib/seo';
+import { breadcrumbs, pageHead, publisherRef } from '~/lib/seo';
 import { absoluteUrl, SITE } from '~/site';
 
 export const Route = createFileRoute('/articles/$slug')({
   loader: async ({ context, params }) => {
-    const [story, , manifest] = await Promise.all([
+    const [story] = await Promise.all([
       context.queryClient.ensureQueryData(storyQuery(params.slug)).catch(() => {
         throw notFound();
       }),
       context.queryClient.ensureQueryData(storiesIndexQuery),
-      context.queryClient.ensureQueryData(manifestQuery),
     ]);
     const text = storyText(story);
     // Only this small summary is embedded in the HTML for hydration.
@@ -23,7 +22,6 @@ export const Route = createFileRoute('/articles/$slug')({
         title: story.title,
         description: `${text.takeaway} ${text.strength}`,
         dek: text.dek,
-        modified: manifest.generatedAt,
       },
     };
   },
@@ -40,10 +38,11 @@ export const Route = createFileRoute('/articles/$slug')({
           '@type': 'Article',
           headline: loaderData.seo.title,
           description: loaderData.seo.dek,
-          dateModified: loaderData.seo.modified,
+          // No dateModified: stories have no recorded date, and the build date would claim
+          // every story changed on every deploy. The sitemap carries their data date.
           mainEntityOfPage: absoluteUrl(path),
-          author: { '@type': 'Organization', name: SITE.name },
-          publisher: { '@type': 'Organization', name: SITE.name },
+          author: publisherRef(),
+          publisher: publisherRef(),
         },
         breadcrumbs([
           { name: SITE.name, path: '/' },

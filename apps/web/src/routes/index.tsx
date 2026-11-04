@@ -7,7 +7,7 @@ import {
   topicsIndexQuery,
 } from '~/data/api';
 import { HomePage } from '~/features/home/HomePage';
-import { pageHead, publisher } from '~/lib/seo';
+import { pageHead } from '~/lib/seo';
 import { SITE } from '~/site';
 
 export const Route = createFileRoute('/')({
@@ -25,8 +25,8 @@ export const Route = createFileRoute('/')({
     pageHead({
       title: SITE.tagline,
       description: SITE.description,
+      // The root route already emits the site's Organization and WebSite.
       path: '/',
-      jsonLd: [publisher()],
     }),
   component: HomePage,
 });

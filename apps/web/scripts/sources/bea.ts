@@ -99,7 +99,7 @@ const PAGES: Record<
     cats: ['economics'],
     sources: [
       {
-        url: 'https://www.bea.gov/data/income-saving/real-personal-income-states-and-metro-areas',
+        url: 'https://www.bea.gov/data/income-saving/real-personal-income-states',
         name: 'Real Personal Income for States and Metropolitan Areas - US Bureau of Economic Analysis',
       },
     ],
