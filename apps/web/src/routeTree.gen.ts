@@ -10,9 +10,15 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AboutRouteImport } from './routes/about'
 import { Route as CompareRouteImport } from './routes/compare'
+import { Route as ContactRouteImport } from './routes/contact'
 import { Route as GlossaryRouteImport } from './routes/glossary'
+import { Route as MethodologyRouteImport } from './routes/methodology'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as SearchRouteImport } from './routes/search'
+import { Route as SourcesRouteImport } from './routes/sources'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as VsRouteImport } from './routes/vs'
 import { Route as ArticlesIndexRouteImport } from './routes/articles.index'
 import { Route as ArticlesSlugRouteImport } from './routes/articles.$slug'
@@ -27,9 +33,19 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AboutRoute = AboutRouteImport.update({
+  id: '/about',
+  path: '/about',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CompareRoute = CompareRouteImport.update({
   id: '/compare',
   path: '/compare',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ContactRoute = ContactRouteImport.update({
+  id: '/contact',
+  path: '/contact',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GlossaryRoute = GlossaryRouteImport.update({
@@ -37,9 +53,29 @@ const GlossaryRoute = GlossaryRouteImport.update({
   path: '/glossary',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MethodologyRoute = MethodologyRouteImport.update({
+  id: '/methodology',
+  path: '/methodology',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SearchRoute = SearchRouteImport.update({
   id: '/search',
   path: '/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SourcesRoute = SourcesRouteImport.update({
+  id: '/sources',
+  path: '/sources',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
   getParentRoute: () => rootRouteImport,
 } as any)
 const VsRoute = VsRouteImport.update({
@@ -85,9 +121,15 @@ const TopicsTypeSlugRoute = TopicsTypeSlugRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
   '/compare': typeof CompareRoute
+  '/contact': typeof ContactRoute
   '/glossary': typeof GlossaryRoute
+  '/methodology': typeof MethodologyRoute
+  '/privacy': typeof PrivacyRoute
   '/search': typeof SearchRoute
+  '/sources': typeof SourcesRoute
+  '/terms': typeof TermsRoute
   '/vs': typeof VsRoute
   '/articles/$slug': typeof ArticlesSlugRoute
   '/categories/$category': typeof CategoriesCategoryRoute
@@ -99,9 +141,15 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
   '/compare': typeof CompareRoute
+  '/contact': typeof ContactRoute
   '/glossary': typeof GlossaryRoute
+  '/methodology': typeof MethodologyRoute
+  '/privacy': typeof PrivacyRoute
   '/search': typeof SearchRoute
+  '/sources': typeof SourcesRoute
+  '/terms': typeof TermsRoute
   '/vs': typeof VsRoute
   '/articles/$slug': typeof ArticlesSlugRoute
   '/categories/$category': typeof CategoriesCategoryRoute
@@ -114,9 +162,15 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
   '/compare': typeof CompareRoute
+  '/contact': typeof ContactRoute
   '/glossary': typeof GlossaryRoute
+  '/methodology': typeof MethodologyRoute
+  '/privacy': typeof PrivacyRoute
   '/search': typeof SearchRoute
+  '/sources': typeof SourcesRoute
+  '/terms': typeof TermsRoute
   '/vs': typeof VsRoute
   '/articles/$slug': typeof ArticlesSlugRoute
   '/categories/$category': typeof CategoriesCategoryRoute
@@ -130,9 +184,15 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/about'
     | '/compare'
+    | '/contact'
     | '/glossary'
+    | '/methodology'
+    | '/privacy'
     | '/search'
+    | '/sources'
+    | '/terms'
     | '/vs'
     | '/articles/$slug'
     | '/categories/$category'
@@ -144,9 +204,15 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/about'
     | '/compare'
+    | '/contact'
     | '/glossary'
+    | '/methodology'
+    | '/privacy'
     | '/search'
+    | '/sources'
+    | '/terms'
     | '/vs'
     | '/articles/$slug'
     | '/categories/$category'
@@ -158,9 +224,15 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/about'
     | '/compare'
+    | '/contact'
     | '/glossary'
+    | '/methodology'
+    | '/privacy'
     | '/search'
+    | '/sources'
+    | '/terms'
     | '/vs'
     | '/articles/$slug'
     | '/categories/$category'
@@ -173,9 +245,15 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AboutRoute: typeof AboutRoute
   CompareRoute: typeof CompareRoute
+  ContactRoute: typeof ContactRoute
   GlossaryRoute: typeof GlossaryRoute
+  MethodologyRoute: typeof MethodologyRoute
+  PrivacyRoute: typeof PrivacyRoute
   SearchRoute: typeof SearchRoute
+  SourcesRoute: typeof SourcesRoute
+  TermsRoute: typeof TermsRoute
   VsRoute: typeof VsRoute
   ArticlesSlugRoute: typeof ArticlesSlugRoute
   CategoriesCategoryRoute: typeof CategoriesCategoryRoute
@@ -195,11 +273,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/about': {
+      id: '/about'
+      path: '/about'
+      fullPath: '/about'
+      preLoaderRoute: typeof AboutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/compare': {
       id: '/compare'
       path: '/compare'
       fullPath: '/compare'
       preLoaderRoute: typeof CompareRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/contact': {
+      id: '/contact'
+      path: '/contact'
+      fullPath: '/contact'
+      preLoaderRoute: typeof ContactRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/glossary': {
@@ -209,11 +301,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GlossaryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/methodology': {
+      id: '/methodology'
+      path: '/methodology'
+      fullPath: '/methodology'
+      preLoaderRoute: typeof MethodologyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/search': {
       id: '/search'
       path: '/search'
       fullPath: '/search'
       preLoaderRoute: typeof SearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sources': {
+      id: '/sources'
+      path: '/sources'
+      fullPath: '/sources'
+      preLoaderRoute: typeof SourcesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/vs': {
@@ -277,9 +397,15 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AboutRoute: AboutRoute,
   CompareRoute: CompareRoute,
+  ContactRoute: ContactRoute,
   GlossaryRoute: GlossaryRoute,
+  MethodologyRoute: MethodologyRoute,
+  PrivacyRoute: PrivacyRoute,
   SearchRoute: SearchRoute,
+  SourcesRoute: SourcesRoute,
+  TermsRoute: TermsRoute,
   VsRoute: VsRoute,
   ArticlesSlugRoute: ArticlesSlugRoute,
   CategoriesCategoryRoute: CategoriesCategoryRoute,

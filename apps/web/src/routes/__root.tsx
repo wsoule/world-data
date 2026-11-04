@@ -38,6 +38,7 @@ import {
 } from '~/features/search/platform';
 import { SearchPalette } from '~/features/search/SearchPalette';
 import { openSearch } from '~/features/search/store';
+import { TRUST_PAGES } from '~/features/trust/pages';
 import { organization, website } from '~/lib/seo';
 import { setTheme, THEME_BOOT_SCRIPT, useTheme } from '~/lib/theme';
 import { absoluteUrl, SITE } from '~/site';
@@ -393,8 +394,8 @@ function Footer() {
   );
   return (
     <footer className="border-app mt-8 border-t">
-      <div className="mx-auto grid max-w-7xl gap-6 px-4 py-8 text-sm md:grid-cols-[1.4fr_1fr_1fr] md:px-6">
-        <div>
+      <div className="mx-auto grid max-w-7xl grid-cols-2 gap-x-6 gap-y-8 px-4 py-8 text-sm md:grid-cols-[1.4fr_1fr_1fr_1fr] md:px-6">
+        <div className="col-span-2 md:col-span-1">
           <div className="flex items-center gap-2 font-semibold">
             <BrandMark className="size-5" />
             {SITE.name}
@@ -412,6 +413,25 @@ function Footer() {
             </a>{' '}
             and the primary sources cited on each topic. Values may lag their
             sources.
+          </p>
+          <p className="text-muted mt-2 max-w-sm text-xs leading-relaxed">
+            An independent, open-source project, not affiliated with World
+            Population Review.{' '}
+            <Link
+              to="/about"
+              activeOptions={EXACT_PATH}
+              className="hover:text-app underline underline-offset-2"
+            >
+              About {SITE.name}
+            </Link>{' '}
+            ·{' '}
+            <Link
+              to="/methodology"
+              activeOptions={EXACT_PATH}
+              className="hover:text-app underline underline-offset-2"
+            >
+              How the rankings are built
+            </Link>
           </p>
         </div>
         <FooterColumn title="Explore">
@@ -494,6 +514,18 @@ function Footer() {
               day: 'numeric',
             })}
           </span>
+        </FooterColumn>
+        <FooterColumn title={SITE.name}>
+          {TRUST_PAGES.map((p) => (
+            <Link
+              key={p.id}
+              to={p.path}
+              activeOptions={EXACT_PATH}
+              className="hover:text-app"
+            >
+              {p.label}
+            </Link>
+          ))}
         </FooterColumn>
       </div>
     </footer>
