@@ -17,6 +17,9 @@ import type {
   ValuesFile,
 } from './types';
 
+/** What a Dataset reads from a topic summary: its place type, slug and title. */
+export type TopicTitle = Pick<TopicSummary, 'slug' | 'type' | 'title'>;
+
 /**
  * Everything needed to analyse one entity type, with fast lookups.
  * Columns are materialised lazily: `numeric(id)` returns a Float64Array aligned to `entities`
@@ -41,7 +44,7 @@ export class Dataset {
     entities: Entity[],
     metrics: Metric[],
     values: ValuesFile,
-    topics: TopicSummary[]
+    topics: readonly TopicTitle[]
   ) {
     this.type = type;
     this.entities = entities;
@@ -90,6 +93,11 @@ export class Dataset {
 
   hasValues(id: number): boolean {
     return this.raw.has(id);
+  }
+
+  /** The default-year values of one metric as stored in values.json, or undefined without any. */
+  row(id: number): [number[], (number | string)[]] | undefined {
+    return this.raw.get(id);
   }
 
   numeric(id: number): Float64Array {
@@ -179,6 +187,17 @@ export function useDataset(type: EntityType): Dataset {
     values.data,
     topics.data
   );
+}
+
+/** Whether everything `useDataset(type)` reads is already loaded, so it would not suspend. */
+export function isDatasetLoaded(qc: QueryClient, type: EntityType): boolean {
+  return [
+    manifestQuery.queryKey,
+    topicsIndexQuery.queryKey,
+    entitiesQuery(type).queryKey,
+    metricsQuery(type).queryKey,
+    valuesQuery(type).queryKey,
+  ].every((key) => qc.getQueryData(key) !== undefined);
 }
 
 /** For route loaders: prefetch everything `useDataset(type)` needs. */

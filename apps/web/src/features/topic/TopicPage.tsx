@@ -1,11 +1,11 @@
-import { useSuspenseQuery } from '@tanstack/react-query';
+import { useQueryClient, useSuspenseQueries } from '@tanstack/react-query';
 import { getRouteApi, useHydrated } from '@tanstack/react-router';
 import { summarize } from '@world-data/stats';
 import { FileQuestion } from 'lucide-react';
 import { type ReactNode, useCallback, useMemo, useState } from 'react';
 
 import { CategoricalTopic } from './CategoricalTopic';
-import { CorrelationsCard } from './CorrelationsCard';
+import { CorrelationsCard, correlationsTitle } from './CorrelationsCard';
 import { FocusBar } from './FocusBar';
 import { isYearValued, leadMetric, topicListOrder } from './headline';
 import {
@@ -19,6 +19,8 @@ import {
   yearParam,
 } from './model';
 import { MoversCard } from './MoversCard';
+import { NearViewport } from './NearViewport';
+import { topicPageQuery } from './pageData';
 import { RelatedTopics } from './related/RelatedTopics';
 import { TopicStories } from './related/TopicStories';
 import { SuggestedTopics } from './SuggestedTopics';
@@ -32,7 +34,7 @@ import {
 } from './TopicVisuals';
 import { useNarrow } from './useNarrow';
 import { Choropleth } from '~/charts/Choropleth';
-import { EmptyState, NotFound } from '~/components/feedback';
+import { EmptyState, NotFound, Spinner } from '~/components/feedback';
 import { QuickAnswers } from '~/components/QuickAnswers';
 import { Card } from '~/components/ui';
 import {
@@ -43,9 +45,10 @@ import {
   canAdjust,
   withAdjustment,
 } from '~/data/adjustments';
-import { topicQuery } from '~/data/api';
-import { type Dataset, useDataset } from '~/data/dataset';
+import { entitiesQuery, manifestQuery, topicQuery } from '~/data/api';
+import { type Dataset, isDatasetLoaded, useDataset } from '~/data/dataset';
 import { isRankColumn, rankOrder, rankOrderNote } from '~/data/rankOrder';
+import { topicDataset } from '~/data/topicPage';
 import {
   type EntityType,
   isEntityType,
@@ -71,11 +74,28 @@ export function TopicPage() {
 }
 
 function TopicView({ type, slug }: { type: EntityType; slug: string }) {
-  const { data: topic } = useSuspenseQuery(topicQuery(type, slug));
-  // The story links near the end need the stories index: fetch it alongside the dataset.
+  const queryClient = useQueryClient();
+  // The topic file, the page's data slice and the type's entities load together (the head
+  // preloads them).
+  const [
+    { data: topic },
+    { data: page },
+    { data: manifest },
+    { data: entities },
+  ] = useSuspenseQueries({
+    queries: [
+      topicQuery(type, slug),
+      topicPageQuery(queryClient, type, slug),
+      manifestQuery,
+      entitiesQuery(type),
+    ],
+  });
+  // The story links near the end need the stories index: fetch it alongside the rest.
   usePrefetchStories(mayHaveStories(topic.metrics));
-  const base = useDataset(type);
   const { seo } = route.useLoaderData();
+  // Everything above the correlations card reads this small Dataset: the topic's statistics and
+  // the columns adjustments divide by, not the whole place type (see data/topicPage.ts).
+  const base = topicDataset(manifest, type, entities, topic, page);
   // Prerendered HTML is built without search params, so the first (hydrating)
   // render uses the defaults and ?m / ?year apply right after hydration.
   const hydrated = useHydrated();
@@ -203,7 +223,12 @@ function TopicView({ type, slug }: { type: EntityType; slug: string }) {
   const hasData = tables.length > 0;
   return (
     <div className="space-y-6">
-      <TopicHeader topic={topic} dataset={dataset} summary={answers.summary} />
+      <TopicHeader
+        topic={topic}
+        dataset={dataset}
+        summary={answers.summary}
+        topics={page.topics}
+      />
       {!hasData ? (
         <EmptyState
           title="No data on this page"
@@ -250,8 +275,8 @@ function TopicView({ type, slug }: { type: EntityType; slug: string }) {
       )}
       <TopicStories topic={topic} focusId={focus?.id ?? null} />
       <QuickAnswers items={answers.faq} className="mt-8" />
-      <RelatedTopics topic={topic} />
-      <SuggestedTopics topic={topic} />
+      <RelatedTopics topic={topic} items={page.related} />
+      <SuggestedTopics topic={topic} items={page.suggested} />
     </div>
   );
 }
@@ -487,8 +512,11 @@ function NumericTopic({
         onSelect={onSelect}
       />
 
-      <CorrelationsCard
-        dataset={dataset}
+      <Correlations
+        // A new metric, year or adjustment replaces the block (see NearViewport).
+        key={`${focus.id}:${year ?? 'latest'}:${adjust.value ?? ''}`}
+        type={dataset.type.id}
+        adj={adjust.value}
         focus={focus}
         values={values}
         yearLabel={yearLabel}
@@ -496,4 +524,50 @@ function NumericTopic({
       />
     </>
   );
+}
+
+interface CorrelationsProps {
+  type: EntityType;
+  adj: AdjustmentId | undefined;
+  focus: Metric;
+  values: Float64Array;
+  yearLabel: string | null;
+  exclude: readonly number[];
+}
+
+/**
+ * The correlations card, which tests the focus metric against every other statistic of the place
+ * type and so needs the whole type's data. It is server rendered like the rest of the page, but
+ * the browser downloads that data only when the card comes near the viewport, so the page above
+ * it hydrates from its small slice alone.
+ */
+function Correlations(props: CorrelationsProps) {
+  const queryClient = useQueryClient();
+  return (
+    <NearViewport
+      ready={isDatasetLoaded(queryClient, props.type)}
+      fallback={
+        <Card title={correlationsTitle(props.focus, props.yearLabel)}>
+          <div className="flex min-h-24 items-center justify-center">
+            <Spinner label="Loading correlations…" />
+          </div>
+        </Card>
+      }
+    >
+      <FullCorrelations {...props} />
+    </NearViewport>
+  );
+}
+
+/** The card itself, on the whole place type's data with the page's adjustment applied. */
+function FullCorrelations({ type, adj, ...card }: CorrelationsProps) {
+  const full = useDataset(type);
+  const dataset = useMemo(
+    () =>
+      adj == null
+        ? full
+        : withAdjustment(full, adj, datasetFacts(full).sizeDriven),
+    [full, adj]
+  );
+  return <CorrelationsCard dataset={dataset} {...card} />;
 }

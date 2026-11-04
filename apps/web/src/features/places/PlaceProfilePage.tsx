@@ -1,28 +1,21 @@
+import { useQueryClient, useSuspenseQueries } from '@tanstack/react-query';
 import { getRouteApi, Link, useNavigate } from '@tanstack/react-router';
 import { BarChart3, ChevronRight } from 'lucide-react';
 import { Fragment, useMemo, useRef, useState } from 'react';
 
 import { AtAGlance } from './AtAGlance';
 import { CategoryChart } from './CategoryChart';
-import {
-  datasetFacts,
-  growthMetricId,
-  placeNoun,
-  similarityBasisFor,
-} from './datasetFacts';
+import { placeNoun } from './datasetFacts';
 import { useCategoryLabels } from './hooks';
 import { MetricExplorer } from './MetricExplorer';
+import { placePageQuery, type PlaceView, placeView } from './pageData';
 import { GROUP_LABEL } from './PlacesPage';
 import { PlaceStories } from './PlaceStories';
 import {
-  basisCoverage,
   categoryScores,
   MIN_SIMILARITY_METRICS,
   notableFacts,
-  placeStandings,
   qualifyingRows,
-  similarPlaces,
-  standingAt,
   strengthsAndWeaknesses,
 } from './profileModel';
 import {
@@ -40,7 +33,8 @@ import { Flag } from '~/components/Flag';
 import { InfoTip } from '~/components/InfoTip';
 import { QuickAnswers } from '~/components/QuickAnswers';
 import { Card } from '~/components/ui';
-import { type Dataset, useDataset } from '~/data/dataset';
+import { entitiesQuery, manifestQuery } from '~/data/api';
+import type { Dataset } from '~/data/dataset';
 import { type EntityType, isEntityType } from '~/data/types';
 import {
   formatInt,
@@ -76,34 +70,38 @@ interface ProfileContent {
 export function PlaceProfilePage(content: ProfileContent) {
   const params = route.useParams();
   const type: EntityType = isEntityType(params.type) ? params.type : 'country';
-  const dataset = useDataset(type);
-  const index = dataset.entityBySlug.get(params.slug);
-  if (index == null)
+  const queryClient = useQueryClient();
+  // The place's own data (pageData.ts) and the type's place list, never the type's full data;
+  // the head preloads all three.
+  const [{ data }, { data: manifest }, { data: entities }] = useSuspenseQueries(
+    {
+      queries: [
+        placePageQuery(queryClient, type, params.slug),
+        manifestQuery,
+        entitiesQuery(type),
+      ],
+    }
+  );
+  const view = placeView(manifest, type, entities, data);
+  if (entities[view.index]?.slug !== params.slug)
     return (
       <EmptyState title="Place not found">
         <Link to="/places/$type" params={{ type }} className="underline">
-          Browse all {dataset.type.label}
+          Browse all {view.dataset.type.label}
         </Link>
       </EmptyState>
     );
-  return (
-    <Profile
-      key={`${type}/${index}`}
-      dataset={dataset}
-      index={index}
-      {...content}
-    />
-  );
+  return <Profile key={`${type}/${view.index}`} view={view} {...content} />;
 }
 
 /** The report card for one place. Keyed by place so local filters reset on navigation. */
 function Profile({
-  dataset,
-  index,
+  view,
   summary,
   faq,
   related,
-}: { dataset: Dataset; index: number } & ProfileContent) {
+}: { view: PlaceView } & ProfileContent) {
+  const { dataset, index, facts, rows } = view;
   const entity = dataset.entities[index];
   const type = dataset.type.id;
   const theme = useTheme();
@@ -112,11 +110,6 @@ function Profile({
   const [category, setCategory] = useState('');
   const explorerRef = useRef<HTMLDivElement>(null);
 
-  const facts = datasetFacts(dataset);
-  const rows = useMemo(
-    () => placeStandings(dataset, index, facts.rankable),
-    [dataset, index, facts]
-  );
   // Top-N lists picked by their own metric never count; population totals only while hidden.
   const exclude = useMemo(() => {
     const out = new Set(facts.selectedLists);
@@ -145,19 +138,9 @@ function Profile({
     () => notableFacts(rows, facts.cut, exclude),
     [rows, facts, exclude]
   );
-  const basis = similarityBasisFor(dataset);
-  const similar = useMemo(
-    () => similarPlaces(basis, index, dataset.entities.length),
-    [basis, index, dataset]
-  );
-  // How many basis metrics, from how many categories, this place can be compared on.
-  const basisFit = useMemo(() => {
-    const cats = new Set<string>();
-    basis.columns.forEach((col, k) => {
-      if (!Number.isNaN(col[index])) cats.add(basis.categories[k]);
-    });
-    return { metrics: basisCoverage(basis, index), categories: cats.size };
-  }, [basis, index]);
+  // Its most similar places, and how many basis metrics from how many categories it can be
+  // compared on, come worked out with the place's data.
+  const { similar, basisFit } = view;
   // Size-driven metrics this place actually has, for the toggle label.
   const sizeCount = useMemo(
     () =>
@@ -185,8 +168,7 @@ function Profile({
   return (
     <div className="space-y-6">
       <ProfileHeader
-        dataset={dataset}
-        index={index}
+        view={view}
         metricCount={rows.length}
         summary={summary}
         parent={related.parent}
@@ -195,7 +177,7 @@ function Profile({
         }
       />
 
-      <AtAGlance dataset={dataset} index={index} />
+      <AtAGlance view={view} />
 
       <section aria-labelledby="strengths-heading" className="space-y-3">
         <div className="flex flex-wrap items-end justify-between gap-3">
@@ -301,7 +283,7 @@ function Profile({
         <RelatedPlaceList key={group.type} group={group} />
       ))}
 
-      <PlaceStories dataset={dataset} index={index} />
+      <PlaceStories view={view} />
 
       <QuickAnswers items={faq} />
 
@@ -325,15 +307,13 @@ function Profile({
  * head-to-head with another place and the compare workbench with this place highlighted.
  */
 function ProfileHeader({
-  dataset,
-  index,
+  view,
   metricCount,
   summary,
   parent,
   workbenchMetrics,
 }: {
-  dataset: Dataset;
-  index: number;
+  view: PlaceView;
   /** Metrics with a value for this place, as listed under Every metric */
   metricCount: number;
   summary: string;
@@ -341,9 +321,10 @@ function ProfileHeader({
   workbenchMetrics: number[];
 }) {
   const navigate = useNavigate();
+  const { dataset, index } = view;
   const entity = dataset.entities[index];
   const type = dataset.type.id;
-  const stats = useMemo(() => headerStats(dataset, index), [dataset, index]);
+  const stats = useMemo(() => headerStats(view), [view]);
   const where = [entity.sub, entity.group]
     .filter((p): p is string => p != null && p !== '')
     .filter((p, i, all) => all.indexOf(p) === i);
@@ -446,9 +427,10 @@ function ProfileHeader({
 
 // Headline tiles: population, density, growth and area (whichever the type has), each with the
 // place's rank among all places of the type.
-function headerStats(dataset: Dataset, index: number) {
-  const ids = [-1, -2, growthMetricId(dataset), -5].filter(
-    (id): id is number => id != null && dataset.hasValues(id)
+function headerStats(view: PlaceView) {
+  const { dataset } = view;
+  const ids = [-1, -2, view.growth, -5].filter(
+    (id): id is number => id != null
   );
   const labels: Record<number, string> = {
     [-1]: 'Population',
@@ -460,7 +442,7 @@ function headerStats(dataset: Dataset, index: number) {
   const out: { label: string; value: string; rank?: string }[] = [];
   for (const id of ids) {
     const metric = dataset.metric(id);
-    const s = standingAt(dataset.numeric(id), index, 1);
+    const s = view.highest(id);
     if (metric == null || s == null) continue;
     out.push({
       label: labels[id] ?? metric.label,

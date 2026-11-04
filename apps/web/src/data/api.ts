@@ -69,8 +69,28 @@ export function shouldRetry(failureCount: number, error: unknown): boolean {
   return failureCount < 3;
 }
 
-async function getJson<T>(path: string): Promise<T> {
+/** One dataset file, parsed: read from disk on the server, fetched from /data in the browser. */
+export async function getJson<T>(path: string): Promise<T> {
   return (await loadJson(path)) as T;
+}
+
+/** URL a dataset file is served at, for preload links. */
+export function dataUrl(path: string): string {
+  return `${BASE}/${path}`;
+}
+
+/**
+ * <link rel="preload"> tags for dataset files a page fetches while hydrating, so the browser
+ * downloads them alongside the scripts instead of after them. `crossOrigin: 'anonymous'` gives
+ * the preload the same mode and credentials as `fetch()`, so the fetch reuses it.
+ */
+export function preloadData(paths: readonly string[]) {
+  return paths.map((path) => ({
+    rel: 'preload',
+    as: 'fetch',
+    href: dataUrl(path),
+    crossOrigin: 'anonymous' as const,
+  }));
 }
 
 // Static files never change during a session.

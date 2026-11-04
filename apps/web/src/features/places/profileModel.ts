@@ -84,17 +84,41 @@ export function standingAt(
     } else if (-d < toWorse) toWorse = -d;
   }
   const range = max - min;
+  return standingFrom(
+    v,
+    n,
+    better,
+    tied,
+    range > 0 && toWorse < Infinity ? toWorse / range : 0,
+    range > 0 && toBetter < Infinity ? toBetter / range : 0
+  );
+}
+
+/**
+ * A full `Standing` from the counts it is made of: the value, places with a value, places
+ * strictly better and places tied (this one included), and the two gaps. Place profiles store
+ * only these (features/places/pageData.ts) and rebuild the rest here, exactly as `standingAt`
+ * computes it.
+ */
+export function standingFrom(
+  value: number,
+  n: number,
+  better: number,
+  tied: number,
+  aheadOfNext: number,
+  behindNext: number
+): Standing {
   const avgRank = better + (tied + 1) / 2;
   return {
-    value: v,
+    value,
     rank: better + 1,
     n,
     better,
     worse: n - better - tied,
     tied,
     pct: n > 1 ? 1 - (avgRank - 1) / (n - 1) : 1,
-    aheadOfNext: range > 0 && toWorse < Infinity ? toWorse / range : 0,
-    behindNext: range > 0 && toBetter < Infinity ? toBetter / range : 0,
+    aheadOfNext,
+    behindNext,
   };
 }
 

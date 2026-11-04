@@ -56,6 +56,7 @@ import {
   setLastmod,
   sitemapLocs,
 } from './lib/sitemap';
+import { writePageData } from './page-data';
 import { prerenderPages } from './prerender-pages';
 
 const DATA = path.resolve('public/data');
@@ -407,6 +408,7 @@ async function main(): Promise<void> {
 
   await writeFile(path.join(OUT, 'robots.txt'), robotsTxt(SITE_URL));
   await writeFile(path.join(OUT, '404.html'), await notFoundPage());
+  await writePageData(DATA, path.join(OUT, 'data'));
   await assertAssetsExist([
     'index.html',
     '404.html',

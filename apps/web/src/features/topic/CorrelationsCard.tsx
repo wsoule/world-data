@@ -32,6 +32,13 @@ function backwards(metric: Metric | undefined): boolean {
   return metric != null && readsBackwards(metric);
 }
 
+/** The card's title, also shown by its stand-in while the card loads. */
+export const correlationsTitle = (
+  focus: Pick<Metric, 'label'>,
+  yearLabel: string | null
+) =>
+  `What correlates with ${focus.label}${yearLabel != null ? ` (${yearLabel})` : ''}?`;
+
 /**
  * "What correlates with this?": the focus metric (at the selected year) against every other
  * numeric metric of the dataset that is not part of this topic. Shows the six strongest
@@ -81,7 +88,7 @@ export function CorrelationsCard({
 
   const nounMany = placeNoun(dataset.type.id);
   const nounOne = placeNoun(dataset.type.id, 1);
-  const title = `What correlates with ${focus.label}${yearLabel != null ? ` (${yearLabel})` : ''}?`;
+  const title = correlationsTitle(focus, yearLabel);
   const focusHigher = isRank(focus)
     ? `rank better on ${focus.label}`
     : `have a higher ${focus.label}`;

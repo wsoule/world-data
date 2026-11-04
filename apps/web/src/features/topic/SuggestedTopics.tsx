@@ -1,8 +1,7 @@
-import { useSuspenseQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 
 import { placeNoun } from './model';
-import { topicsIndexQuery } from '~/data/api';
+import type { TopicRef } from '~/data/topicPage';
 import type { TopicFile, TopicSummary } from '~/data/types';
 import { formatInt } from '~/lib/format';
 
@@ -63,14 +62,18 @@ export function suggestTopics(
   return out.slice(0, SHOWN);
 }
 
-/** "Keep exploring": suggested statistic pages at the bottom of a topic page. */
+/**
+ * "Keep exploring": suggested statistic pages at the bottom of a topic page. `items` is
+ * `suggestTopics` for the page, worked out with the page's data slice (features/topic/pageData.ts)
+ * so the page never downloads the index of every topic.
+ */
 export function SuggestedTopics({
   topic,
+  items,
 }: {
-  topic: Pick<TopicFile, 'slug' | 'type' | 'cats' | 'related'>;
+  topic: Pick<TopicFile, 'type'>;
+  items: readonly TopicRef[];
 }) {
-  const { data: index } = useSuspenseQuery(topicsIndexQuery);
-  const items = suggestTopics(topic, index);
   if (items.length === 0) return null;
   return (
     <section aria-labelledby="suggested-heading" className="mt-12">

@@ -12,8 +12,9 @@ import { useEffect, useRef } from 'react';
 import { placeNoun } from './model';
 import { TYPE_ICONS } from '~/components/TypeTabs';
 import { Badge } from '~/components/ui';
-import { manifestQuery, topicsIndexQuery } from '~/data/api';
+import { manifestQuery } from '~/data/api';
 import type { Dataset } from '~/data/dataset';
+import type { TopicRef } from '~/data/topicPage';
 import type { TopicFile } from '~/data/types';
 import { formatInt } from '~/lib/format';
 import { shownMetrics } from '~/seo/content';
@@ -139,20 +140,22 @@ export function TopicHeader({
   topic,
   dataset,
   summary,
+  topics,
 }: {
   topic: TopicFile;
   dataset: Dataset;
   /** One or two sentences answering the page's main question (top, bottom, runner-ups) */
   summary: string;
+  /** Topics the page names (its data slice's `topics`), where related pages are looked up */
+  topics: readonly TopicRef[];
 }) {
   const { data: manifest } = useSuspenseQuery(manifestQuery);
-  const { data: index } = useSuspenseQuery(topicsIndexQuery);
   const TypeIcon = TYPE_ICONS[topic.type];
   const updated = updatedOf(topic, dataset);
   const catLabel = new Map(manifest.categories.map((c) => [c.id, c.label]));
   const typeLabel = new Map(manifest.types.map((t) => [t.id, t.label]));
   const related = topic.related.flatMap((r) => {
-    const hit = index.find((t) => t.type === r.type && t.slug === r.slug);
+    const hit = topics.find((t) => t.type === r.type && t.slug === r.slug);
     return hit != null ? [hit] : [];
   });
   const places = topic.entities.length;

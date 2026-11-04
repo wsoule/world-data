@@ -1,6 +1,5 @@
-import { standingAt } from './profileModel';
+import type { PlaceView } from './pageData';
 import { HeaderStat } from './ProfileSections';
-import type { Dataset } from '~/data/dataset';
 import {
   ACS,
   BLS,
@@ -86,15 +85,17 @@ function position(rank: number, n: number): string {
 }
 
 /** The tiles for one place: values with their position, and friendlier wording for a few. */
-export function glanceStats(dataset: Dataset, index: number): Glance[] {
+export function glanceStats(
+  view: Pick<PlaceView, 'dataset' | 'value' | 'highest'>
+): Glance[] {
   const out: Glance[] = [];
   const at = (id: number) => {
-    const v = dataset.hasValues(id) ? dataset.numeric(id)[index] : NaN;
+    const v = view.value(id);
     return Number.isFinite(v) ? v : null;
   };
-  for (const { id, label } of GLANCE[dataset.type.id]) {
-    const metric = dataset.metric(id);
-    const s = metric == null ? null : standingAt(dataset.numeric(id), index, 1);
+  for (const { id, label } of GLANCE[view.dataset.type.id]) {
+    const metric = view.dataset.metric(id);
+    const s = metric == null ? null : view.highest(id);
     if (metric == null || s == null) continue;
     let value = formatValue(metric, s.value);
     let rank = position(s.rank, s.n);
@@ -130,14 +131,8 @@ export function glanceStats(dataset: Dataset, index: number): Glance[] {
  * are stated plainly ("12th highest of 51") because a high home value or a warm climate is
  * neither good nor bad.
  */
-export function AtAGlance({
-  dataset,
-  index,
-}: {
-  dataset: Dataset;
-  index: number;
-}) {
-  const stats = glanceStats(dataset, index);
+export function AtAGlance({ view }: { view: PlaceView }) {
+  const stats = glanceStats(view);
   if (stats.length === 0) return null;
   return (
     <section aria-labelledby="glance-heading" className="space-y-3">

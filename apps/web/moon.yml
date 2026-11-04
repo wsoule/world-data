@@ -21,6 +21,7 @@ tasks:
       - 'tsconfig.json'
       - 'scripts/prerender-pages.ts'
       - 'scripts/seo-files.ts'
+      - 'scripts/page-data.ts'
       - 'scripts/static-pages.ts'
       - 'scripts/lib/**/*'
     outputs:

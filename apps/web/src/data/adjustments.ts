@@ -49,7 +49,8 @@ const HOUSEHOLD_COST =
 const NOT_HOUSEHOLD_COST =
   /(production|budget|expenditure|revenue|fund|contribution|payouts?|payments?|immigrant|taxpayer|excise|per (gallon|pack|acre|hour|kwh|unit|pound|lb|ounce|square)|\bacre\b|¢|employment|threshold|exemption|national|government|\bgov\b|public|external|\bimf\b|credit|total|long-term|short-term|nonguaranteed|billions?|millions?)/i;
 
-const incomeMetricFor = (type: EntityType): number | null =>
+/** The income a share-of-income adjustment divides by, per place type (null for world cities). */
+export const incomeMetricFor = (type: EntityType): number | null =>
   type === 'country'
     ? WORLD_BANK.gdpPerCapita
     : type === 'world-city'
