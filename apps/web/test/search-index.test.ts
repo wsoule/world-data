@@ -275,14 +275,16 @@ describe('SearchIndex (real dataset)', () => {
   test('key metrics outrank weaker partial matches', () => {
     const firstMetric = (q: string) =>
       index.search(q, { kinds: new Set(['metric']) })[0]?.doc.id;
-    // Median household income (state 24419) backs every home comparison.
-    expect(firstMetric('income')).toBe('metric:state:24419');
+    // State income for the home comparisons is Median Gross Income (20896): a broad query
+    // finds that featured metric first, while a query naming "household income" still finds
+    // the metric with that exact label (24419).
+    expect(firstMetric('income')).toBe('metric:state:20896');
     expect(firstMetric('household income')).toBe('metric:state:24419');
     expect(firstMetric('median household income')).toBe('metric:state:24419');
     const palette = groupResults(index.search('income'), 6).find(
       (g) => g.kind === 'metric'
     );
-    expect(palette?.results[0]?.doc.id).toBe('metric:state:24419');
+    expect(palette?.results[0]?.doc.id).toBe('metric:state:20896');
   });
 
   test('one topic’s breakdown columns do not crowd out other metrics', () => {
@@ -290,7 +292,7 @@ describe('SearchIndex (real dataset)', () => {
       .search('median income', { kinds: new Set(['metric']) })
       .slice(0, 6)
       .map((r) => r.doc.id);
-    expect(top).toContain('metric:state:24419');
+    expect(top).toContain('metric:state:20896');
   });
 
   test('shows each label once per place type', () => {

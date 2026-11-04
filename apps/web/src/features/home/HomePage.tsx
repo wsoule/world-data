@@ -4,6 +4,8 @@ import {
   ArrowRight,
   ChartScatter,
   ChevronRight,
+  Grid3x3,
+  Map as MapIcon,
   Search,
   Trophy,
 } from 'lucide-react';
@@ -316,6 +318,14 @@ const TYPE_GROUP_LABEL: Record<EntityType, string> = {
   county: 'US counties',
 };
 
+/** Icon and label for each workbench view a home preset can open. */
+const PRESET_VIEWS = {
+  ranking: { icon: Trophy, label: 'Combined ranking' },
+  scatter: { icon: ChartScatter, label: 'Overlay' },
+  matrix: { icon: Grid3x3, label: 'Correlations' },
+  map: { icon: MapIcon, label: 'Map' },
+} as const;
+
 function PresetCard({
   preset,
   featured,
@@ -323,8 +333,14 @@ function PresetCard({
   preset: HomePreset;
   featured: boolean;
 }) {
-  const ranking = preset.search.view === 'ranking';
-  const Icon = ranking ? Trophy : ChartScatter;
+  const view = preset.search.view;
+  const ranking = view === 'ranking';
+  // Overlays name their two axes; basket views number their metrics.
+  const axes = view === 'scatter';
+  const { icon: Icon, label } =
+    view === 'ranking' || view === 'matrix' || view === 'map'
+      ? PRESET_VIEWS[view]
+      : PRESET_VIEWS.scatter;
   return (
     <Link
       to="/compare"
@@ -332,7 +348,8 @@ function PresetCard({
       className={cx(
         'card group hover:border-accent-300 dark:hover:border-accent-700 flex flex-col p-5 transition-all hover:shadow-md',
         featured &&
-          'from-accent-50 to-surface dark:from-accent-900/30 bg-gradient-to-br lg:col-span-2 dark:to-transparent'
+          'from-accent-50 to-surface dark:from-accent-900/30 bg-gradient-to-br dark:to-transparent',
+        (featured || preset.wide === true) && 'lg:col-span-2'
       )}
     >
       <div className="flex items-center gap-2">
@@ -347,7 +364,7 @@ function PresetCard({
           <Icon className="size-5" aria-hidden />
         </span>
         <span className="text-muted text-xs font-medium tracking-wide uppercase">
-          {ranking ? 'Combined ranking' : 'Overlay'}
+          {label}
         </span>
         <Badge className="ml-auto">
           {TYPE_GROUP_LABEL[preset.search.type]}
@@ -361,12 +378,12 @@ function PresetCard({
             key={m}
             className="border-app bg-surface inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs"
           >
-            {ranking ? (
-              <span className="text-muted tabular">{i + 1}</span>
-            ) : (
+            {axes ? (
               <span className="text-muted font-mono text-[10px]">
                 {i === 0 ? 'x' : 'y'}
               </span>
+            ) : (
+              <span className="text-muted tabular">{i + 1}</span>
             )}
             {m}
           </span>

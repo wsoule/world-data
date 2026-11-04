@@ -24,7 +24,7 @@ const PRESETS: Record<EntityType, ScatterPreset[]> = {
       title: 'Education vs income',
       description: 'Do states with better schools earn more?',
       x: 20594,
-      y: 24419,
+      y: 20896,
     },
     {
       title: 'Poverty vs violent crime',

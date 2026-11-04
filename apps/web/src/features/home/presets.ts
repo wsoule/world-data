@@ -1,5 +1,9 @@
 // Ready-made comparisons on the home page. Metric ids are checked against the dataset by
 // test/home-presets.test.ts so a data rebuild that renumbers them fails loudly.
+//
+// State income is 20896 (Median Gross Income), not 24419 (Median Household Income): the
+// source's 24419 column gives Mississippi $34,203, far below the Census figure of about $55K,
+// and the overlay would label that bad value as an outlier.
 
 import type { CompareSearch } from '~/features/compare/state';
 
@@ -13,7 +17,20 @@ export interface HomePreset {
   search: CompareSearch;
   /** Call to action on the card */
   cta: string;
+  /** Span two columns on wide screens (the featured card always does) */
+  wide?: boolean;
 }
+
+/** The six state statistics behind the combined ranking, correlations and map presets. */
+const STATE_BASKET = [20896, 20594, 20784, 20425, 20608, 20482];
+const STATE_BASKET_NAMES = [
+  'Median household income',
+  'Education rank',
+  'Violent crime',
+  'Cost of living',
+  'Life expectancy',
+  'Happiness',
+];
 
 export const HOME_PRESETS: readonly HomePreset[] = [
   {
@@ -21,19 +38,8 @@ export const HOME_PRESETS: readonly HomePreset[] = [
     title: 'Best states to live in, your way',
     question:
       'Layer income, schools, safety, cost of living, health and happiness into one score.',
-    metrics: [
-      'Median household income',
-      'Education rank',
-      'Violent crime',
-      'Cost of living',
-      'Life expectancy',
-      'Happiness',
-    ],
-    search: {
-      type: 'state',
-      view: 'ranking',
-      m: [24419, 20594, 20784, 20425, 20608, 20482],
-    },
+    metrics: STATE_BASKET_NAMES,
+    search: { type: 'state', view: 'ranking', m: STATE_BASKET },
     cta: 'Build the ranking',
   },
   {
@@ -44,11 +50,29 @@ export const HOME_PRESETS: readonly HomePreset[] = [
     search: {
       type: 'state',
       view: 'scatter',
-      m: [20594, 24419],
+      m: [20594, 20896],
       x: 20594,
-      y: 24419,
+      y: 20896,
     },
     cta: 'Overlay them',
+  },
+  {
+    id: 'state-correlations',
+    title: 'What moves together across the states',
+    question:
+      'See which of these six rise and fall together, and which states stand out.',
+    metrics: STATE_BASKET_NAMES,
+    search: { type: 'state', view: 'matrix', m: STATE_BASKET },
+    cta: 'Find correlations',
+  },
+  {
+    id: 'state-map',
+    title: 'The best states, on a map',
+    question: 'The same six statistics as one score, coloured state by state.',
+    metrics: STATE_BASKET_NAMES,
+    search: { type: 'state', view: 'map', m: STATE_BASKET },
+    cta: 'Open the map',
+    wide: true,
   },
   {
     id: 'state-crime-poverty',
