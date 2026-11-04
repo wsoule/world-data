@@ -199,6 +199,8 @@ interface ParsedPage {
   sources: PageLink[];
   related: { type: EntityType; slug: string }[];
   updated: string | null;
+  /** Built from a primary source (scripts/sources), not mirrored from a ranking page */
+  external?: boolean;
 }
 
 interface TopicAcc {
@@ -207,6 +209,7 @@ interface TopicAcc {
   sources: PageLink[];
   related: { type: EntityType; slug: string }[];
   updated: string | null;
+  external: boolean;
   cats: string[];
   tables: { name: string; metrics: number[] }[];
   metrics: number[];
@@ -512,6 +515,7 @@ function ingestPage(
     sources: page.sources,
     related: page.related,
     updated: page.updated,
+    external: page.external === true,
     cats: [...(categories.get(`${page.type}:${page.slug}`) ?? [])].sort(),
     tables: (page.tables ?? [])
       .map((t) => {
@@ -535,7 +539,11 @@ function ingestPage(
 /** Polarity declared by external sources, keyed "<type>:<metric id>"; wins over the label guess. */
 const EXTERNAL_POL = new Map<string, Polarity>();
 
-/** An external source's topic as a parsed page, so it is ingested like a scraped one. */
+/**
+ * An external source's topic as a parsed page, so it is ingested like a scraped one. The topic
+ * has no page on the ranking site, and its date is the day its files were downloaded (or the
+ * source's own publication date when it states one).
+ */
 function fromExternal(ext: ExternalPage): ParsedPage {
   for (const c of ext.columns)
     if (c.pol != null) EXTERNAL_POL.set(`${ext.type}:${c.id}`, c.pol);
@@ -563,7 +571,8 @@ function fromExternal(ext: ExternalPage): ParsedPage {
     title: ext.title,
     sources: ext.sources,
     related: [],
-    updated: ext.updated,
+    updated: ext.fetched ?? ext.updated,
+    external: true,
   };
 }
 
@@ -1201,7 +1210,8 @@ async function writeType(
       title: stripYear(t.title),
       cats: t.cats,
       updated: t.updated,
-      url: `${SITE}/${prefix}/${t.slug}`,
+      // A topic built from a primary source has no page on the ranking site to link back to.
+      url: t.external ? null : `${SITE}/${prefix}/${t.slug}`,
       sources: dedupeBy(t.sources, (s) => s.url),
       related: dedupeBy(t.related, (r) => `${r.type}:${r.slug}`),
       tables: t.tables

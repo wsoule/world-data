@@ -152,8 +152,8 @@ export interface TopicFile {
   title: string;
   cats: string[];
   updated: string | null;
-  /** Original page on worldpopulationreview.com */
-  url: string;
+  /** Original page on worldpopulationreview.com; null for a topic built from a primary source */
+  url: string | null;
   sources: TopicSource[];
   related: { type: EntityType; slug: string }[];
   tables: TopicTable[];

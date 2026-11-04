@@ -142,4 +142,18 @@ describe('topicAnswers', () => {
     expect(summary).toStartWith('14 Eyes Countries: compare');
     expect(faq).toHaveLength(1);
   });
+
+  test('credits Rankodex and the agency on a topic built from a primary source', () => {
+    const ds = dataset('state');
+    const topic = read<TopicFile>('state/topics/crime-rates-by-state-fbi.json');
+    expect(topic.url).toBeNull();
+    const seo = topicSummary(topic, ds, manifest.categories);
+    expect(seo.faq.at(-1)?.answer).toBe(
+      'Rankodex built this from Crime in the United States (FBI Crime Data Explorer), fetched Nov 3, 2026.'
+    );
+    const dataset_ = seo.jsonLd[0];
+    expect(dataset_.dateModified).toBe(topic.updated);
+    expect(dataset_.creator).toMatchObject({ name: 'Rankodex' });
+    expect(dataset_.isBasedOn).toEqual(topic.sources.map((s) => s.url));
+  });
 });

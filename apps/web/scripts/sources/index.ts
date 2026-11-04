@@ -2,6 +2,7 @@
 // folder under .cache/sources, and build-data.ts turns each into topic pages. A source that has
 // not been fetched (or could not be) yields no pages, so the others still build.
 
+import { readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 
 import type { ExternalPage, SourceContext } from '../lib/external';
@@ -51,22 +52,54 @@ export async function fetchSources(
   }
 }
 
-/** Topic pages from every fetched source. */
+/**
+ * The UTC day the newest file under `dir` was written: when a source's cached downloads were
+ * last fetched (cachedDownload writes each file once, again only on --refresh). Null when the
+ * folder is missing or empty.
+ */
+async function fetchedOn(dir: string): Promise<string | null> {
+  let newest = 0;
+  try {
+    for (const entry of await readdir(dir, {
+      recursive: true,
+      withFileTypes: true,
+    })) {
+      if (!entry.isFile()) continue;
+      const { mtimeMs } = await stat(path.join(entry.parentPath, entry.name));
+      newest = Math.max(newest, mtimeMs);
+    }
+  } catch {
+    return null;
+  }
+  return newest === 0 ? null : new Date(newest).toISOString().slice(0, 10);
+}
+
+/**
+ * Topic pages from every fetched source, each stamped with the day its source's files were
+ * downloaded (`fetched`), which becomes the topic's date.
+ */
 export async function sourcePages(
   root: string,
   ctx: SourceContext
 ): Promise<ExternalPage[]> {
   const metros = await readCityMetros(cityMetrosFile(root));
-  const groups = await Promise.all([
-    beaPages(path.join(root, 'bea'), metros),
-    worldBankPages(path.join(root, 'worldbank')),
-    cdcPages(path.join(root, 'cdc')),
-    epaPages(path.join(root, 'epa'), ctx),
-    noaaPages(path.join(root, 'noaa')),
-    blsPages(path.join(root, 'bls'), metros),
-    acsPages(path.join(root, 'acs'), metros),
-    fbiPages(path.join(root, 'fbi'), ctx),
-    electionPages(path.join(root, 'elections')),
-  ]);
+  const sources: [string, (dir: string) => Promise<ExternalPage[]>][] = [
+    ['bea', (dir) => beaPages(dir, metros)],
+    ['worldbank', (dir) => worldBankPages(dir)],
+    ['cdc', (dir) => cdcPages(dir)],
+    ['epa', (dir) => epaPages(dir, ctx)],
+    ['noaa', (dir) => noaaPages(dir)],
+    ['bls', (dir) => blsPages(dir, metros)],
+    ['acs', (dir) => acsPages(dir, metros)],
+    ['fbi', (dir) => fbiPages(dir, ctx)],
+    ['elections', (dir) => electionPages(dir)],
+  ];
+  const groups = await Promise.all(
+    sources.map(async ([name, pages]) => {
+      const dir = path.join(root, name);
+      const [list, fetched] = await Promise.all([pages(dir), fetchedOn(dir)]);
+      return list.map((p) => ({ ...p, fetched: p.fetched ?? fetched }));
+    })
+  );
   return groups.flat();
 }

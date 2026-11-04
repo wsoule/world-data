@@ -32,6 +32,11 @@ export interface ExternalPage {
   sources: PageLink[];
   /** ISO date the source last published this data */
   updated: string | null;
+  /**
+   * ISO date (UTC) the source's files were downloaded, set by sourcePages() from the cached
+   * files; the topic page shows it as "Fetched" and Dataset.dateModified carries it
+   */
+  fetched?: string | null;
   /** One row per place, carrying the identity fields entityOf() reads plus every column's field */
   rows: Record<string, unknown>[];
   columns: ExternalColumn[];

@@ -121,10 +121,62 @@ export function topicAnswers(
       }
     );
   }
-  const sourceNames = topic.sources.map((s) => s.name).slice(0, 4);
   faq.push({
     question: `Where does this ${topic.title.toLowerCase()} data come from?`,
-    answer: `${SITE.name} compiles it from ${SITE.sourceName}${sourceNames.length > 0 ? ` and the primary sources it cites: ${sourceNames.join('; ')}` : ''}.${topic.updated == null ? '' : ` Last updated ${topic.updated}.`}`,
+    answer: sourceAnswer(topic),
   });
   return { summary, faq };
+}
+
+const MONTHS = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+
+/** "2026-11-03" → "Nov 3, 2026", spelled out by hand so the server and every browser agree. */
+export function formatDay(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  if (m == null) return iso;
+  const month = MONTHS[Number(m[2]) - 1];
+  return month == null ? iso : `${month} ${Number(m[3])}, ${m[1]}`;
+}
+
+/** "Name - Agency" → "Name (Agency)", the form a sentence reads best. */
+export function sourceTitle(name: string): string {
+  const k = name.lastIndexOf(' - ');
+  return k < 0 ? name : `${name.slice(0, k)} (${name.slice(k + 3)})`;
+}
+
+/** "A", "A and B", "A, B and C". */
+function joinNames(names: readonly string[]): string {
+  if (names.length <= 1) return names[0] ?? '';
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+}
+
+/**
+ * Who made a topic's table, in one sentence: for a topic Rankodex built from a primary source
+ * (it has no original page), "Rankodex built this from <dataset> (<agency>), fetched <date>";
+ * otherwise the ranking site it mirrors and the sources that page cites.
+ */
+export function sourceAnswer(
+  topic: Pick<TopicFile, 'url' | 'sources' | 'updated'>
+): string {
+  const names = topic.sources.map((s) => s.name).filter((s) => s !== '');
+  if (topic.url == null) {
+    const from =
+      names.length > 0 ? joinNames(names.map(sourceTitle)) : 'primary sources';
+    return `${SITE.name} built this from ${from}${topic.updated == null ? '' : `, fetched ${formatDay(topic.updated)}`}.`;
+  }
+  const cited = names.slice(0, 4);
+  return `${SITE.name} compiles it from ${SITE.sourceName}${cited.length > 0 ? ` and the primary sources it cites: ${cited.join('; ')}` : ''}.${topic.updated == null ? '' : ` Last updated ${formatDay(topic.updated)}.`}`;
 }

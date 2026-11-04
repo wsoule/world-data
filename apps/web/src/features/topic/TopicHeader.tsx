@@ -1,6 +1,12 @@
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { BookOpen, CalendarClock, ExternalLink, Link2 } from 'lucide-react';
+import {
+  BookOpen,
+  CalendarClock,
+  DatabaseZap,
+  ExternalLink,
+  Link2,
+} from 'lucide-react';
 import { useEffect, useRef } from 'react';
 
 import { placeNoun } from './model';
@@ -10,21 +16,11 @@ import { manifestQuery, topicsIndexQuery } from '~/data/api';
 import type { Dataset } from '~/data/dataset';
 import type { TopicFile } from '~/data/types';
 import { formatInt } from '~/lib/format';
+import { formatDay, sourceTitle } from '~/seo/topic-content';
+import { SITE } from '~/site';
 
 /** Related topics shown before the rest collapse behind "+N more". */
 const RELATED_PREVIEW = 6;
-
-/** "2026-10-28" → "Oct 28, 2026" (read as a calendar date, not shifted by time zone). */
-function formatDay(iso: string): string {
-  const d = new Date(`${iso.slice(0, 10)}T00:00:00Z`);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    timeZone: 'UTC',
-  });
-}
 
 /** Latest "updated" date of the topic, falling back to its newest metric update. */
 function updatedOf(topic: TopicFile, dataset: Dataset): string | null {
@@ -102,6 +98,39 @@ function SourcesMenu({ sources }: { sources: TopicFile['sources'] }) {
 }
 
 /**
+ * Attribution of a topic Rankodex built from a primary source (it has no original page on the
+ * ranking site): "Rankodex built this from <dataset> (<agency>)", each source linked.
+ */
+function BuiltFrom({ sources }: { sources: TopicFile['sources'] }) {
+  const named = sources.filter((s) => s.name !== '');
+  return (
+    <span className="inline-flex flex-wrap items-center gap-x-1">
+      <DatabaseZap className="size-3.5 shrink-0" aria-hidden />
+      {SITE.name} built this from{' '}
+      {named.length === 0
+        ? 'primary sources'
+        : named.map((s, k) => (
+            <span key={s.url}>
+              <a
+                href={s.url}
+                target="_blank"
+                rel="noreferrer"
+                className="hover:text-app underline underline-offset-2"
+              >
+                {sourceTitle(s.name)}
+              </a>
+              {k < named.length - 2
+                ? ', '
+                : k === named.length - 2
+                  ? ' and '
+                  : ''}
+            </span>
+          ))}
+    </span>
+  );
+}
+
+/**
  * Title block of a topic page: type and categories, the answer-first summary, freshness,
  * coverage, the original page and cited sources, and links to related topics.
  */
@@ -164,21 +193,27 @@ export function TopicHeader({
         {updated != null ? (
           <span className="inline-flex items-center gap-1">
             <CalendarClock className="size-3.5" aria-hidden />
-            Updated {formatDay(updated)}
+            {topic.url == null ? 'Fetched' : 'Updated'} {formatDay(updated)}
           </span>
         ) : null}
-        <a
-          href={topic.url}
-          target="_blank"
-          rel="noreferrer"
-          className="hover:text-app inline-flex items-center gap-1 underline-offset-2 hover:underline"
-        >
-          <ExternalLink className="size-3.5" aria-hidden />
-          Original page
-        </a>
-        {topic.sources.length > 0 ? (
-          <SourcesMenu sources={topic.sources} />
-        ) : null}
+        {topic.url != null ? (
+          <>
+            <a
+              href={topic.url}
+              target="_blank"
+              rel="noreferrer"
+              className="hover:text-app inline-flex items-center gap-1 underline-offset-2 hover:underline"
+            >
+              <ExternalLink className="size-3.5" aria-hidden />
+              Original page
+            </a>
+            {topic.sources.length > 0 ? (
+              <SourcesMenu sources={topic.sources} />
+            ) : null}
+          </>
+        ) : (
+          <BuiltFrom sources={topic.sources} />
+        )}
       </div>
 
       {related.length > 0 ? (
