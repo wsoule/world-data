@@ -18,7 +18,11 @@ import {
   topicListOrder,
 } from '../src/features/topic/headline';
 import { rankingOrderLabel } from '../src/features/topic/model';
-import { topicClosing, topicPageTitle } from '../src/seo/content';
+import {
+  shorterTitles,
+  topicClosing,
+  topicPageTitle,
+} from '../src/seo/content';
 import {
   coverage,
   joinNames,
@@ -534,7 +538,7 @@ describe('topicPageTitle', () => {
         'Percentage of Households Making Over $250,000 by State',
         true
       )
-    ).toBe('Percentage of Households Making Over $250,000 by State');
+    ).toBe('% of Households Making Over $250,000 by State: Ranked');
     expect(topicPageTitle('Education Rankings by Country', true)).toBe(
       'Education Rankings by Country: Mapped & Compared'
     );
@@ -543,6 +547,63 @@ describe('topicPageTitle', () => {
     );
     expect(topicPageTitle('Is Turkey a Muslim Country?', false)).toBe(
       'Is Turkey a Muslim Country? Answered with Data'
+    );
+  });
+
+  test('falls back to shorter framings before leaving a title unframed', () => {
+    expect(
+      topicPageTitle('Net International Investment Position by Country', true)
+    ).toBe('Net International Investment Position by Country: Map');
+    expect(
+      topicPageTitle('Countries Where Wearing a Burqa is Mandatory', false)
+    ).toBe('Countries Where Wearing a Burqa is Mandatory: List');
+    expect(
+      topicPageTitle('Which Countries Practice Female Circumcision?', true)
+    ).toBe('Which Countries Practice Female Circumcision? Answered');
+    // A parenthesis that is not an acronym is part of the name.
+    expect(
+      topicPageTitle('Countries With Poor (or Limited) Internet Access', true)
+    ).toBe('Countries With Poor (or Limited) Internet Access: Map');
+  });
+
+  test('keeps one of an acronym and its words when the title is too long', () => {
+    // The source's own wording wins while any framing fits it.
+    expect(
+      topicPageTitle('European Free Trade Association (EFTA) Countries', false)
+    ).toBe('European Free Trade Association (EFTA) Countries: List');
+    expect(
+      topicPageTitle(
+        'Collective Security Treaty Organization (CSTO) Countries',
+        false
+      )
+    ).toBe('CSTO Countries: Full List');
+    expect(
+      topicPageTitle(
+        'North Atlantic Treaty Organization (NATO) Countries',
+        true
+      )
+    ).toBe('North Atlantic Treaty Organization Countries: Ranked');
+    expect(
+      topicPageTitle(
+        'South Asian Association for Regional Cooperation (SAARC) Countries',
+        true
+      )
+    ).toBe('SAARC Countries: Ranked, Mapped & Compared');
+    expect(
+      topicPageTitle(
+        'CIS (Commonwealth of Independent States) Countries',
+        false
+      )
+    ).toBe('CIS Countries: Full List');
+    expect(
+      topicPageTitle('Countries of the European Economic (EEA) Area', false)
+    ).toBe('Countries of the European Economic (EEA) Area: List');
+    expect(
+      shorterTitles('Countries with Red, White, and Blue Flags with One Star')
+    ).toEqual(['Countries with Red, White and Blue Flags with One Star']);
+    // A short title keeps its acronym.
+    expect(topicPageTitle('NATO Countries', false)).toBe(
+      'NATO Countries: Full List'
     );
   });
 

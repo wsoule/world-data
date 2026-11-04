@@ -81,26 +81,96 @@ export function shownMetrics(topic: TopicFile, ds: Dataset): Metric[] {
 const TITLE_ROOM = 65 - ` — ${SITE.name}`.length;
 
 /**
+ * Framings a topic name can take in its <title>, longest first. Ranked topics are "Ranked,
+ * Mapped & Compared" down to "Map" (a title that already says "rank" starts at "Mapped &
+ * Compared"), lists of places a "Full List" or "List", and questions are "Answered with Data" or
+ * "Answered".
+ */
+function framings(title: string, ranked: boolean): readonly string[] {
+  if (title.endsWith('?')) return [' Answered with Data', ' Answered'];
+  if (!ranked) return [': Full List', ': List'];
+  return /\brank/i.test(title)
+    ? [': Mapped & Compared', ': Mapped', ': Map']
+    : [': Ranked, Mapped & Compared', ': Ranked & Mapped', ': Ranked', ': Map'];
+}
+
+/** Small words an acronym skips ("Organization of Islamic Cooperation" is OIC). */
+const ACRONYM_SKIP = new Set([
+  'of',
+  'for',
+  'and',
+  'the',
+  'in',
+  'on',
+  'to',
+  '&',
+]);
+
+/** The initials of a run of words, small words skipped ("Asia-Pacific Economic" → "APE"). */
+function initials(words: readonly string[]): string {
+  return words
+    .filter((w) => !ACRONYM_SKIP.has(w.toLowerCase()))
+    .flatMap((w) => w.split('-'))
+    .map((w) => w.charAt(0).toUpperCase())
+    .join('');
+}
+
+/**
+ * Shorter forms of a topic name that say the same thing, mildest first: an acronym next to the
+ * words it stands for keeps one of the two ("European Free Trade Association (EFTA)
+ * Countries" → "European Free Trade Association Countries", then → "EFTA Countries" when the
+ * words spell the acronym; "NAFTA (North American Free Trade Agreement) Countries" → "NAFTA
+ * Countries"), "Percentage of" becomes "% of" and a serial comma goes ("Red, White, and Blue" →
+ * "Red, White and Blue").
+ */
+export function shorterTitles(title: string): string[] {
+  const out: string[] = [];
+  const add = (t: string) => {
+    if (t !== title && !out.includes(t)) out.push(t);
+  };
+  // "Words (ABC)": drop the acronym, or keep it in place of the words when they spell it.
+  const acronym = /^(.*?)\s\(([A-Z][A-Z0-9]{1,6})\)(.*)$/.exec(title);
+  let spelled = title;
+  let short: string | null = null;
+  if (acronym != null) {
+    const [, before = '', abbr = '', after = ''] = acronym;
+    spelled = `${before}${after}`;
+    const words = before.replace(/,/g, '').split(' ');
+    for (let k = words.length - 1; k >= 0; k--) {
+      if (initials(words.slice(k)) !== abbr) continue;
+      short = [...words.slice(0, k), abbr].join(' ') + after;
+      break;
+    }
+  }
+  // "ABC (Words …)": the acronym alone.
+  const expansion =
+    /^(.*\b[A-Z][A-Z0-9]{1,6})\s\([A-Z][^()]*\s[^()]*\)(.*)$/.exec(spelled);
+  if (expansion != null) spelled = `${expansion[1]}${expansion[2]}`;
+  const tidy = (t: string) =>
+    t.replace(/\b[Pp]ercentage of\b/g, '% of').replace(/, (and|or) /g, ' $1 ');
+  for (const t of [
+    spelled,
+    tidy(spelled),
+    short,
+    short == null ? null : tidy(short),
+  ])
+    if (t != null) add(t);
+  return out;
+}
+
+/**
  * The <title> and og:title of a topic page: its name plus the first Rankodex framing that fits
- * the room left, so the tag reads differently from the source's own title while the H1 stays
- * the plain topic name. Ranked topics are "Ranked, Mapped & Compared", then "Ranked & Mapped",
- * then "Ranked" (a title that already says "rank" is "Mapped & Compared" or "Mapped"), lists of
- * places a "Full List", and questions are "Answered with Data". A name too long for any
- * framing stays as it is.
+ * the room left (see `framings`), so the tag reads differently from the source's own title while
+ * the H1 stays the plain topic name. A name too long for any framing tries its shorter forms
+ * (`shorterTitles`) before it is left unframed; one longer than the room on its own is shortened
+ * when a shorter form fits.
  */
 export function topicPageTitle(title: string, ranked: boolean): string {
-  const variants = title.endsWith('?')
-    ? [' Answered with Data']
-    : !ranked
-      ? [': Full List']
-      : /\brank/i.test(title)
-        ? [': Mapped & Compared', ': Mapped']
-        : [': Ranked, Mapped & Compared', ': Ranked & Mapped', ': Ranked'];
-  for (const v of variants) {
-    const framed = `${title}${v}`;
-    if (framed.length <= TITLE_ROOM) return framed;
-  }
-  return title;
+  const forms = [title, ...shorterTitles(title)];
+  for (const form of forms)
+    for (const frame of framings(form, ranked))
+      if (form.length + frame.length <= TITLE_ROOM) return `${form}${frame}`;
+  return forms.find((f) => f.length <= TITLE_ROOM) ?? title;
 }
 
 /**
