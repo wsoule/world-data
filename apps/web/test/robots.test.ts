@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
+import { CATEGORY_LABELS } from '../scripts/lib/reference';
 import { NAMED_CRAWLERS, robotsTxt } from '../scripts/lib/robots';
 
 /** The robots.txt groups, as user agent -> its rule lines. */
@@ -88,6 +89,26 @@ describe('robotsTxt', () => {
         expect(`${agent} ${path} ${allowed(rules, path)}`).toBe(
           `${agent} ${path} true`
         );
+    }
+  });
+
+  test('keeps every crawler out of the category hubs’ place-type variants', () => {
+    const ids = Object.keys(CATEGORY_LABELS);
+    expect(ids).toHaveLength(20);
+    for (const [agent, rules] of byAgent) {
+      for (const id of ids) {
+        for (const type of ['country', 'state', 'city', 'county', 'world-city'])
+          expect(
+            `${agent} ${id} ${allowed(rules, `/categories/${id}?type=${type}`)} ${allowedFirstMatch(rules, `/categories/${id}?type=${type}`)}`
+          ).toBe(`${agent} ${id} false false`);
+        expect(`${agent} ${id} ${allowed(rules, `/categories/${id}`)}`).toBe(
+          `${agent} ${id} true`
+        );
+      }
+      expect(allowed(rules, '/categories?type=state')).toBe(false);
+      expect(allowed(rules, '/categories')).toBe(true);
+      // A category id that is the start of another never blocks the longer one's bare hub.
+      expect(allowed(rules, '/categories/law-enforcement')).toBe(true);
     }
   });
 
