@@ -67,10 +67,11 @@ export const HOME_PRESETS: readonly HomePreset[] = [
   },
   {
     id: 'state-map',
-    title: 'The best states, on a map',
-    question: 'The same six statistics as one score, coloured state by state.',
-    metrics: STATE_BASKET_NAMES,
-    search: { type: 'state', view: 'map', m: STATE_BASKET },
+    title: 'Income, schools and safety, on a map',
+    question:
+      'Three statistics combined into one score, coloured state by state, with the top and bottom ten.',
+    metrics: ['Median household income', 'Education rank', 'Violent crime'],
+    search: { type: 'state', view: 'map', m: [900603, 20594, 20784] },
     cta: 'Open the map',
     wide: true,
   },
