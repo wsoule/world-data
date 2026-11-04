@@ -38,6 +38,8 @@ export const Route = createFileRoute('/vs')({
       description:
         'Put two to four countries, states, cities or counties side by side and see who wins on every shared statistic.',
       path: '/vs',
+      // A client-rendered shell: its static HTML is only "Loading…".
+      noindex: true,
     }),
   component: VersusPage,
 });

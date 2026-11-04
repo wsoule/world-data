@@ -1,7 +1,9 @@
 // Post-build: writes crawl and machine-readable files into dist/client next to
 // the prerendered pages.
 //
-//   robots.txt      allows search and AI crawlers, points at the sitemap
+//   robots.txt      allows search and AI crawlers, keeps them out of search
+//                   results and query-string views, points at the sitemap
+//                   (lib/robots.ts)
 //   llms.txt        site summary and entry points for AI answer engines
 //   llms-full.txt   every topic with a one-line answer-first fact
 //   site.webmanifest
@@ -34,6 +36,7 @@ import type {
 } from '../src/data/types';
 import { formatValue, typeNoun } from '../src/lib/format';
 import { absoluteUrl, SITE, SITE_URL } from '../src/site';
+import { robotsTxt } from './lib/robots';
 import {
   belongsInSitemap,
   canonicalSitemap,
@@ -48,43 +51,8 @@ import { prerenderPages } from './prerender-pages';
 const DATA = path.resolve('public/data');
 const OUT = path.resolve('dist/client');
 
-/** Crawlers named explicitly so their access is unambiguous. */
-const AI_CRAWLERS = [
-  'OAI-SearchBot',
-  'ChatGPT-User',
-  'GPTBot',
-  'Claude-SearchBot',
-  'Claude-User',
-  'ClaudeBot',
-  'PerplexityBot',
-  'Perplexity-User',
-  'Google-Extended',
-  'Applebot-Extended',
-  'Bingbot',
-  'DuckAssistBot',
-  'MistralAI-User',
-];
-
 const readJson = async <T>(file: string): Promise<T> =>
   JSON.parse(await readFile(path.join(DATA, file), 'utf8')) as T;
-
-function robots(): string {
-  return [
-    '# Search engines and AI answer engines are welcome to crawl and cite this site.',
-    'User-agent: *',
-    'Allow: /',
-    'Disallow: /search',
-    '',
-    ...AI_CRAWLERS.flatMap((ua) => [
-      `User-agent: ${ua}`,
-      'Allow: /',
-      'Disallow: /search',
-      '',
-    ]),
-    `Sitemap: ${SITE_URL}/sitemap.xml`,
-    '',
-  ].join('\n');
-}
 
 /** The built page for a site URL: dist/client/<path>/index.html. */
 function pageFile(loc: string): string {
@@ -388,7 +356,7 @@ async function main(): Promise<void> {
     icons: [{ src: '/favicon.svg', sizes: 'any', type: 'image/svg+xml' }],
   };
 
-  await writeFile(path.join(OUT, 'robots.txt'), robots());
+  await writeFile(path.join(OUT, 'robots.txt'), robotsTxt(SITE_URL));
   await writeFile(path.join(OUT, '404.html'), await notFoundPage());
   await assertAssetsExist([
     'index.html',

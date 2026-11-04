@@ -19,6 +19,8 @@ export const Route = createFileRoute('/compare')({
       description:
         'Plot any two statistics against each other, build a combined ranking from many metrics and find what correlates, for countries, US states, cities and counties.',
       path: '/compare',
+      // A client-rendered shell: its static HTML is only "Loading…".
+      noindex: true,
     }),
   component: CompareShell,
 });
