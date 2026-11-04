@@ -3,9 +3,12 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { type PrerenderPage, prerenderPages } from '../scripts/prerender-pages';
-import type { TopicSummary } from '../src/data/types';
+import type { Manifest, TopicSummary } from '../src/data/types';
 
 const DATA = join(import.meta.dir, '../public/data');
+const manifest = JSON.parse(
+  readFileSync(join(DATA, 'manifest.json'), 'utf8')
+) as Manifest;
 const topics = JSON.parse(
   readFileSync(join(DATA, 'topics.json'), 'utf8')
 ) as TopicSummary[];
@@ -34,5 +37,28 @@ describe('prerenderPages', () => {
   test('keeps the browser-only shells out of the sitemap', () => {
     for (const path of ['/compare', '/vs', '/search'])
       expect(listed(path)).toBe(false);
+  });
+
+  test('dates pages by their data, never by the build', () => {
+    const built = manifest.generatedAt.slice(0, 10);
+    const dates = pages.flatMap((p) =>
+      p.sitemap?.lastmod == null ? [] : [p.sitemap.lastmod]
+    );
+    expect(dates.length).toBeGreaterThan(0);
+    for (const d of dates) {
+      expect(d).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(d <= built).toBe(true);
+    }
+    // A topic with its own update date carries it.
+    const dated = topics.find(
+      (t) => t.updated != null && listed(`/topics/${t.type}/${t.slug}`)
+    );
+    expect(dated).toBeDefined();
+    if (dated != null)
+      expect(
+        byPath.get(`/topics/${dated.type}/${dated.slug}`)?.sitemap?.lastmod
+      ).toBe(dated.updated?.slice(0, 10));
+    // The glossary has no data, so no date.
+    expect(byPath.get('/glossary')?.sitemap?.lastmod).toBeUndefined();
   });
 });

@@ -5,6 +5,7 @@ import {
   canonicalSitemap,
   filterSitemap,
   pageIndexing,
+  setLastmod,
   sitemapLocs,
 } from '../scripts/lib/sitemap';
 
@@ -30,6 +31,20 @@ describe('canonicalSitemap', () => {
         '<loc>https://rankodex.com/categories</loc>',
         '<loc>https://rankodex.com/topics/state/x</loc>',
       ].join('\n')
+    );
+  });
+
+  test('keeps the first entry of a URL listed twice', () => {
+    const xml = sitemap(
+      '<loc>https://rankodex.com/categories</loc>\n    <priority>0.8</priority>',
+      '<loc>https://rankodex.com/topics/state/x</loc>',
+      '<loc>https://rankodex.com/categories/</loc>\n    <lastmod>2026-11-04</lastmod>'
+    );
+    expect(canonicalSitemap(xml)).toBe(
+      sitemap(
+        '<loc>https://rankodex.com/categories</loc>\n    <priority>0.8</priority>',
+        '<loc>https://rankodex.com/topics/state/x</loc>'
+      )
     );
   });
 });
@@ -100,6 +115,27 @@ describe('belongsInSitemap', () => {
     ).toBe(false);
     expect(belongsInSitemap(url, { noindex: false, canonical: null })).toBe(
       false
+    );
+  });
+});
+
+describe('setLastmod', () => {
+  test('sets, replaces or removes the <lastmod> of each entry', () => {
+    const xml = sitemap(
+      '<loc>https://rankodex.com/</loc>\n    <lastmod>2026-11-04</lastmod>\n    <priority>1</priority>',
+      '<loc>https://rankodex.com/glossary</loc>\n    <lastmod>2026-11-04</lastmod>',
+      '<loc>https://rankodex.com/topics/state/x</loc>'
+    );
+    const dates = new Map([
+      ['https://rankodex.com/', '2026-10-28'],
+      ['https://rankodex.com/topics/state/x', '2025-02-03'],
+    ]);
+    expect(setLastmod(xml, (loc) => dates.get(loc) ?? null)).toBe(
+      sitemap(
+        '<loc>https://rankodex.com/</loc>\n    <lastmod>2026-10-28</lastmod>\n    <priority>1</priority>',
+        '<loc>https://rankodex.com/glossary</loc>',
+        '<loc>https://rankodex.com/topics/state/x</loc>\n    <lastmod>2025-02-03</lastmod>'
+      )
     );
   });
 });

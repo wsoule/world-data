@@ -20,6 +20,7 @@ import {
   MIN_PLACE_METRICS,
   MIN_TOPIC_PLACES,
   MIN_WIDELY_RANKED_METRICS,
+  newestDate,
   SEPARATE_DUPLICATES,
   TOPIC_ALIASES,
   topicCoverage,
@@ -136,6 +137,23 @@ describe('isIndexablePlace', () => {
     );
     expect(isIndexablePlace(MIN_PLACE_METRICS - 1, 50)).toBe(false);
     expect(isIndexablePlace(200, MIN_WIDELY_RANKED_METRICS - 1)).toBe(false);
+  });
+});
+
+describe('newestDate', () => {
+  test('returns the latest day and ignores missing or malformed dates', () => {
+    expect(
+      newestDate([
+        '2025-02-03',
+        null,
+        '2026-10-28T08:00:00Z',
+        'soon',
+        undefined,
+        '2026-01-01',
+      ])
+    ).toBe('2026-10-28');
+    expect(newestDate([null, undefined])).toBeNull();
+    expect(newestDate([])).toBeNull();
   });
 });
 

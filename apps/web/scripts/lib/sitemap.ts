@@ -8,13 +8,22 @@ const URL_ENTRY = /[ \t]*<url>\s*<loc>([^<]*)<\/loc>[\s\S]*?<\/url>\n?/g;
 /**
  * Strips the trailing slash TanStack's sitemap gives index routes
  * ("https://…/categories/"), keeping the site root, so every <loc> is the
- * canonical URL rather than one the server redirects with a 308.
+ * canonical URL rather than one the server redirects with a 308. TanStack
+ * also lists an index route a second time (its own "/categories/" next to
+ * the page list's "/categories"), so a <url> whose <loc> was already listed
+ * is dropped, keeping the first, which carries the page's metadata.
  */
 export function canonicalSitemap(xml: string): string {
-  return xml.replace(
+  const stripped = xml.replace(
     /<loc>(https?:\/\/[^/<]+\/[^<]*?[^/<])\/<\/loc>/g,
     '<loc>$1</loc>'
   );
+  const seen = new Set<string>();
+  return stripped.replace(URL_ENTRY, (entry: string, loc: string) => {
+    if (seen.has(loc)) return '';
+    seen.add(loc);
+    return entry;
+  });
 }
 
 /** The <loc> of every <url> entry, in order. */
@@ -30,6 +39,27 @@ export function filterSitemap(
   return xml.replace(URL_ENTRY, (entry: string, loc: string) =>
     keep(loc) ? entry : ''
   );
+}
+
+/**
+ * Sets every entry's <lastmod> to `lastmod(loc)`, right after its <loc>, and
+ * removes it where that is null. TanStack writes the build date for a page
+ * that gave no date, which would claim every rebuild changed the page.
+ */
+export function setLastmod(
+  xml: string,
+  lastmod: (loc: string) => string | null
+): string {
+  return xml.replace(URL_ENTRY, (entry: string, loc: string) => {
+    const date = lastmod(loc);
+    const bare = entry.replace(/\n[ \t]*<lastmod>[^<]*<\/lastmod>/, '');
+    return date == null
+      ? bare
+      : bare.replace(
+          /(\n([ \t]*)<loc>[^<]*<\/loc>)/,
+          `$1\n$2<lastmod>${date}</lastmod>`
+        );
+  });
 }
 
 /** What a page's own HTML tells crawlers about indexing it. */

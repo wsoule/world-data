@@ -12,7 +12,7 @@
 //
 // It also tidies what `vite build` leaves behind: sitemap URLs lose the
 // trailing slash index routes get ("/categories/" -> "/categories", which the
-// server would 308), the sitemap keeps only pages
+// server would 308) and their duplicate entries, the sitemap keeps only pages
 // whose own HTML is indexable and self-canonical (place profiles decide that
 // while rendering), and TanStack's pages.json build manifest is removed so it
 // is not published.
@@ -33,15 +33,17 @@ import type {
   TopicSummary,
 } from '../src/data/types';
 import { formatValue, typeNoun } from '../src/lib/format';
-import { SITE, SITE_URL } from '../src/site';
+import { absoluteUrl, SITE, SITE_URL } from '../src/site';
 import {
   belongsInSitemap,
   canonicalSitemap,
   filterSitemap,
   type PageIndexing,
   pageIndexing,
+  setLastmod,
   sitemapLocs,
 } from './lib/sitemap';
+import { prerenderPages } from './prerender-pages';
 
 const DATA = path.resolve('public/data');
 const OUT = path.resolve('dist/client');
@@ -112,10 +114,11 @@ async function builtPageIndexing(file: string): Promise<PageIndexing> {
 }
 
 /**
- * Rewrites sitemap.xml: canonical <loc>s, then only the
+ * Rewrites sitemap.xml: canonical <loc>s without duplicates, then only the
  * URLs whose built page is indexable and names itself as canonical. Thin place
  * profiles (isIndexablePlace) are removed here, since only the rendered page
- * knows; topics already left out by prerender-pages.ts would be too. Fails
+ * knows; topics already left out by prerender-pages.ts would be too. Each
+ * <lastmod> is the page's data date from prerender-pages.ts, or none. Fails
  * when a listed URL has no page. Returns how many URLs were kept and dropped
  * per section ("places/world-city", "topics/state", …).
  */
@@ -148,9 +151,18 @@ async function tidySitemap(): Promise<{
       `sitemap.xml lists URLs without a built page:\n${missing.join('\n')}`
     );
   }
+  const lastmod = new Map(
+    prerenderPages(DATA).map((p) => [
+      absoluteUrl(p.path),
+      p.sitemap?.lastmod ?? null,
+    ])
+  );
   await writeFile(
     file,
-    filterSitemap(xml, (loc) => keep.has(loc))
+    setLastmod(
+      filterSitemap(xml, (loc) => keep.has(loc)),
+      (loc) => lastmod.get(loc) ?? null
+    )
   );
   return { kept: keep.size, dropped };
 }

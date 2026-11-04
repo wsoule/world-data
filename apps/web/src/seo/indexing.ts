@@ -1,8 +1,8 @@
-// Which pages search engines are asked to index and which URL each page names
-// as canonical. The route loaders and heads use these for the robots and
-// canonical tags; scripts/prerender-pages.ts uses the same functions for the
-// sitemap, so the sitemap never lists a page that tells crawlers not to index
-// it.
+// Which pages search engines are asked to index, which URL each page names as
+// canonical, and the data date the sitemap gives it. The route loaders and
+// heads use these for the robots and canonical tags; scripts/prerender-pages.ts
+// uses the same functions for the sitemap, so the sitemap never lists a page
+// that tells crawlers not to index it.
 //
 // Imports types only, through relative paths: vite.config.ts loads this file
 // (via prerender-pages.ts) before the `~` alias exists.
@@ -209,4 +209,21 @@ const aliasByPath = new Map(
 /** The slug a topic page's canonical tag names: its primary page's when it is an alias, else its own. */
 export function canonicalTopicSlug(type: string, slug: string): string {
   return aliasByPath.get(`${type}/${slug}`) ?? slug;
+}
+
+/**
+ * The newest of some ISO dates ("2026-10-28" or a full timestamp), as YYYY-MM-DD, or null when
+ * there is none. Sitemap lastmod values come from this, so a page carries the date of its
+ * newest data rather than the date of the build.
+ */
+export function newestDate(
+  dates: Iterable<string | null | undefined>
+): string | null {
+  let newest: string | null = null;
+  for (const d of dates) {
+    if (d == null || !/^\d{4}-\d{2}-\d{2}/.test(d)) continue;
+    const day = d.slice(0, 10);
+    if (newest == null || day > newest) newest = day;
+  }
+  return newest;
 }
