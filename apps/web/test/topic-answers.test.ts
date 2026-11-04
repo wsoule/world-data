@@ -20,7 +20,8 @@ import {
   resolveYear,
   seriesYears,
 } from '../src/features/topic/model';
-import { topicSummary } from '../src/seo/content';
+import { ORGANIZATION_ID } from '../src/lib/seo';
+import { datasetCredit, topicSummary } from '../src/seo/content';
 import { topicAnswers } from '../src/seo/topic-content';
 
 const DATA = join(import.meta.dir, '../public/data');
@@ -220,8 +221,60 @@ describe('topicAnswers', () => {
     );
     const dataset_ = seo.jsonLd[0];
     expect(dataset_.dateModified).toBe(topic.updated);
-    expect(dataset_.creator).toMatchObject({ name: 'Rankodex' });
-    expect(dataset_.isBasedOn).toEqual(topic.sources.map((s) => s.url));
+    expect(dataset_.creator).toEqual({ '@id': ORGANIZATION_ID });
+    expect(dataset_.publisher).toEqual({ '@id': ORGANIZATION_ID });
+    expect(dataset_.isBasedOn).toEqual([
+      {
+        '@type': 'CreativeWork',
+        name: 'Crime in the United States - FBI Crime Data Explorer',
+        url: topic.sources[0]?.url,
+      },
+    ]);
+  });
+
+  test('credits World Population Review as creator of a topic compiled from its page', () => {
+    const ds = dataset('country');
+    const topic = read<TopicFile>(
+      'country/topics/most-peaceful-countries.json'
+    );
+    const dataset_ = topicSummary(topic, ds, manifest.categories).jsonLd[0];
+    const wpr = {
+      '@type': 'Organization',
+      name: 'World Population Review',
+      url: 'https://worldpopulationreview.com',
+    };
+    expect(dataset_.creator).toEqual(wpr);
+    expect(dataset_.publisher).toEqual({ '@id': ORGANIZATION_ID });
+    expect(dataset_.isBasedOn).toEqual({
+      '@type': 'CreativeWork',
+      url: 'https://worldpopulationreview.com/country-rankings/most-peaceful-countries',
+      creator: wpr,
+      isBasedOn: topic.sources.map((s) => ({
+        '@type': 'CreativeWork',
+        name: s.name,
+        url: s.url,
+      })),
+    });
+  });
+
+  test('names each cited source once, and leaves out a missing name', () => {
+    const credit = datasetCredit({
+      url: null,
+      sources: [
+        { name: 'A - Agency', url: 'https://a.example/' },
+        { name: 'A again', url: 'https://a.example/' },
+        { name: '', url: 'https://b.example/' },
+      ],
+    });
+    expect(credit.isBasedOn).toEqual([
+      {
+        '@type': 'CreativeWork',
+        name: 'A - Agency',
+        url: 'https://a.example/',
+      },
+      { '@type': 'CreativeWork', url: 'https://b.example/' },
+    ]);
+    expect(datasetCredit({ url: null, sources: [] }).isBasedOn).toBeUndefined();
   });
 
   for (const type of manifest.types.map((t) => t.id)) {

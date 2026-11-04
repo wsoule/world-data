@@ -28,7 +28,7 @@ import {
 import { leadMetric, openingYear } from '~/features/topic/headline';
 import { seriesYears } from '~/features/topic/model';
 import { formatInt, ordinal, typeNoun } from '~/lib/format';
-import { breadcrumbs, faqPage, publisher } from '~/lib/seo';
+import { breadcrumbs, faqPage, publisherRef } from '~/lib/seo';
 import { absoluteUrl, SITE } from '~/site';
 
 export interface QA {
@@ -124,6 +124,58 @@ export function topicClosing(
     : `${name}${where} and ${what} in one table.`;
 }
 
+/** A cited source as a schema.org CreativeWork: its name and address. */
+function sourceWork(source: {
+  name: string;
+  url: string;
+}): Record<string, unknown> {
+  return source.name === ''
+    ? { '@type': 'CreativeWork', url: source.url }
+    : { '@type': 'CreativeWork', name: source.name, url: source.url };
+}
+
+/**
+ * Who made a topic's table and what it is based on, as the creator, publisher and isBasedOn of
+ * its Dataset markup. Google's Dataset documentation calls creator "the creator or author of this
+ * dataset" and names the originals of a derived dataset with isBasedOn. A topic compiled from a
+ * World Population Review page is that site's work, so its creator is World Population Review
+ * and it is based on that page, which is in turn based on the sources the page cites. A topic
+ * Rankodex built from a primary source (it has no source page) is Rankodex's own, based on the
+ * agency's data. Rankodex publishes both, named by the @id of the Organization node every page
+ * carries.
+ */
+export function datasetCredit(
+  topic: Pick<TopicFile, 'url' | 'sources'>
+): Record<string, unknown> {
+  // The first source listed at each address (a page may cite one twice).
+  const byUrl = new Map<string, Record<string, unknown>>();
+  for (const s of topic.sources)
+    if (!byUrl.has(s.url)) byUrl.set(s.url, sourceWork(s));
+  const cited = [...byUrl.values()];
+  if (topic.url == null) {
+    return {
+      creator: publisherRef(),
+      publisher: publisherRef(),
+      ...(cited.length > 0 ? { isBasedOn: cited } : {}),
+    };
+  }
+  const source = {
+    '@type': 'Organization',
+    name: SITE.sourceName,
+    url: SITE.sourceUrl,
+  };
+  return {
+    creator: source,
+    publisher: publisherRef(),
+    isBasedOn: {
+      '@type': 'CreativeWork',
+      url: topic.url,
+      creator: source,
+      ...(cited.length > 0 ? { isBasedOn: cited } : {}),
+    },
+  };
+}
+
 /**
  * Summary, FAQ and Dataset markup for a topic page. The summary sentence and quick answers are
  * topicAnswers() for the lead metric at the year the page opens on, so the head tags, the FAQPage
@@ -186,8 +238,7 @@ export function topicSummary(
       ...variables.slice(0, 8).map((m) => m.label),
     ],
     isAccessibleForFree: true,
-    creator: publisher(),
-    publisher: publisher(),
+    ...datasetCredit(topic),
     spatialCoverage: { '@type': 'Place', name: SPATIAL[type.id] },
     variableMeasured: variables.map((m) =>
       m.unit == null
@@ -209,14 +260,6 @@ export function topicSummary(
     dataset.temporalCoverage =
       first === last ? String(first) : `${first}/${last}`;
   }
-  // What the table is based on: the source page it mirrors (none for a topic Rankodex built
-  // from a primary source, whose creator is Rankodex alone) and the sources that page or that
-  // build cites.
-  const basedOn = [
-    ...(topic.url == null ? [] : [topic.url]),
-    ...topic.sources.map((s) => s.url),
-  ];
-  if (basedOn.length > 0) dataset.isBasedOn = [...new Set(basedOn)];
 
   return {
     title: topicPageTitle(topic.title, metric != null),
