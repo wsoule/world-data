@@ -281,6 +281,8 @@ export interface HeadlineOverride {
  *   the Census ACS median household income of all households (900603, from Housing, Income
  *   and Commutes by State). The other "Median Household Income" (24419) puts Mississippi at
  *   $34,203, far below every other source.
+ * - poorest-states carries only that 24419 column, so it leads with the same Census figure
+ *   (Mississippi is the lowest there too, at the 5-year estimate the dataset holds).
  * - safest-counties lists 1,000 counties but its first column, murders, has values for only
  *   252 of them; its total of violent crimes covers all 1,000.
  * - best-countries-to-hide-money leads with the Financial Secrecy Index, whose catalog
@@ -305,6 +307,10 @@ export const HEADLINES: Readonly<Record<string, HeadlineOverride>> = {
   'state/median-household-income-by-state': {
     metric: 900603,
     note: 'The headline figure is the US Census Bureau’s American Community Survey 5-year estimate (2020–2024) for all households; the tables below split median income by household size.',
+  },
+  'state/poorest-states': {
+    metric: 900603,
+    note: 'The headline figure is the US Census Bureau’s American Community Survey 5-year estimate (2020–2024); the table below is the source’s own 2023 figure, whose value for Mississippi is far below the Census Bureau’s.',
   },
   'county/safest-counties': { metric: 25507 },
   'country/best-countries-to-hide-money': { end: 'high' },

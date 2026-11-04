@@ -211,6 +211,31 @@ describe('topicAnswers', () => {
     );
   });
 
+  test('never quotes the source’s wrong Mississippi income as an answer', () => {
+    const ds = dataset('state');
+    const poorest = read<TopicFile>('state/topics/poorest-states.json');
+    expect(leadMetric(poorest, ds)?.id).toBe(900603);
+    expect(topicSummary(poorest, ds, manifest.categories).summary).toStartWith(
+      'Mississippi has the lowest Median Household Income in 2024'
+    );
+    // Every topic carrying metric 24419, whose Mississippi value ($34,203) is far below the
+    // Census Bureau's.
+    const carrying = readdirSync(join(DATA, 'state/topics'))
+      .filter((f) => f.endsWith('.json'))
+      .map((f) => read<TopicFile>(`state/topics/${f}`))
+      .filter((t) => t.metrics.includes(24419));
+    expect(carrying.length).toBeGreaterThan(1);
+    for (const topic of carrying) {
+      const seo = topicSummary(topic, ds, manifest.categories);
+      const text = [
+        seo.summary,
+        seo.description,
+        ...seo.faq.map((q) => q.answer),
+      ].join(' ');
+      expect(`${topic.slug}: ${text}`).not.toContain('$34,203');
+    }
+  });
+
   test('credits Rankodex and the agency on a topic built from a primary source', () => {
     const ds = dataset('state');
     const topic = read<TopicFile>('state/topics/crime-rates-by-state-fbi.json');
