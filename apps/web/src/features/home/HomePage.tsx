@@ -4,6 +4,7 @@ import { ArrowRight, ChevronRight, Search } from 'lucide-react';
 import { type ReactNode, useMemo } from 'react';
 
 import { HomeMaps } from './HomeMaps';
+import { PresetCards } from './PresetCards';
 import { POPULAR_TOPICS } from './presets';
 import { TYPE_ICONS } from '~/components/TypeTabs';
 import { Badge, cx } from '~/components/ui';
@@ -164,6 +165,13 @@ export function HomePage() {
             </Link>
           ))}
         </div>
+      </Section>
+
+      <Section
+        title="Start comparing"
+        subtitle="Ready-made comparisons in the workbench: a combined ranking, an overlay, correlations and a map. Swap any statistic once you are there."
+      >
+        <PresetCards />
       </Section>
 
       <Section

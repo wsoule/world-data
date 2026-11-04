@@ -45,7 +45,8 @@ describe('home presets', () => {
 
   test('featured metrics are the preset metrics of one place type', () => {
     const state = featuredMetricIds('state');
-    expect(state.has(24419)).toBe(true);
+    expect(state.has(900603)).toBe(true);
+    expect(state.has(24419)).toBe(false);
     expect(state.has(19182)).toBe(false);
     expect(featuredMetricIds('country').has(19182)).toBe(true);
     expect(featuredMetricIds('county').size).toBe(0);
