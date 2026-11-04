@@ -17,7 +17,7 @@ import {
 } from './model';
 import type { Dataset } from '~/data/dataset';
 import { isRankColumn } from '~/data/rankOrder';
-import type { Metric, Polarity, TopicFile } from '~/data/types';
+import type { Metric, TopicFile } from '~/data/types';
 
 /** One end of a metric's values. */
 export type End = 'high' | 'low';
@@ -326,32 +326,6 @@ export function headlineOverride(
   return HEADLINES[`${topic.type}/${topic.slug}`];
 }
 
-/**
- * Catalog polarities that read the wrong way round, keyed "<type>:<metric id>", used when a
- * title word is turned into an end. The data build guesses each from its label; checked by hand
- * against the topic's own ranks or the index's definition:
- * - Global Peace Index (country 16946): lower is more peaceful.
- * - Corruption Perceptions Index (country 21700): higher is cleaner.
- * - EPI Air Pollution (country 15879): an EPI score, higher is cleaner, like the EPI sanitation
- *   score beside it (100 for the Netherlands and Finland).
- * - Corruption Score (BestLife) (state 22180): higher is cleaner; Vermont scores 100 and has
- *   the fewest federal corruption convictions (rank 50 of 50).
- * - Overall Homelessness Help Score (state 21045): higher is more help; Connecticut scores
- *   highest and ranks 1st on shelters and housing support.
- * - Overall Racial Integration Score (state 21159): higher is more integrated; DC scores lowest
- *   and ranks 51st on employment and education integration.
- * Without these "Most Peaceful Countries" would open on Russia and "Least Corrupt Countries"
- * on Somalia.
- */
-const CUE_POLARITY: ReadonlyMap<string, Polarity> = new Map([
-  ['country:16946', -1],
-  ['country:21700', 1],
-  ['country:15879', 1],
-  ['state:22180', 1],
-  ['state:21045', 1],
-  ['state:21159', 1],
-]);
-
 /** Words that say nothing about which statistic a title is about. */
 const STOP = new Set([
   'a',
@@ -530,13 +504,12 @@ export function topicEnd(
   const isLead = lead != null && lead.id === metric.id;
   const fixed = headlineOverride(topic)?.end;
   if (isLead && fixed != null) return fixed;
-  const pol = CUE_POLARITY.get(`${topic.type}:${metric.id}`) ?? metric.pol;
   const applies =
     isLead ||
     (lead != null && akin(lead, metric)) ||
-    (cue.kind === 'judged' && pol !== 0);
+    (cue.kind === 'judged' && metric.pol !== 0);
   if (!applies) return null;
-  const end = cueEnd(cue, { fmt: metric.fmt, pol }, yearValued);
+  const end = cueEnd(cue, metric, yearValued);
   if (end == null || cue.kind === 'age' || cue.word == null) return end;
   const negated = new RegExp(`\\b(non-?|not |ir|un)${cue.word}`, 'i');
   return negated.test(metric.label) ? flip(end) : end;

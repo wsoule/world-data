@@ -166,10 +166,12 @@ describe('placeSummary', () => {
 
   test('a place tied at the bottom reads "tied last"', () => {
     const countries = dataset('country');
-    const uk = countries.entityBySlug.get('united-kingdom');
-    if (uk == null) throw new Error('missing United Kingdom');
-    const standings = placeStandings(countries, uk);
-    const { summary } = placeSummary(countries, uk);
+    // Somalia and South Sudan share the lowest Corruption Perceptions Index score (9).
+    const somalia = countries.entityBySlug.get('somalia');
+    if (somalia == null) throw new Error('missing Somalia');
+    const standings = placeStandings(countries, somalia);
+    const { summary } = placeSummary(countries, somalia);
+    expect(summary).toContain('Corruption Perception Index (tied last of');
     const tiedLast = standings.find(
       (p) =>
         summary.includes(`${p.metric.label} (tied last of`) &&

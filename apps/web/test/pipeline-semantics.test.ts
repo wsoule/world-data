@@ -200,5 +200,87 @@ describe('guessPolarity', () => {
         'NaturalDisasterRiskLackOfCopingCapacities'
       )
     ).toBe(-1);
+    expect(
+      pol(
+        'WJP RoLI Absence of Corruption Score',
+        'WorldJusticeProjectRuleOfLawIndexAbsenceOfCorruption'
+      )
+    ).toBe(1);
+  });
+
+  test('reads named indexes the way their publishers define them', () => {
+    expect(
+      pol('Global Peace Index', 'GlobalPeaceIndex', 'floatNumber3', [
+        'most-peaceful-countries',
+      ])
+    ).toBe(-1);
+    expect(
+      pol('Corruption Perception Index', 'CorruptionPerceptionsIndex', null, [
+        'most-corrupt-countries',
+      ])
+    ).toBe(1);
+    expect(
+      pol(
+        'EPI Air Pollution',
+        'EnvironmentalPerformanceIndexAirPollutionScore',
+        'floatNumber',
+        ['dirtiest-countries-in-the-world']
+      )
+    ).toBe(1);
+    expect(pol('EPI Recycling Score', 'EPIRecyclingScore')).toBe(1);
+    expect(
+      pol('Civil Liberties Freedom Rating', 'CivilLibertiesFreedomRating')
+    ).toBe(-1);
+    expect(
+      pol('Political Rights Freedom Rating', 'PoliticalRightsFreedomRating')
+    ).toBe(-1);
+    // Other freedom and civil liberties scores are higher for freer places.
+    expect(
+      pol(
+        'EIU Civil Liberties Score',
+        'EIUDemocracyIndexCivilLiberties',
+        null,
+        ['democracy-index-by-country']
+      )
+    ).toBe(1);
+    expect(pol('Air Quality Index', 'AirQualityIndexByState')).toBe(-1);
+    expect(
+      pol('AQI', 'worldCityAQI', null, ['air-quality-index-by-world-city'])
+    ).toBe(-1);
+    expect(
+      pol('SWAMP Index Score', 'SWAMPIndexScore', null, ['most-corrupt-states'])
+    ).toBe(1);
+    expect(
+      pol(
+        'State Integrity Investigation (SII) Total Score',
+        'SIIStateIntegrityInvestigation',
+        null,
+        ['most-corrupt-states']
+      )
+    ).toBe(1);
+    // A rank of an index is still a position, and a change in one is not the index.
+    expect(pol('Global Peace Index Rank', 'GPIRank', 'ranking')).toBe(-1);
+    expect(
+      pol('EPI 10-Year Change', 'EnvironmentalPerformanceIndex10YearChange')
+    ).toBe(0);
+  });
+
+  test('reads unhealthy days and scores as worse', () => {
+    expect(
+      pol(
+        'Days with Unhealthy Air Quality (US News)',
+        'DaysWithUnhealthyAirQuality'
+      )
+    ).toBe(-1);
+    expect(
+      pol(
+        'Lifestyle Habits & Health Outlook Score',
+        'MostUnhealthyStatesLifestyleHabitsAndHealthOutlook'
+      )
+    ).toBe(-1);
+  });
+
+  test('reads the gun death rank as worst first', () => {
+    expect(pol('Gun Death Rank', 'GunDeathRankByState', 'ranking')).toBe(1);
   });
 });

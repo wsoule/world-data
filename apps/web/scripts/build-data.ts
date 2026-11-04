@@ -55,6 +55,7 @@ import {
   type RowEntity,
 } from './lib/entities';
 import type { ExternalPage } from './lib/external';
+import { METRIC_FIXES } from './lib/metric-fixes';
 import {
   lastUpdated,
   type PageLink,
@@ -912,34 +913,6 @@ function disambiguate(group: readonly Metric[]): string[] {
       : `${x} (#${group[i]?.id ?? ''})`.trim()
   );
 }
-
-/**
- * Hand corrections for source columns whose header or format is wrong:
- * 20363 is keyed "…PctOfMammalSpeciesAtRisk" but titled as the fish column,
- * 23920 is keyed "…_5to6Years" but titled "Ages 4-5", 23931 holds dollars
- * under a cents header, 15277 holds percentages under a dollar format,
- * 19747 holds euros with no format, and 23862 holds World Energy Trilemma
- * scores (Denmark 83.2 is the best) under a "Rank" header and rank format.
- */
-const METRIC_FIXES: Record<
-  string,
-  { label?: string; unit?: string; fmt?: string; pol?: Polarity }
-> = {
-  'country:19747': { fmt: 'moneyWithCurrencyEuros' },
-  'country:23862': {
-    label: 'Energy Sustainability Score',
-    fmt: 'floatNumberTenths',
-    pol: 1,
-  },
-  'state:15277': {
-    label: 'Avg Median Down Payment for House (%)',
-    fmt: 'percAlt',
-  },
-  'state:15864': { label: 'Gas Tax (¢/gallon)' },
-  'state:20363': { label: '% of Mammal Species at Risk' },
-  'state:23920': { label: 'CSR: Ages 5-6' },
-  'state:23931': { label: 'Gas Tax ($/gallon)', unit: '$/gallon' },
-};
 
 /**
  * Metric id → slugs of the topics where that metric has at least one value.

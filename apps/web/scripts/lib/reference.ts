@@ -85,19 +85,46 @@ export const CATEGORY_LABELS: Record<string, string> = {
 // Words that usually mean "lower is better" / "higher is better" for a quality-of-life reading.
 // This only seeds the default direction in composite rankings; users can flip any metric.
 const LOWER =
-  /\b(crime|crimes|criminal|murder|homicide|violent|violence|theft|robbery|burglary|assault|rape|kidnap|terror|death|deaths|dead|died|mortality|fatal|fatality|fatalities|killed|suicide|overdose|poverty|poor|unemploy\w*|debt|deficit|inflation|pollution|polluted|emission|emissions|co2|carbon|smog|pm2\.?5|obes\w*|smok\w*|tobacco|alcoholism|drunk\w*|drug|opioid|disease|cancer|diabetes|hiv|aids|malaria|tuberculosis|infection|stress|depress\w*|anxiety|corruption|corrupt|inequality|gini|risk|danger\w*|dangerous|worst|unsafe|incarcerat\w*|prison|prisoners|inmates|eviction|homeless\w*|cost of living|rent burden|tax burden|commute|(?<!(?:global|web|site|website|internet|online) )traffic|congestion|accident|accidents|crash|crashes|injur\w*|abuse|fraud|scam|hate|bankrupt\w*|foreclosure|uninsured|stillbirth|underweight|stunting|malnutrition|hunger|starvation|undernourish\w*|illiteracy|dropout|fragile|fragility|misery|secrecy)\b/i;
+  /\b(crime|crimes|criminal|murder|homicide|violent|violence|theft|robbery|burglary|assault|rape|kidnap|terror|death|deaths|dead|died|mortality|fatal|fatality|fatalities|killed|suicide|overdose|poverty|poor|unemploy\w*|debt|deficit|inflation|pollution|polluted|emission|emissions|co2|carbon|smog|pm2\.?5|obes\w*|smok\w*|tobacco|alcoholism|drunk\w*|drug|opioid|disease|cancer|diabetes|hiv|aids|malaria|tuberculosis|infection|stress|depress\w*|anxiety|corruption|corrupt|inequality|gini|risk|danger\w*|dangerous|worst|unsafe|incarcerat\w*|prison|prisoners|inmates|eviction|homeless\w*|cost of living|rent burden|tax burden|commute|(?<!(?:global|web|site|website|internet|online) )traffic|congestion|accident|accidents|crash|crashes|injur\w*|abuse|fraud|scam|hate|unhealthy|bankrupt\w*|foreclosure|uninsured|stillbirth|underweight|stunting|malnutrition|hunger|starvation|undernourish\w*|illiteracy|dropout|fragile|fragility|misery|secrecy)\b/i;
 const HIGHER =
   /\b(gdp|income|wage|wages|salary|salaries|earnings|wealth|wealthiest|richest|happiness|happiest|happy|life expectancy|literacy|literate|education|educated|graduation|attainment|hdi|human development|freedom|free|democracy|peace|peaceful|safety|safest|safe|quality|best|innovation|competitiveness|prosperity|well-being|wellbeing|purchasing power|press freedom|internet speed|broadband|access|insured|vaccination|vaccinated|employment rate|labor force|productivity|patents|healthiest|cleanest|greenest|renewable|forest|biodiversity|tolerance|trust|satisfaction|longevity|iq|pisa|test scores)\b/i;
 
-// Phrases that invert the meaning of the word they precede ("never smoked", "less than high school").
+// Phrases that invert the meaning of the word they precede ("never smoked", "less than high
+// school", "Absence of Corruption Score").
 const NEGATOR =
-  /\b(less than|without|lack of|lacking|no access|never|non[- ]?smok\w*)\b|-free\b/i;
+  /\b(less than|without|lack of|lacking|absence of|no access|never|non[- ]?smok\w*)\b|-free\b/i;
 
 // Columns with no better/worse reading regardless of the words above:
 // calendar years, age and speed limits, thresholds, and what people prefer
 // ("Favorite Season Is Summer", "Preferred Space between Strangers").
 const NEUTRAL =
   /\b(min(imum)?|max(imum)?|legal|voting|drinking|driving)\s+age\b|\bage requirement\b|\bspeed limits?\b|^year\b|\byear (of|joined|admitted|founded|established|adopted|implemented|assessed|measured|granted)\b|\b(join|founding|independence) year\b|\bnumber of seasons\b|^poverty (wage|guidelines?|thresholds?)\b|\bfavou?rite\b|\bprefer(red|s)?\b|\bfor felony\b/i;
+
+// Named indexes whose direction their publisher defines, whatever the words in their names
+// suggest: the Global Peace Index gives the most peaceful country the lowest score (Iceland
+// 1.16, Russia 3.37), Freedom House rates political rights and civil liberties from 1 (most
+// free: Australia, Austria) to 7 (least free: Syria, Yemen), and an air quality index is higher
+// for dirtier air (Lahore 173, Berlin 29), while Transparency International's Corruption Perceptions Index (Denmark 89, South Sudan
+// 9), Yale's Environmental Performance Index and its issue scores (the air pollution score is
+// 100 for the cleanest air), the SWAMP Index of state anti-corruption safeguards and the State
+// Integrity Investigation (Alaska 76, Michigan 51) score the better place higher. A change in
+// an index ("EPI 10-Year Change") is not the index and keeps the usual rules.
+const NAMED_INDEXES: readonly (readonly [RegExp, -1 | 1])[] = [
+  [/\bglobal peace index\b/i, -1],
+  [/\b(political rights|civil liberties) (freedom )?rating\b/i, -1],
+  [/\bair quality index\b|\baqi\b/i, -1],
+  [/\bcorruption perceptions? index\b/i, 1],
+  [/\bepi\b|\benvironmental performance index\b/i, 1],
+  [/\bswamp index\b/i, 1],
+  [/\bstate integrity investigation\b/i, 1],
+];
+
+/** Polarity of a named index (see NAMED_INDEXES), or null for any other label. */
+function indexPolarity(label: string): -1 | 1 | null {
+  if (/\bchange\b/i.test(label)) return null;
+  for (const [re, pol] of NAMED_INDEXES) if (re.test(label)) return pol;
+  return null;
+}
 
 // Money or effort spent: less is better for the person paying it.
 const COST =
@@ -192,12 +219,15 @@ const BEST_FIRST =
 // Worst-first ranks whose label and key do not say so, checked against the
 // source order: FiveThirtyEight's corruption ranks put New York (total
 // convictions), Louisiana (per capita), Kentucky (reporter survey) and
-// Georgia (lack of laws) first.
+// Georgia (lack of laws) first, and the gun death rank of the strictest gun
+// laws page puts the highest gun death rates first (Alaska, Alabama and
+// Wyoming in the top five, Connecticut 45th).
 const WORST_FIRST_KEYS = new Set([
   'FTECorruptionConvictionsTotal',
   'FTECorruptionConvictionsPerCapita',
   'FTEReporterRatings',
   'FTELackofLaws',
+  'GunDeathRankByState',
 ]);
 
 /** Matches labels that name a rank position ("Fishing Rank", "Men's ODI Ranking"). */
@@ -237,7 +267,8 @@ function wordPolarity(text: string): -1 | 0 | 1 {
 /**
  * Guesses whether a higher value reads as better (1), worse (-1) or neither
  * (0). Rank columns read as positions (see rankPolarity); calendar years,
- * limits and preferences are neutral; taxes paid, costs and prices are
+ * limits and preferences are neutral; named indexes read as their publisher
+ * defines them (see NAMED_INDEXES); taxes paid, costs and prices are
  * lower-is-better. Otherwise the label is matched against the word lists,
  * then the key (whose leading words often name the page rather than the
  * column), then the topic titles.
@@ -256,6 +287,8 @@ export function guessPolarity(
   if (fmt === 'ranking' || RANK_LABEL.test(label))
     return rankPolarity(label, key);
   if (fmt === 'year' || NEUTRAL.test(label)) return 0;
+  const index = indexPolarity(label);
+  if (index != null) return index;
   const tax = taxPolarity(label, key);
   if (tax != null) return tax;
   if (COST.test(label) && !ACCESS.test(label)) return -1;
