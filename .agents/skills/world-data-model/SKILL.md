@@ -60,17 +60,20 @@ types, so a shape change must update both.
   rankings of the type's largest places. `selectedListMetrics` flags the rest:
   top-N lists picked by their own metric ("the 1,000 most violent counties",
   "the richest cities"), whose ends say nothing about all places.
-- Cost of living: `src/data/costOfLiving.ts`. `isIncomeLike` picks the money
-  metrics that are earnings or income (not prices, rents, taxes, living-wage
-  thresholds or already-real figures); `withCostAdjustment(dataset)` wraps a
-  dataset so `numeric()` returns those columns at the US-average price level
-  (`value × 100 ÷ RPP`), which makes rankings, winners and percentiles follow.
-  It is a no-op for types without price levels (world cities and counties, for
-  now). Price levels (`RPP.allItems`) come from BEA for states and for US cities
-  (their metro's), and from the World Bank for countries. Head to head, topic
-  pages and compare turn it on with the URL param `col=true`; topic pages adjust
-  a copy of the topic file (`adjustTopic`). Caches keyed by strings
-  (`useBasket`, the discover scan) must include `col` in their key.
+- Adjustments: `src/data/adjustments.ts`, chosen with the URL param `adj` on
+  topic pages, compare and head to head (old `col=true` links read as
+  `adj=col`). `col` puts wages and incomes at the US-average price level
+  (`isIncomeLike` in `costOfLiving.ts`, price levels from BEA for states and US
+  cities, World Bank for countries); `income` divides household costs (an
+  explicit list: rent, home values, child care, premiums, debt…; never per-unit
+  prices, budgets or government totals) by median household income, as "% of
+  income" or "years of income"; `pc` divides population-tracking totals
+  (`datasetFacts().sizeDriven`) by population, per 100K for counts and per
+  person for money. `availableAdjustments` lists only those that apply to a
+  page's metrics; `withAdjustment(dataset, id, sizeDriven)` relabels metrics and
+  adjusts `numeric()` so every view follows, and `adjustTopicFile` does the same
+  for topic series. String cache keys (`useBasket`, the discover scan) include
+  `adj`.
 - Chart labels: `labelFormat(metric, extent)` (`src/lib/format.ts`) prints every
   value label of one chart in one form (all "$99.9K" or all "$99,860"); tables
   keep `formatValue`. Axis ticks come from each axis's own domain via
