@@ -1,5 +1,4 @@
 import { Link } from '@tanstack/react-router';
-import { strength } from '@world-data/stats';
 import {
   ArrowRight,
   Crosshair,
@@ -13,23 +12,34 @@ import {
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 
+import type { SentencePart } from '../scatter/analysis';
 import type { CompareSearch } from '../state';
-import { type CorrelationMethod, formatP, formatR } from './correlation';
-import type { Finding, PlaceTally } from './findings';
+import { type CorrelationMethod, formatR } from './correlation';
+import {
+  type Finding,
+  outlierPosition,
+  type PlaceTally,
+  togetherDetail,
+  togetherSentence,
+} from './findings';
 import { placeNoun } from './shared';
 import type { BasketColumns } from './useBasket';
 import { Flag } from '~/components/Flag';
 import { cx } from '~/components/ui';
 import type { Dataset } from '~/data/dataset';
-import { isRankColumn, readsBackwards } from '~/data/rankOrder';
-import type { Metric } from '~/data/types';
 import { formatValue, plural } from '~/lib/format';
 
 interface FindingsListProps {
   dataset: Dataset;
   search: CompareSearch;
   basket: BasketColumns;
+  /**
+   * Built over the standing columns (`standingColumns`): r, sign and outlier z read a best-first
+   * rank by standing, so "higher" means "better placed".
+   */
   findings: readonly Finding[];
+  /** Basket metrics whose best-first rank was negated for the findings, by basket position */
+  flipped: readonly boolean[];
   method: CorrelationMethod;
 }
 
@@ -154,29 +164,17 @@ function ShowMe({
   );
 }
 
-const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-
 function M({ children }: { children: ReactNode }) {
   return <strong className="text-app font-semibold">{children}</strong>;
 }
 
-/**
- * "higher Median Household Income" / "a better Best Education Rank": rank columns are phrased as
- * better/worse by the metric's direction, so neither a best-first list's lower number nor a
- * worst-first list's higher number reads as a bad thing.
- */
-function movement(metric: Metric, dir: 1 | -1, up: boolean): ReactNode {
-  if (isRankColumn(metric)) {
-    const better = up === (dir === 1);
-    return (
-      <>
-        a {better ? 'better' : 'worse'} <M>{metric.label}</M>
-      </>
-    );
-  }
+/** Sentence parts as text, with metric names in bold. */
+function Sentence({ parts }: { parts: readonly SentencePart[] }) {
   return (
     <>
-      {up ? 'higher' : 'lower'} <M>{metric.label}</M>
+      {parts.map((p, i) =>
+        p.strong === true ? <M key={i}>{p.text}</M> : p.text
+      )}
     </>
   );
 }
@@ -186,7 +184,7 @@ function withHighlights(search: CompareSearch, ids: readonly string[]) {
 }
 
 function renderFinding(f: Finding, props: FindingsListProps): Rendered {
-  const { dataset, search, basket, method } = props;
+  const { dataset, search, basket, flipped, method } = props;
   const noun = placeNoun(dataset.type.id);
   const sym = method === 'pearson' ? 'r' : 'ρ';
   const entityAt = (place: number) => dataset.entities[basket.rows[place]];
@@ -213,22 +211,15 @@ function renderFinding(f: Finding, props: FindingsListProps): Rendered {
     case 'together': {
       const A = basket.metrics[f.pair.i];
       const B = basket.metrics[f.pair.j];
-      const dirA = basket.directions[f.pair.i];
-      const dirB = basket.directions[f.pair.j];
-      // Lead with the "good" end of a rank metric ("a better rank"), else with higher values.
-      const upA = !readsBackwards(A, dirA);
-      const upB = f.sign > 0 ? upA : !upA;
-      const s = strength(f.r);
       return {
         icon: f.sign > 0 ? TrendingUp : TrendingDown,
         tone: f.sign > 0 ? 'up' : 'down',
-        title: (
-          <>
-            {capitalize(noun.many)} with {movement(A, dirA, upA)} tend to have{' '}
-            {movement(B, dirB, upB)}.
-          </>
+        title: <Sentence parts={togetherSentence(f, A, B, noun.many)} />,
+        detail: togetherDetail(
+          f,
+          sym,
+          flipped[f.pair.i] === true || flipped[f.pair.j] === true
         ),
-        detail: `${capitalize(s)} ${f.sign > 0 ? 'positive' : 'negative'} correlation · ${sym} = ${formatR(f.r)} · n = ${f.n} · ${formatP(f.p)}`,
         show: {
           search: { ...search, view: 'scatter', x: A.id, y: B.id },
           label: `Plot ${A.label} against ${B.label}`,
@@ -302,8 +293,13 @@ function renderFinding(f: Finding, props: FindingsListProps): Rendered {
       const A = basket.metrics[f.pair.i];
       const B = basket.metrics[f.pair.j];
       const e = entityAt(f.place);
+      // Raw values for display; the trend and z are on the standing columns.
       const va = basket.columns[f.pair.i][f.place];
       const vb = basket.columns[f.pair.j][f.place];
+      const position = outlierPosition(B, f.z);
+      const against = position.rank
+        ? `than the trend line predicts from its ${A.label} (${formatValue(A, va)})`
+        : `the trend line for its ${A.label} (${formatValue(A, va)})`;
       return {
         icon: Crosshair,
         tone: 'accent',
@@ -313,7 +309,7 @@ function renderFinding(f: Finding, props: FindingsListProps): Rendered {
             <M>{B.label}</M> pattern.
           </>
         ),
-        detail: `Its ${B.label} (${formatValue(B, vb)}) is ${f.z > 0 ? 'well above' : 'well below'} the trend line for its ${A.label} (${formatValue(A, va)}): ${f.z > 0 ? '+' : '−'}${Math.abs(f.z).toFixed(1)} SD. Trend r = ${formatR(f.r)}, n = ${f.n}.`,
+        detail: `Its ${B.label} (${formatValue(B, vb)}) is ${position.words} ${against}: ${f.z > 0 ? '+' : '−'}${Math.abs(f.z).toFixed(1)} SD. Trend r = ${formatR(f.r)}, n = ${f.n}.`,
         show: {
           search: {
             ...search,

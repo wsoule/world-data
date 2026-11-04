@@ -10,7 +10,13 @@ import { placeNoun, similarLabels } from './shared';
 import { useKeyed } from './useBasket';
 import { PolarityIcon } from '~/components/MetricPicker';
 import { Card, cx, Select } from '~/components/ui';
-import { rankOrder, rankOrderNote } from '~/data/rankOrder';
+import {
+  isRankColumn,
+  rankOrder,
+  type RankOrder,
+  rankOrderNote,
+  readsBackwards,
+} from '~/data/rankOrder';
 import type { Metric } from '~/data/types';
 import { formatInt } from '~/lib/format';
 import { useTheme } from '~/lib/theme';
@@ -21,7 +27,9 @@ const COPY_R = 0.97;
 /**
  * "Discover related metrics": pick a basket metric and scan every numeric metric of the dataset
  * for the strongest positive and negative Pearson correlations (see discoverRelated for the
- * overlap rule). The scan is timed and the timing shown, since it must stay interactive.
+ * overlap rule). The scan is timed and the timing shown, since it must stay interactive. Like
+ * the matrix above it, the scan reads ranks by standing: a best-first rank's correlation is
+ * flipped against columns read the other way, so a better rank counts as higher.
  */
 export function DiscoverPanel(props: CompareViewProps) {
   const { dataset, metrics, search, entityIdx, update, addMetric, direction } =
@@ -32,8 +40,13 @@ export function DiscoverPanel(props: CompareViewProps) {
   const filtered = entityIdx.length !== dataset.entities.length;
   const noun = placeNoun(dataset.type.id);
 
+  // Direction overrides decide which ranks read backwards, so they are part of the scan's key.
+  const overrides = Object.entries(search.d ?? {})
+    .map(([id, d]) => `${id}:${d}`)
+    .sort()
+    .join(',');
   const scan = useKeyed(
-    `${dataset.type.id};${target.id};${filtered ? (search.g ?? []).join('|') : '*'};${search.adj ?? ''}`,
+    `${dataset.type.id};${target.id};${filtered ? (search.g ?? []).join('|') : '*'};${search.adj ?? ''};${overrides}`,
     () => {
       const started = performance.now();
       const candidates = dataset.metrics
@@ -41,11 +54,19 @@ export function DiscoverPanel(props: CompareViewProps) {
           (m) => m.kind === 'num' && m.meta !== true && m.id !== target.id
         )
         .map((m) => ({ id: m.id, values: dataset.numeric(m.id) }));
+      // A best-first rank (read with the basket's direction, like the matrix) runs against its
+      // standing; flip the pair's sign when exactly one side does.
+      const backwards = (id: number) => {
+        const m = dataset.metric(id);
+        return m != null && readsBackwards(m, direction(id));
+      };
+      const targetBackwards = backwards(target.id);
       const result = discoverRelated(dataset.numeric(target.id), candidates, {
         rows: filtered ? entityIdx : null,
         hide: (id, r) =>
           Math.abs(r) >= COPY_R &&
           similarLabels(dataset.metric(id)?.label ?? '', target.label),
+        flip: (id) => backwards(id) !== targetBackwards,
       });
       return { ...result, ms: performance.now() - started };
     }
@@ -62,9 +83,13 @@ export function DiscoverPanel(props: CompareViewProps) {
     }));
 
   const listProps = { colorScale, inBasket, onAdd: addMetric, onPlot: plot };
-  const titles = listTitles(target, direction(target.id));
-  // Read with the direction the reader picked, like the list titles.
+  const titles = listTitles(target);
+  // Read with the direction the reader picked, like the scan.
   const targetOrder = rankOrder(target, direction(target.id));
+  const listsRank = [...scan.positive, ...scan.negative].some((item) => {
+    const m = dataset.metric(item.id);
+    return m != null && isRankColumn(m);
+  });
 
   return (
     <Card
@@ -105,13 +130,14 @@ export function DiscoverPanel(props: CompareViewProps) {
         </p>
       ) : (
         <>
-          {targetOrder != null ? (
+          {targetOrder != null || listsRank ? (
             <p className="text-muted -mt-2 mb-4 text-xs">
-              {target.label} is a rank ({rankOrderNote(targetOrder)}), so a
-              higher number means a{' '}
-              {targetOrder === 'best-first' ? 'worse' : 'better'} position.
-              Metrics marked “rank” are list positions too; each says which end
-              its rank 1 is.
+              {targetOrder != null
+                ? `${target.label} is a rank (${rankOrderNote(targetOrder)}). `
+                : ''}
+              Ranks are read by standing: a better rank counts as higher,
+              whichever end of its list rank 1 is. Metrics marked “rank” are
+              list positions; each says which end its rank 1 is.
             </p>
           ) : null}
           <div className="grid gap-x-8 gap-y-6 md:grid-cols-2">
@@ -141,6 +167,7 @@ export function DiscoverPanel(props: CompareViewProps) {
 
 function RelatedList({
   dataset,
+  direction,
   title,
   items,
   colorScale,
@@ -173,6 +200,7 @@ function RelatedList({
                 metric={m}
                 item={item}
                 context={dataset.metricContext(item.id)}
+                order={rankOrder(m, direction(m.id))}
                 type={dataset.type.id}
                 color={colorScale(item.r)}
                 added={inBasket.has(item.id)}
@@ -191,6 +219,7 @@ function RelatedRow({
   metric,
   item,
   context,
+  order,
   type,
   color,
   added,
@@ -200,6 +229,8 @@ function RelatedRow({
   metric: Metric;
   item: RelatedMetric;
   context: string | null;
+  /** List order of a rank column, read with the compare direction; null for values */
+  order: RankOrder | null;
   type: CompareViewProps['dataset']['type']['id'];
   color: string;
   added: boolean;
@@ -207,7 +238,6 @@ function RelatedRow({
   onPlot: () => void;
 }) {
   const slug = metric.topics[0];
-  const order = rankOrder(metric);
   const label =
     slug != null ? (
       <Link
@@ -230,7 +260,7 @@ function RelatedRow({
           {order != null ? (
             <span
               className="border-app text-muted ml-1 rounded border px-1 align-[1px] text-[10px] font-normal whitespace-nowrap"
-              title={`A rank: ${rankOrderNote(order)}, so a higher number is a ${order === 'best-first' ? 'worse' : 'better'} position`}
+              title={`A rank: ${rankOrderNote(order)}. Read by standing here, so a better rank counts as higher.`}
             >
               {order === 'best-first' ? 'rank' : 'rank · 1 = worst'}
             </span>

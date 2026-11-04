@@ -11,7 +11,7 @@ export interface DiscoverCandidate {
 
 export interface RelatedMetric {
   id: number;
-  /** Pearson correlation with the target over the overlapping places */
+  /** Pearson correlation with the target over the overlapping places (sign flipped by `flip`) */
   r: number;
   /** Places with a value for both metrics */
   n: number;
@@ -35,6 +35,14 @@ export interface DiscoverOptions {
    * near-identical copies of the target (same measure republished on another topic page).
    */
   hide?: (id: number, r: number) => boolean;
+  /**
+   * Return true to report a candidate's correlation with its sign flipped, as if one of the two
+   * columns were negated. The Correlations view reads ranks by standing this way: a best-first
+   * rank paired with a column read the other way (a measured value, or a worst-first rank) is
+   * flipped, so "positive" means "a better rank goes with higher values". Grouping, sorting and
+   * the reported r all use the flipped sign; n and p are unchanged.
+   */
+  flip?: (id: number) => boolean;
 }
 
 export interface DiscoverResult {
@@ -133,8 +141,9 @@ export function discoverRelated(
       syy += dy * dy;
     }
     if (sxx === 0 || syy === 0) continue;
-    const r = Math.max(-1, Math.min(1, sxy / Math.sqrt(sxx * syy)));
-    if (!isFiniteNumber(r)) continue;
+    const raw = Math.max(-1, Math.min(1, sxy / Math.sqrt(sxx * syy)));
+    if (!isFiniteNumber(raw)) continue;
+    const r = options.flip?.(cand.id) === true ? -raw : raw;
     eligible++;
     if (options.hide?.(cand.id, r) === true) {
       hidden++;
@@ -155,23 +164,22 @@ export function discoverRelated(
 }
 
 /**
- * Headings for the two lists. Pearson r works on raw numbers, so "rises with Best Education
- * Rank" would mean "rises as the rank number grows", i.e. as education gets worse. For a
- * rank-style target the headings say which end is better instead.
+ * Headings for the two lists, which the panel fills with correlations read by standing (`flip`):
+ * a positive r means the candidate is higher, or ranks better, where the target is higher. For a
+ * rank target, "higher" means a better rank, whichever end of its list rank 1 is, so the
+ * headings say "better" and "worse" instead of "rises".
  */
-export function listTitles(
-  target: Metric,
-  dir: 1 | -1
-): { positive: string; negative: string } {
+export function listTitles(target: Pick<Metric, 'fmt' | 'label'>): {
+  positive: string;
+  negative: string;
+} {
   if (!isRankColumn(target))
     return {
       positive: `Rises with ${target.label}`,
       negative: `Falls as ${target.label} rises`,
     };
-  const up = dir === -1 ? 'worse' : 'better';
-  const down = dir === -1 ? 'better' : 'worse';
   return {
-    positive: `Higher where ${target.label} is ${up}`,
-    negative: `Higher where ${target.label} is ${down}`,
+    positive: `Higher where ${target.label} is better`,
+    negative: `Higher where ${target.label} is worse`,
   };
 }

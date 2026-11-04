@@ -15,6 +15,11 @@ import { DiscoverPanel } from '../insights/DiscoverPanel';
 import { buildFindings } from '../insights/findings';
 import { FindingsList } from '../insights/FindingsList';
 import { placeNoun } from '../insights/shared';
+import {
+  hasRankColumn,
+  STANDING_NOTE,
+  standingColumns,
+} from '../insights/standing';
 import { useBasket } from '../insights/useBasket';
 import type { CompareViewProps } from '../state';
 import { EmptyState } from '~/components/feedback';
@@ -38,6 +43,8 @@ const METHODS = [
 /**
  * Correlations view: a heatmap of every pair of basket metrics, a ranked list of plain-English
  * findings drawn from it, and a scanner that finds related metrics across the whole dataset.
+ * Rank columns are read by standing throughout (see `standingColumns`): a better rank counts as
+ * higher, so a list where richer places rank better correlates positively with income.
  */
 export function MatrixView(props: CompareViewProps) {
   if (props.metrics.length === 0) {
@@ -74,28 +81,39 @@ function CorrelationsSection(props: CompareViewProps) {
   const { dataset, search, update } = props;
   const [method, setMethod] = useState<CorrelationMethod>('pearson');
   const basket = useBasket(props);
-  const pairs = useMemo(
-    () => correlationPairs(basket.columns, basket.ids),
+  // Best-first ranks negated, so every coefficient below reads a better rank as higher.
+  const standing = useMemo(
+    () => standingColumns(basket.metrics, basket.columns, basket.directions),
     [basket]
+  );
+  const pairs = useMemo(
+    () => correlationPairs(standing.columns, basket.ids),
+    [standing, basket]
   );
   const findings = useMemo(
     () =>
       buildFindings({
         metrics: basket.metrics.map((m, k) => ({
           id: m.id,
-          direction: basket.directions[k],
+          direction: standing.directions[k],
           neutral: basket.neutral[k],
-          values: basket.columns[k],
+          values: standing.columns[k],
         })),
         pairs,
         method,
       }),
-    [basket, pairs, method]
+    [basket, standing, pairs, method]
   );
   const labels = useMemo(
-    () => basket.metrics.map((m) => ({ id: m.id, label: m.label })),
-    [basket]
+    () =>
+      basket.metrics.map((m, k) => ({
+        id: m.id,
+        label: m.label,
+        flipped: standing.flipped[k],
+      })),
+    [basket, standing]
   );
+  const ranks = hasRankColumn(basket.metrics);
   const noun = placeNoun(dataset.type.id);
   const ns = pairs
     .map((p) => pick(p, method).n)
@@ -117,7 +135,7 @@ function CorrelationsSection(props: CompareViewProps) {
             How the metrics move together <InfoTip term="correlation" />
           </span>
         }
-        subtitle={`${method === 'pearson' ? 'Pearson r on the raw values' : 'Spearman ρ on rank order'} · each cell uses the ${noun.many} with both values (n = ${nRange}) · click a cell to plot the pair`}
+        subtitle={`${methodNote(method, ranks)} · each cell uses the ${noun.many} with both values (n = ${nRange}) · click a cell to plot the pair`}
         actions={
           <Segmented
             ariaLabel="Correlation method"
@@ -132,6 +150,7 @@ function CorrelationsSection(props: CompareViewProps) {
           labels={labels}
           pairs={pairs}
           method={method}
+          ranks={ranks}
           onSelect={(x, y) => update({ view: 'scatter', x, y })}
         />
         <HeatmapKey labels={labels} />
@@ -153,9 +172,24 @@ function CorrelationsSection(props: CompareViewProps) {
           search={search}
           basket={basket}
           findings={findings}
+          flipped={standing.flipped}
           method={method}
         />
       </Card>
     </>
   );
+}
+
+/**
+ * What the matrix correlates, for its subtitle: "Pearson r on the raw values", or with a rank
+ * column in the basket "Pearson r · ranks read by standing (a better rank counts as higher)".
+ */
+function methodNote(method: CorrelationMethod, ranks: boolean): string {
+  if (method === 'pearson')
+    return ranks
+      ? `Pearson r · ${STANDING_NOTE}`
+      : 'Pearson r on the raw values';
+  return ranks
+    ? `Spearman ρ on rank order · ${STANDING_NOTE}`
+    : 'Spearman ρ on rank order';
 }

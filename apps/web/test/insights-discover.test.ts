@@ -100,6 +100,37 @@ describe('discoverRelated', () => {
     expect(res.positive.map((m) => m.id)).toEqual([2]);
   });
 
+  test('flip reports a best-first rank by standing: a better rank counts as higher', () => {
+    // Rank 1 is the best place, and places with a higher target rank better (smaller number).
+    const rank = target.map((v, i) => 13 - v + (i === 3 ? 2 : 0));
+    const raw = discoverRelated(target, [{ id: 5, values: rank }], {
+      minOverlap: 5,
+    });
+    const read = discoverRelated(target, [{ id: 5, values: rank }], {
+      minOverlap: 5,
+      flip: (id) => id === 5,
+    });
+    expect(raw.negative.map((m) => m.id)).toEqual([5]);
+    expect(read.positive.map((m) => m.id)).toEqual([5]);
+    expect(read.negative).toEqual([]);
+    expect(read.positive[0].r).toBeCloseTo(-raw.negative[0].r, 12);
+    expect(read.positive[0].p).toBe(raw.negative[0].p);
+    expect(read.positive[0].n).toBe(raw.negative[0].n);
+  });
+
+  test('flip leaves other candidates as they are', () => {
+    const res = discoverRelated(
+      target,
+      [
+        { id: 1, values: up },
+        { id: 2, values: down },
+      ],
+      { minOverlap: 5, flip: (id) => id === 99 }
+    );
+    expect(res.positive.map((m) => m.id)).toEqual([1]);
+    expect(res.negative.map((m) => m.id)).toEqual([2]);
+  });
+
   test('keeps at most `limit` per side', () => {
     const many = Array.from({ length: 30 }, (_, k) => ({
       id: k,
@@ -174,17 +205,27 @@ describe('listTitles', () => {
   };
 
   test('reads raw direction for an ordinary metric', () => {
-    expect(listTitles(base, 1)).toEqual({
+    expect(listTitles(base)).toEqual({
       positive: 'Rises with Median Household Income',
       negative: 'Falls as Median Household Income rises',
     });
   });
 
-  test('says which end is better for a rank, where a higher number is worse', () => {
-    const rank = { ...base, label: 'Best Education Rank', fmt: 'ranking' };
-    expect(listTitles(rank, -1)).toEqual({
-      positive: 'Higher where Best Education Rank is worse',
-      negative: 'Higher where Best Education Rank is better',
-    });
+  test('says better and worse for a rank, which the scan reads by standing', () => {
+    // Positive r means "higher where the rank is better" for a best-first list (flipped) and a
+    // worst-first one (already higher where better) alike.
+    const bestFirst: Metric = {
+      ...base,
+      label: 'Best Education Rank',
+      fmt: 'ranking',
+      pol: -1,
+    };
+    const worstFirst: Metric = { ...bestFirst, pol: 1 };
+    const titles = {
+      positive: 'Higher where Best Education Rank is better',
+      negative: 'Higher where Best Education Rank is worse',
+    };
+    expect(listTitles(bestFirst)).toEqual(titles);
+    expect(listTitles(worstFirst)).toEqual(titles);
   });
 });

@@ -2,11 +2,25 @@ import {
   competitionRank,
   linearRegression,
   percentile,
+  strength,
 } from '@world-data/stats';
 
-import { type CorrelationMethod, type PairStats, pick } from './correlation';
+import type { SentencePart } from '../scatter/analysis';
+import {
+  type CorrelationMethod,
+  formatP,
+  formatR,
+  type PairStats,
+  pick,
+} from './correlation';
+import { isRankColumn } from '~/data/rankOrder';
+import type { Metric } from '~/data/types';
 
-/** A basket metric as the findings engine sees it: values aligned to the compared places. */
+/**
+ * A basket metric as the findings engine sees it: values aligned to the compared places. The
+ * Correlations view passes the standing columns (`standingColumns`), so a best-first rank arrives
+ * negated with direction 1 and "higher" means "better placed" for every rank.
+ */
 export interface FindingMetric {
   id: number;
   /** 1 = higher is better, -1 = lower is better */
@@ -21,7 +35,7 @@ export interface FindingMetric {
 
 export interface FindingsInput {
   metrics: readonly FindingMetric[];
-  /** From correlationPairs over the same columns */
+  /** From correlationPairs over the same columns as `metrics[k].values` */
   pairs: readonly PairStats[];
   method: CorrelationMethod;
 }
@@ -42,7 +56,7 @@ export interface PlaceTally {
 export type Finding =
   | {
       kind: 'together';
-      /** 1: both rise together; -1: one rises as the other falls */
+      /** 1: both rise (or rank better) together; -1: one rises as the other falls */
       sign: 1 | -1;
       pair: PairStats;
       r: number;
@@ -73,7 +87,10 @@ export type Finding =
       kind: 'outlier';
       pair: PairStats;
       place: number;
-      /** Standardized residual of the place against the least-squares line of b on a */
+      /**
+       * Standardized residual of the place against the least-squares line of b on a. Positive is
+       * above the line: a higher value, or a better rank for a standing rank column.
+       */
       z: number;
       r: number;
       n: number;
@@ -305,4 +322,83 @@ export function largestResidual(
     }
   }
   return best < 0 ? null : { place: best, z: fit.standardized[best] };
+}
+
+/** "higher" / "lower" for a measured value, "better" / "worse" for a rank read by standing. */
+function movementWord(metric: Pick<Metric, 'fmt'>, up: boolean): string {
+  if (isRankColumn(metric)) return up ? 'better' : 'worse';
+  return up ? 'higher' : 'lower';
+}
+
+/** "a better Best Education Rank" / "higher Median Household Income", as sentence parts. */
+function movementParts(
+  metric: Pick<Metric, 'fmt' | 'label'>,
+  up: boolean
+): SentencePart[] {
+  const word = movementWord(metric, up);
+  return [
+    { text: isRankColumn(metric) ? `a ${word} ` : `${word} ` },
+    { text: metric.label, strong: true },
+  ];
+}
+
+/**
+ * The sentence for a 'together' finding, read in standing space: it leads with the first
+ * metric's high end (a better rank, or higher values) and gives the second metric's end from the
+ * same sign that labels the finding positive or negative, so the sentence, the label and the
+ * icon cannot disagree. "States with a better Best Education Rank tend to have higher Life
+ * Expectancy" is a positive finding.
+ */
+export function togetherSentence(
+  finding: Pick<Extract<Finding, { kind: 'together' }>, 'sign'>,
+  a: Pick<Metric, 'fmt' | 'label'>,
+  b: Pick<Metric, 'fmt' | 'label'>,
+  nounMany: string
+): SentencePart[] {
+  const many = nounMany.charAt(0).toUpperCase() + nounMany.slice(1);
+  return [
+    { text: `${many} with ` },
+    ...movementParts(a, true),
+    { text: ' tend to have ' },
+    ...movementParts(b, finding.sign > 0),
+    { text: '.' },
+  ];
+}
+
+/**
+ * The numbers line under a 'together' finding: "Strong positive correlation · r = 0.63 · n = 50 ·
+ * p < 0.001". `rankFlipped` adds that a best-first rank in the pair was read by standing, since
+ * the overlay it links to plots the raw rank numbers.
+ */
+export function togetherDetail(
+  finding: Pick<
+    Extract<Finding, { kind: 'together' }>,
+    'sign' | 'r' | 'n' | 'p'
+  >,
+  symbol: string,
+  rankFlipped: boolean
+): string {
+  const s = strength(finding.r);
+  const parts = [
+    `${s.charAt(0).toUpperCase()}${s.slice(1)} ${finding.sign > 0 ? 'positive' : 'negative'} correlation`,
+    `${symbol} = ${formatR(finding.r)}`,
+    `n = ${finding.n}`,
+    formatP(finding.p),
+  ];
+  if (rankFlipped) parts.push('a better rank counts as higher');
+  return parts.join(' · ');
+}
+
+/**
+ * Where an outlier sits against the trend, in words: "well above" / "well below" the line for a
+ * measured value, "far better" / "far worse" than the line predicts for a rank (whose standing
+ * column puts a better rank above the line).
+ */
+export function outlierPosition(
+  b: Pick<Metric, 'fmt'>,
+  z: number
+): { rank: boolean; words: string } {
+  if (isRankColumn(b))
+    return { rank: true, words: z > 0 ? 'far better' : 'far worse' };
+  return { rank: false, words: z > 0 ? 'well above' : 'well below' };
 }

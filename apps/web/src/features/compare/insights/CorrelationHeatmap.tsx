@@ -26,6 +26,8 @@ import { chartColors, useTheme } from '~/lib/theme';
 export interface HeatLabel {
   id: number;
   label: string;
+  /** A best-first rank whose values were negated before correlating (read by standing) */
+  flipped?: boolean;
 }
 
 /** One square of the matrix: row metric `a` (y) against column metric `b` (x). */
@@ -48,17 +50,22 @@ const AXIS_TOP: ChartAxisSide = 'top';
  * Correlation matrix of the basket as a TanStack Charts heatmap: one `cell` per metric pair on
  * band scales, coloured by r on a fixed −1…+1 diverging scale, with r printed in each cell when
  * the cells are wide enough. Hover shows Pearson r, Spearman ρ, n and p; clicking (or Enter on a
- * focused cell) calls `onSelect(x, y)` with the column and row metric ids.
+ * focused cell) calls `onSelect(x, y)` with the column and row metric ids. The pairs come from
+ * the standing columns, so a best-first rank's cells, colours and tooltip already read a better
+ * rank as higher; the tooltip says so for the pairs that include one (`flipped` labels).
  */
 export function CorrelationHeatmap({
   labels,
   pairs,
   method,
+  ranks = false,
   onSelect,
 }: {
   labels: readonly HeatLabel[];
   pairs: readonly PairStats[];
   method: CorrelationMethod;
+  /** The basket has a rank column, so the screen-reader description explains how ranks read */
+  ranks?: boolean;
   onSelect: (x: number, y: number) => void;
 }) {
   const theme = useTheme();
@@ -74,6 +81,9 @@ export function CorrelationHeatmap({
     const ids = labels.map((l) => String(l.id));
     const position = new Map<string, number>(ids.map((id, i) => [id, i]));
     const labelOf = new Map<number, string>(labels.map((l) => [l.id, l.label]));
+    const flippedIds = new Set(
+      labels.filter((l) => l.flipped === true).map((l) => l.id)
+    );
 
     const cells: HeatCell[] = [];
     for (const rowL of labels) {
@@ -212,6 +222,16 @@ export function CorrelationHeatmap({
             if (d?.pair == null) return { rows: [] };
             const title = `${labelOf.get(d.a) ?? ''} × ${labelOf.get(d.b) ?? ''}`;
             const chosen = pick(d.pair, method);
+            // A pair with a best-first rank: its sign reads that rank by standing.
+            const standingRow =
+              flippedIds.has(d.a) || flippedIds.has(d.b)
+                ? [
+                    {
+                      label: 'Ranks',
+                      value: 'a better rank counts as higher',
+                    },
+                  ]
+                : [];
             if (!Number.isFinite(chosen.r))
               return {
                 title,
@@ -239,6 +259,7 @@ export function CorrelationHeatmap({
                 { label: 'Places with both', value: String(chosen.n) },
                 { label: 'Significance', value: formatP(chosen.p) },
                 { label: 'Reading', value: describeCorrelation(chosen) },
+                ...standingRow,
                 { label: '', value: 'Click to plot this pair' },
               ],
             };
@@ -255,7 +276,7 @@ export function CorrelationHeatmap({
         height={k * ROW_HEIGHT + 30}
         style={{ color: colors.text }}
         ariaLabel={`Correlation matrix of ${k} metrics using ${method === 'pearson' ? 'Pearson r' : 'Spearman rho'}`}
-        ariaDescription="Each cell shows how strongly the row and column metrics move together, from −1 (opposite) to +1 (together). Use the arrow keys to move between cells and Enter to plot a pair."
+        ariaDescription={`Each cell shows how strongly the row and column metrics move together, from −1 (opposite) to +1 (together).${ranks ? ' Ranks are read by standing: a better rank counts as higher.' : ''} Use the arrow keys to move between cells and Enter to plot a pair.`}
         onSelect={(p) => {
           const d = p?.datum;
           if (d?.pair != null) onSelect(d.b, d.a);
