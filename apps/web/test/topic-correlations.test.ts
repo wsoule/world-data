@@ -92,8 +92,10 @@ describe('findCorrelations', () => {
     expect(ids).not.toContain(2);
   });
 
-  test('groups flipped candidates (ranks against values) by -r', () => {
+  test('reads flipped candidates (ranks against values) by standing', () => {
     // Candidate 3 falls as the focus rises; read as a rank, it ranks better.
+    const plain = findCorrelations(focus, candidates, get);
+    const raw = plain.negative.find((h) => h.id === 3);
     const res = findCorrelations(
       focus,
       candidates,
@@ -103,11 +105,21 @@ describe('findCorrelations', () => {
       (id) => id === 3
     );
     const hit = res.positive.find((h) => h.id === 3);
-    // The raw r is kept for display.
-    expect(hit?.r).toBeLessThan(-0.9);
+    // The reported r is the standing one: positive under "Higher together", same n and p.
+    expect(raw?.r).toBeLessThan(-0.9);
+    expect(hit?.r).toBe(-(raw?.r ?? NaN));
+    expect(hit?.flipped).toBe(true);
+    expect(hit?.n).toBe(raw?.n);
+    expect(hit?.p).toBe(raw?.p);
     expect(res.negative.map((h) => h.id)).not.toContain(3);
-    // Strongest first within the group, by strength in the reading direction.
-    const strengths = res.positive.map((h) => Math.abs(h.r));
+    // Every hit's sign matches its group, and candidates not flipped keep their raw r.
+    for (const h of res.positive) expect(h.r).toBeGreaterThan(0);
+    for (const h of res.negative) expect(h.r).toBeLessThan(0);
+    const other = res.positive.find((h) => h.id === 1);
+    expect(other?.flipped).toBe(false);
+    expect(other?.r).toBe(plain.positive.find((h) => h.id === 1)?.r ?? NaN);
+    // Strongest first within the group.
+    const strengths = res.positive.map((h) => h.r);
     expect(strengths).toEqual([...strengths].sort((a, b) => b - a));
     expect(
       res.positive

@@ -12,7 +12,13 @@ export interface CorrelationCandidate {
 
 export interface CorrelationHit {
   id: number;
+  /**
+   * Pearson r read by standing: for a `flip` candidate the sign is flipped, so a positive r
+   * always means "higher, or ranked better, where the focus is higher or ranked better"
+   */
   r: number;
+  /** True when `r` has the opposite sign of the correlation on the stored numbers */
+  flipped: boolean;
   /** Places with both values */
   n: number;
   /** Two-sided p-value for r = 0 */
@@ -20,7 +26,7 @@ export interface CorrelationHit {
 }
 
 export interface CorrelationResult {
-  /** Hits that move with the focus (r > 0, or r < 0 for a flipped candidate), strongest first */
+  /** Hits that move with the focus (standing r > 0), strongest first */
   positive: CorrelationHit[];
   /** Hits that move against the focus, strongest first */
   negative: CorrelationHit[];
@@ -57,8 +63,10 @@ export function minOverlapFor(coverage: number): number {
  * repeats some series under several ids (the same column published on two pages).
  *
  * `flip` names candidates whose raw number runs against the reading direction, such as a
- * best-first rank (1 = best) correlated with a measured value: their hits are grouped by -r, so
- * "positive" reads as "better rank with a higher focus". Each hit keeps its raw r.
+ * best-first rank (1 = best) correlated with a measured value: their r is negated (read by
+ * standing, as the compare Correlations view reads ranks), so "positive" reads as "better rank
+ * with a higher focus". Grouping, sorting and the reported r all use that sign; `flipped` marks
+ * those hits, and n and p are unchanged.
  */
 export function findCorrelations(
   focus: ArrayLike<number>,
@@ -108,7 +116,14 @@ export function findCorrelations(
       duplicates++;
       continue;
     }
-    hits.push({ id: c.id, r: res.r, n: res.n, p: res.p });
+    const flipped = flip?.(c.id) === true;
+    hits.push({
+      id: c.id,
+      r: flipped ? -res.r : res.r,
+      flipped,
+      n: res.n,
+      p: res.p,
+    });
   }
 
   // Keep the strongest `limit` hits, skipping repeats of a key already listed.
@@ -126,14 +141,8 @@ export function findCorrelations(
     }
     return out;
   };
-  // Direction used for grouping: the raw r, negated for flipped candidates.
-  const signed = (h: CorrelationHit) => (flip?.(h.id) === true ? -h.r : h.r);
-  const positive = top(
-    hits.filter((h) => signed(h) > 0).sort((a, b) => signed(b) - signed(a))
-  );
-  const negative = top(
-    hits.filter((h) => signed(h) < 0).sort((a, b) => signed(a) - signed(b))
-  );
+  const positive = top(hits.filter((h) => h.r > 0).sort((a, b) => b.r - a.r));
+  const negative = top(hits.filter((h) => h.r < 0).sort((a, b) => a.r - b.r));
   return {
     positive,
     negative,

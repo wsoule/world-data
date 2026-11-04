@@ -1,3 +1,4 @@
+import { pearson } from '@world-data/stats';
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -208,5 +209,56 @@ describe('correlations read ranks by standing', () => {
     // higher income, and against poverty.
     expect(res.positive.map((h) => h.id).sort((a, b) => a - b)).toEqual([1, 3]);
     expect(res.negative.map((h) => h.id)).toEqual([2]);
+    // The best-first list is reported with its standing r, positive like its group; the
+    // measured values next to the worst-first focus keep their raw r.
+    const best = res.positive.find((h) => h.id === 1);
+    expect(best?.flipped).toBe(true);
+    expect(best?.r).toBeGreaterThan(0.9);
+    expect(best?.r).toBeCloseTo(-pearson(worstFirstRank, bestFirstRank).r, 12);
+    const incomeHit = res.positive.find((h) => h.id === 3);
+    expect(incomeHit?.flipped).toBe(false);
+    expect(incomeHit?.r).toBe(pearson(worstFirstRank, income).r);
+  });
+
+  test('a value focus reports a best-first rank by standing and a worst-first rank as is', () => {
+    const ranks = new Map<number, number[]>([
+      [1, bestFirstRank],
+      [4, worstFirstRank],
+    ]);
+    const res = findCorrelations(
+      income,
+      [...ranks.keys()].map((id) => ({ id, n: 12 })),
+      (id) => ranks.get(id) ?? [],
+      6,
+      undefined,
+      flip((id) => id === 1, false)
+    );
+    // Richer places rank better on both lists: both land under "Higher together" with r > 0.
+    const best = res.positive.find((h) => h.id === 1);
+    const worst = res.positive.find((h) => h.id === 4);
+    expect(best?.flipped).toBe(true);
+    expect(best?.r).toBeCloseTo(-pearson(income, bestFirstRank).r, 12);
+    expect(best?.r).toBeGreaterThan(0);
+    expect(worst?.flipped).toBe(false);
+    expect(worst?.r).toBe(pearson(income, worstFirstRank).r);
+    expect(worst?.r).toBeGreaterThan(0);
+    expect(res.negative).toEqual([]);
+  });
+
+  test('a best-first focus reports values by standing', () => {
+    const res = findCorrelations(
+      bestFirstRank,
+      [2, 3].map((id) => ({ id, n: 12 })),
+      (id) => cols.get(id) ?? [],
+      6,
+      undefined,
+      flip(() => false, true)
+    );
+    // Ranking better on the focus list goes with higher income (r > 0) and less poverty (r < 0).
+    expect(res.positive.map((h) => h.id)).toEqual([3]);
+    expect(res.negative.map((h) => h.id)).toEqual([2]);
+    expect(res.positive[0].r).toBeGreaterThan(0);
+    expect(res.negative[0].r).toBeLessThan(0);
+    expect(res.positive[0].flipped).toBe(true);
   });
 });

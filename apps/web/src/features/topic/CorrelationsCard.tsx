@@ -36,10 +36,12 @@ function backwards(metric: Metric | undefined): boolean {
  * "What correlates with this?": the focus metric (at the selected year) against every other
  * numeric metric of the dataset that is not part of this topic. Shows the six strongest
  * relationships each way with a strength bar and a link that opens the pair in the overlay.
- * Rank columns are read by standing, a better rank counting as higher: a best-first rank (1 =
- * best) is grouped by its flipped number, so a list where richer places rank better lands under
- * "Higher together" for income; a worst-first rank (1 = worst, "Worst States to Live In") already
- * grows as places get better, so its raw number is used.
+ * Rank columns are read by standing, a better rank counting as higher, as the compare
+ * Correlations view reads them: a best-first rank (1 = best) is correlated by its flipped number,
+ * so a list where richer places rank better lands under "Higher together" for income with a
+ * positive r; a worst-first rank (1 = worst, "Worst States to Live In") already grows as places
+ * get better, so its raw number is used. A flipped hit's tooltip gives its r on the rank numbers
+ * as listed.
  */
 export function CorrelationsCard({
   dataset,
@@ -72,7 +74,7 @@ export function CorrelationsCard({
       (id) => dataset.numeric(id),
       6,
       (id) => dataset.metricFullLabel(id).toLowerCase(),
-      // A best-first rank paired with a metric read the other way: group it by -r.
+      // A best-first rank paired with a metric read the other way: its r is negated.
       (id) => backwards(dataset.metric(id)) !== focusBackwards
     );
   }, [dataset, values, exclude, focus]);
@@ -187,6 +189,10 @@ function HitList({
             const s = strength(h.r);
             const positive = h.r > 0;
             const order = rankOrder(m);
+            const pText =
+              h.p < 0.001
+                ? 'p < 0.001'
+                : `p = ${h.p.toFixed(3)}${h.p >= 0.05 ? ' (not significant)' : ''}`;
             return (
               <li
                 key={h.id}
@@ -215,7 +221,10 @@ function HitList({
                     </span>
                   ) : null}
                   {order != null ? (
-                    <span className="text-muted block text-xs">
+                    <span
+                      className="text-muted block text-xs"
+                      title={`A rank: ${rankOrderNote(order)}. Read by standing here, so a better rank counts as higher.`}
+                    >
                       A rank: {rankOrderNote(order)}
                     </span>
                   ) : null}
@@ -242,9 +251,9 @@ function HitList({
                           h.p >= 0.05 && 'opacity-60'
                         )}
                         title={
-                          h.p < 0.001
-                            ? 'p < 0.001'
-                            : `p = ${h.p.toFixed(3)}${h.p >= 0.05 ? ' (not significant)' : ''}`
+                          h.flipped
+                            ? `${pText} · ranks read by standing (a better rank counts as higher); on the rank numbers as listed, r = ${h.r > 0 ? '−' : '+'}${Math.abs(h.r).toFixed(2)}`
+                            : pText
                         }
                       >
                         r = {h.r > 0 ? '+' : '−'}
