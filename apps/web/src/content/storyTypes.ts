@@ -81,6 +81,11 @@ export interface StorySummary {
   n: number;
   xLabel: string;
   yLabel: string;
+  /** Metric ids and encodings, to open the same chart in the interactive overlay */
+  xId: number;
+  yId: number;
+  colorId: number | null;
+  logX: boolean;
   /** Up to 120 points scaled to 0–1 (x logged when the story is), with category; empty for pair articles */
   thumb: [number, number, string | null][];
   /** Regression line endpoints in thumbnail coordinates */

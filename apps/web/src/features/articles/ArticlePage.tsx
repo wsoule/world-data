@@ -164,7 +164,7 @@ export function ArticlePage() {
                   {s.thumb.length > 0 ? (
                     <StoryThumb
                       story={s}
-                      className="bg-surface-2 mb-2 h-24 w-full rounded-lg"
+                      className="border-app bg-surface mb-2 h-auto w-full rounded-lg border p-1.5"
                     />
                   ) : null}
                   <span className="group-hover:text-accent-700 dark:group-hover:text-accent-300 font-medium">

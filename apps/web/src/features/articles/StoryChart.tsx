@@ -10,39 +10,58 @@ const DOT = 'var(--accent)';
 const colorOf = (c: string | null | undefined) =>
   c == null ? DOT : (CATEGORY_COLORS[c] ?? DOT);
 
+/** A metric name as an axis caption: without a trailing unit. */
+const caption = (label: string) => {
+  const bare = label.replace(/\s*\([^()]*\)$/, '').trim();
+  return bare === '' ? label : bare;
+};
+
 /**
- * Small scatter for story cards, drawn from the index thumbnail (points already scaled to 0–1).
- * Plain SVG, so it renders on the server and costs no script.
+ * Small scatter for story cards, drawn from the index thumbnail (points already scaled to 0–1):
+ * round dots inside light L-shaped axes, each axis captioned with its metric, and the trend line.
+ * Plain SVG at a fixed aspect ratio, so it renders on the server and dots stay round.
  */
 export function StoryThumb({
   story,
   className,
 }: {
-  story: Pick<StorySummary, 'thumb' | 'line'>;
+  story: Pick<StorySummary, 'thumb' | 'line' | 'xLabel' | 'yLabel'>;
   className?: string;
 }) {
-  const W = 160;
-  const H = 100;
-  const P = 6;
-  const sx = (v: number) => P + v * (W - 2 * P);
-  const sy = (v: number) => H - P - v * (H - 2 * P);
+  const W = 320;
+  const H = 190;
+  // Plot area: room on the left and bottom for the axis captions.
+  const L = 18;
+  const B = 22;
+  const T = 10;
+  const R = 10;
+  const sx = (v: number) => px(L + 6 + v * (W - L - R - 12));
+  const sy = (v: number) => px(H - B - 6 - v * (H - B - T - 12));
+  const n = story.thumb.length;
+  const r = n > 100 ? 2.4 : n > 40 ? 3.2 : 4;
   return (
     <svg
       viewBox={`0 0 ${W} ${H}`}
       className={className}
       role="img"
-      aria-hidden
-      preserveAspectRatio="none"
+      aria-label={`Chart of ${caption(story.yLabel)} against ${caption(story.xLabel)}`}
     >
+      <path
+        d={`M${L} ${T} V${H - B} H${W - R}`}
+        fill="none"
+        stroke="var(--border)"
+        strokeWidth={1.5}
+      />
       {story.line != null ? (
         <line
           x1={sx(story.line[0])}
           y1={sy(story.line[1])}
           x2={sx(story.line[2])}
           y2={sy(story.line[3])}
-          stroke="var(--muted)"
-          strokeWidth={1}
-          strokeDasharray="3 3"
+          stroke="var(--text)"
+          strokeOpacity={0.35}
+          strokeWidth={2}
+          strokeLinecap="round"
         />
       ) : null}
       {story.thumb.map(([x, y, c], i) => (
@@ -50,11 +69,28 @@ export function StoryThumb({
           key={i}
           cx={sx(x)}
           cy={sy(y)}
-          r={story.thumb.length > 80 ? 1.6 : 2.4}
+          r={r}
           fill={colorOf(c)}
-          fillOpacity={0.7}
+          fillOpacity={0.72}
         />
       ))}
+      <text
+        x={W - R}
+        y={H - 6}
+        textAnchor="end"
+        fontSize={11}
+        fill="var(--muted)"
+      >
+        {caption(story.xLabel)} →
+      </text>
+      <text
+        transform={`translate(12 ${T}) rotate(-90)`}
+        textAnchor="end"
+        fontSize={11}
+        fill="var(--muted)"
+      >
+        {caption(story.yLabel)} →
+      </text>
     </svg>
   );
 }

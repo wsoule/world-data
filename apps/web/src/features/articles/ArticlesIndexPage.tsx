@@ -1,7 +1,7 @@
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 
-import { shortLabel } from './prose';
+import { shortLabel, strengthWord } from './prose';
 import { StoryThumb } from './StoryChart';
 import { PageHeader } from '~/components/ui';
 import type { StorySummary } from '~/content/storyTypes';
@@ -88,8 +88,9 @@ export function ArticlesIndexPage() {
   );
 }
 
-/** A story card: its chart thumbnail, title and teaser. Used here and on the home page. */
+/** A story card: its chart, title, teaser and how strong the link is. Used here and on the home page. */
 export function StoryCard({ story }: { story: StorySummary }) {
+  const w = strengthWord(story.r);
   return (
     <Link
       to="/articles/$slug"
@@ -98,12 +99,18 @@ export function StoryCard({ story }: { story: StorySummary }) {
     >
       <StoryThumb
         story={story}
-        className="bg-surface-2 h-32 w-full rounded-xl"
+        className="border-app bg-surface group-hover:border-accent-300 dark:group-hover:border-accent-700 h-auto w-full rounded-xl border p-2 transition-colors"
       />
       <h3 className="group-hover:text-accent-700 dark:group-hover:text-accent-300 mt-3 text-base leading-snug font-semibold text-balance">
         {story.title}
       </h3>
       <p className="text-muted mt-1 text-sm leading-relaxed">{story.dek}</p>
+      <p className="text-muted mt-2 text-xs">
+        {w == null
+          ? 'No clear link'
+          : `${w.charAt(0).toUpperCase()}${w.slice(1)} link`}
+        , {story.n.toLocaleString('en-US')} places
+      </p>
     </Link>
   );
 }

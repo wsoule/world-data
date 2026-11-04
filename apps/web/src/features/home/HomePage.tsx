@@ -6,9 +6,11 @@ import { type ReactNode, useMemo } from 'react';
 import { POPULAR_TOPICS } from './presets';
 import { TYPE_ICONS } from '~/components/TypeTabs';
 import { Badge, cx } from '~/components/ui';
+import type { StorySummary } from '~/content/storyTypes';
 import { manifestQuery, storiesIndexQuery, topicsIndexQuery } from '~/data/api';
 import type { TopicSummary } from '~/data/types';
-import { StoryCard } from '~/features/articles/ArticlesIndexPage';
+import { strengthWord } from '~/features/articles/prose';
+import { StoryThumb } from '~/features/articles/StoryChart';
 import { CategoryGlyph } from '~/features/categories/categoryIcons';
 import { GOALS } from '~/features/search/goals';
 import {
@@ -55,21 +57,22 @@ export function HomePage() {
       <Hero places={totals.places} metrics={totals.metrics} />
 
       <Section
-        title="Surprising connections"
-        subtitle="What goes with what, in a chart and a sentence."
+        title="What goes with what"
+        subtitle="Live charts from the data. Open one to highlight places, colour by party or swap a statistic."
         action={
           <Link
-            to="/articles"
+            to="/compare"
+            search={{ type: 'state', view: 'scatter', m: [] }}
             className="text-accent-600 dark:text-accent-300 text-sm font-medium hover:underline"
           >
-            All data stories
+            Compare any two statistics
           </Link>
         }
       >
         <ul className="grid grid-cols-1 gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
           {featured.map((s) => (
             <li key={s.slug}>
-              <StoryCard story={s} />
+              <ConnectionCard story={s} />
             </li>
           ))}
         </ul>
@@ -286,5 +289,50 @@ function Section({
       </div>
       {children}
     </section>
+  );
+}
+
+const PLACES: Record<StorySummary['type'], string> = {
+  state: 'US states',
+  county: 'US counties',
+  city: 'US cities',
+  country: 'countries',
+  'world-city': 'world cities',
+};
+
+/**
+ * A live comparison on the home page: the pair's chart, its question and how strong the link is.
+ * It opens the interactive overlay with the same two statistics (and party colouring), not an article.
+ */
+function ConnectionCard({ story }: { story: StorySummary }) {
+  const w = strengthWord(story.r);
+  return (
+    <Link
+      to="/compare"
+      search={{
+        type: story.type,
+        view: 'scatter',
+        m: [story.xId, story.yId],
+        x: story.xId,
+        y: story.yId,
+        c: story.colorId ?? undefined,
+        log: story.logX ? ['x'] : undefined,
+      }}
+      className="group block"
+    >
+      <StoryThumb
+        story={story}
+        className="border-app bg-surface group-hover:border-accent-300 dark:group-hover:border-accent-700 h-auto w-full rounded-xl border p-2 transition-colors"
+      />
+      <h3 className="group-hover:text-accent-700 dark:group-hover:text-accent-300 mt-3 text-base leading-snug font-semibold text-balance">
+        {story.title}
+      </h3>
+      <p className="text-muted mt-1 text-sm">
+        {w == null
+          ? 'No clear link'
+          : `${w.charAt(0).toUpperCase()}${w.slice(1)} link`}{' '}
+        across {story.n.toLocaleString('en-US')} {PLACES[story.type]}
+      </p>
+    </Link>
   );
 }

@@ -334,6 +334,10 @@ export async function buildStories(dataDir: string): Promise<number> {
       n: s.n,
       xLabel: s.x.label,
       yLabel: s.y.label,
+      xId: s.x.id,
+      yId: s.y.id,
+      colorId: s.color?.id ?? null,
+      logX: s.logX,
       // Only flagship stories show a chart on their cards.
       ...(s.kind === 'flagship' ? thumbnail(s) : { thumb: [], line: null }),
     });

@@ -15,6 +15,7 @@ import {
   Compass,
   MapPinned,
   Moon,
+  Newspaper,
   Scale,
   Search,
   Sun,
@@ -134,7 +135,7 @@ function RootLayout() {
   );
 }
 
-type NavId = 'explore' | 'places' | 'compare' | 'rankings' | 'vs';
+type NavId = 'explore' | 'stories' | 'places' | 'compare' | 'rankings' | 'vs';
 
 /**
  * Link activeOptions for the header and footer. By default a link counts as the current page
@@ -168,6 +169,7 @@ function useActiveNav(hydrated: boolean): NavId | null {
       if (showsNotFound(s.matches)) return null;
       const path = s.location.pathname;
       if (path.startsWith('/categories')) return 'explore';
+      if (path.startsWith('/articles')) return 'stories';
       if (path.startsWith('/places')) return 'places';
       if (path.startsWith('/vs')) return 'vs';
       if (path.startsWith('/compare'))
@@ -209,6 +211,7 @@ function NavLinks({ variant }: { variant: 'desktop' | 'mobile' }) {
   });
   const items = [
     item('explore', 'Explore', 'Explore', <Compass aria-hidden />),
+    item('stories', 'Stories', 'Stories', <Newspaper aria-hidden />),
     item('places', 'Places', 'Places', <MapPinned aria-hidden />),
     item('compare', 'Compare', 'Compare', <BarChart3 aria-hidden />),
     item('rankings', 'Rankings', 'Rankings', <Trophy aria-hidden />),
@@ -273,6 +276,12 @@ function NavTarget({
     case 'explore':
       return (
         <Link {...common} to="/categories" activeOptions={EXACT_PATH}>
+          {children}
+        </Link>
+      );
+    case 'stories':
+      return (
+        <Link {...common} to="/articles" activeOptions={EXACT_PATH}>
           {children}
         </Link>
       );
@@ -374,7 +383,7 @@ function Header() {
         </button>
       </div>
       <nav
-        className="border-app grid grid-cols-5 gap-1 border-t px-2 py-1 md:hidden"
+        className="border-app grid grid-cols-6 gap-0.5 border-t px-1 py-1 md:hidden"
         aria-label="Main mobile"
       >
         <NavLinks variant="mobile" />
