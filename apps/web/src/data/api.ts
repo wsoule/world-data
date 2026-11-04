@@ -82,7 +82,8 @@ export function dataUrl(path: string): string {
 /**
  * <link rel="preload"> tags for dataset files a page fetches while hydrating, so the browser
  * downloads them alongside the scripts instead of after them. `crossOrigin: 'anonymous'` gives
- * the preload the same mode and credentials as `fetch()`, so the fetch reuses it.
+ * the preload the same mode and credentials as `fetch()`, so the fetch reuses it. Low priority
+ * leaves the stylesheet, which holds up the first paint, to load first.
  */
 export function preloadData(paths: readonly string[]) {
   return paths.map((path) => ({
@@ -90,6 +91,7 @@ export function preloadData(paths: readonly string[]) {
     as: 'fetch',
     href: dataUrl(path),
     crossOrigin: 'anonymous' as const,
+    fetchPriority: 'low' as const,
   }));
 }
 
