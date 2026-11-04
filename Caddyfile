@@ -10,6 +10,20 @@
 :{$PORT:8080} {
 	root * /srv
 
+	# One public host. When CANONICAL_HOST is set (Railway: rankodex.com),
+	# a request for any other host, such as the service's *.up.railway.app
+	# domain or www, gets a 301 to the same path and query on the canonical
+	# host. Unset (a local docker run), every host is served as is, and so is
+	# a value that is not a bare host name ("https://rankodex.com/"), which
+	# would otherwise send every visitor to a host that does not exist.
+	# Railway's healthcheck probes with Host healthcheck.railway.app and must
+	# get the page itself.
+	@other_host {
+		expression `{env.CANONICAL_HOST}.matches("^[A-Za-z0-9-]+([.][A-Za-z0-9-]+)+$")`
+		not host {env.CANONICAL_HOST} healthcheck.railway.app
+	}
+	redir @other_host https://{env.CANONICAL_HOST}{uri} 301
+
 	# Canonical URLs have no trailing slash: /topics/x/ -> /topics/x. Only
 	# paths made of URL-safe characters redirect, so a backslash, tab or
 	# encoded "?" can never turn the Location into another host ("/\evil.com").

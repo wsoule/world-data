@@ -61,6 +61,8 @@ FROM mirror.gcr.io/library/caddy:2.11.7-alpine
 COPY Caddyfile /etc/caddy/Caddyfile
 COPY --from=build /repo/apps/web/dist/client /srv
 
-# Railway injects PORT; 8080 is the default elsewhere.
+# Railway injects PORT; 8080 is the default elsewhere. CANONICAL_HOST, also
+# read at runtime, makes Caddy 301 every other host to that one (see the
+# Caddyfile); unset, every host is served.
 ENV PORT=8080
 EXPOSE 8080

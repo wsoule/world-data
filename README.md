@@ -95,6 +95,23 @@ through `mirror.gcr.io`, because Docker Hub rate-limits shared build machines.
 docker build -t rankodex . && docker run -p 8080:8080 rankodex
 ```
 
+Set the runtime variable `CANONICAL_HOST` to the public host name, without a
+scheme (for example `rankodex.com`), and Caddy answers every request for any
+other host with a 301 to the same path and query on `https://<CANONICAL_HOST>`:
+the service's `*.up.railway.app` domain, and `www` once its DNS record and
+custom domain exist. Requests with the host `healthcheck.railway.app` (Railway's
+healthcheck) are never redirected. Leave it unset for local runs, where every
+host is served as is. A value that is not a bare host name (with a scheme, port
+or path, such as `https://rankodex.com/`) is ignored the same way, so a typo
+cannot redirect every visitor to a host that does not exist. To see the redirect
+locally:
+
+```bash
+docker run -p 8080:8080 -e CANONICAL_HOST=rankodex.com rankodex
+curl -I -H 'Host: www.rankodex.com' http://localhost:8080/glossary
+# 301, Location: https://rankodex.com/glossary
+```
+
 Railway builds a root `Dockerfile` with no config file (Config as Code is
 deprecated). It deploys the repository's default branch, so merge this work into
 `main` first, or point the service at another branch in step 1.
@@ -119,6 +136,11 @@ deprecated). It deploys the repository's default branch, so merge this work into
    CNAME and the TXT record Railway shows. An apex domain needs a DNS provider
    with CNAME flattening or ALIAS records (Cloudflare, for example), and plans
    limit custom domains per service.
+6. Under Variables, set `CANONICAL_HOST` to the custom domain's host (for
+   example `rankodex.com`) so the Railway domain redirects to it. Caddy reads it
+   when the container starts, so it takes effect with the next deploy. Set it
+   only once the custom domain serves the site, or the redirect points at a host
+   that does not answer yet.
 
 The CLI equivalent of steps 1-3 is `railway init`, `railway up` (which uploads
 this checkout, without GitHub autodeploys) and `railway domain`; set the
