@@ -2,6 +2,7 @@ import { Link } from '@tanstack/react-router';
 import { describeCorrelation, strength } from '@world-data/stats';
 import { Info, Pin, PinOff, TrendingDown, TrendingUp } from 'lucide-react';
 
+import { STANDING_SENTENCE } from '../insights/standing';
 import {
   type AxisMeaning,
   formatP,
@@ -11,6 +12,7 @@ import {
   relationshipSentence,
   residualLeaders,
   type ScatterAnalysis,
+  standingAxes,
   verdict,
 } from './analysis';
 import { Flag } from '~/components/Flag';
@@ -56,6 +58,8 @@ function sentenceLabel(label: string): string {
 /**
  * The overlay's answer, shown first: the relationship in one plain sentence ("States with
  * higher X tend to have lower Y") and how strong it is, with the number for those who want it.
+ * The number is the standing r (a best-first rank read so a better rank counts as higher), the
+ * same one the Correlations view shows for the pair.
  */
 export function Takeaway({
   dataset,
@@ -65,7 +69,8 @@ export function Takeaway({
 }: Pick<StatsPanelProps, 'dataset' | 'analysis' | 'x' | 'y'>) {
   const noun = pluralNoun(dataset);
   const c = analysis.pearson;
-  const parts = relationshipSentence(c, x, y, noun);
+  const read = standingAxes(analysis, x, y);
+  const parts = relationshipSentence(c, read.x, read.y, noun);
   const s = strength(c.r);
   const n = analysis.points.length;
   return (
@@ -102,7 +107,11 @@ export function Takeaway({
   );
 }
 
-/** The numbers behind the takeaway: direction, correlation, R², p-value and notes. */
+/**
+ * The numbers behind the takeaway: direction, correlation, R², p-value and notes. r, ρ, the
+ * strength badge and the verdict use the standing reading (see `analyzeScatter`); when that
+ * flipped their sign, the footnote gives the coefficients on the rank numbers as listed.
+ */
 export function InsightCard({
   dataset,
   analysis,
@@ -110,7 +119,8 @@ export function InsightCard({
   y,
 }: Pick<StatsPanelProps, 'dataset' | 'analysis' | 'x' | 'y'>) {
   const c = analysis.pearson;
-  const v = verdict(c, x, y);
+  const read = standingAxes(analysis, x, y);
+  const v = verdict(c, read.x, read.y);
   const s = strength(c.r);
   const r2 = analysis.regression.r2;
   const logged = analysis.logX || analysis.logY;
@@ -122,16 +132,56 @@ export function InsightCard({
         .filter((l) => l != null)
         .join(
           ' and '
-        )}; on the raw values r = ${formatR(analysis.rawPearson.r)}.`
+        )}; without the log, r = ${formatR(analysis.unloggedPearson.r)}.`
     : null;
-  // A negative r can still mean "better goes with better" when one metric is
-  // lower-is-better (e.g. a rank); say so to avoid a contradictory reading.
-  const flipped = [x, y].filter((a) => !a.neutral && !goodIsHigh(a));
+  // Ranks whose coefficient counts a better rank as higher: a negated best-first rank, or a
+  // worst-first rank, whose larger number is already the better place.
+  const byStanding = [read.x, read.y].some(
+    (a) => a.isRank && !a.neutral && a.dir === 1
+  );
+  // When the standing reading flipped the sign, the coefficients on the rank numbers as listed
+  // follow as a secondary detail (each kept on one line).
+  const standingNote = byStanding ? (
+    <>
+      {' '}
+      {STANDING_SENTENCE}
+      {analysis.signFlipped ? (
+        <>
+          {' '}
+          (on the rank numbers as listed,{' '}
+          <span className="whitespace-nowrap">
+            r = {formatR(analysis.stored.pearson.r)}
+          </span>{' '}
+          and{' '}
+          <span className="whitespace-nowrap">
+            ρ = {formatR(analysis.stored.spearman.r)}
+          </span>
+          )
+        </>
+      ) : null}
+      .
+    </>
+  ) : null;
+  // A negative r can still mean "better goes with better" when a measured metric is
+  // lower-is-better (a crime rate), or a best-first rank is plotted by its numbers as listed
+  // (its axis flip turned off); say so to avoid a contradictory reading.
+  const flipped = [read.x, read.y].filter((a) => !a.neutral && !goodIsHigh(a));
   const negative = c.r < 0;
   const signContradicts = v != null && negative === (v === 'together');
   const signNote =
     signContradicts && flipped.length > 0
       ? `It reads as ${negative ? 'negative' : 'positive'} only because lower is better for ${flipped.map((a) => a.label).join(' and ')}.`
+      : null;
+  // A best-first rank still read by its numbers had its axis flip turned off; name the toggle
+  // that reads it by standing, so the sign the Correlations view shows is not a surprise.
+  const listed = (a: AxisMeaning) => a.isRank && !a.neutral && a.dir === -1;
+  const toggles = [
+    listed(read.x) ? `“Better → right” for ${x.label}` : null,
+    listed(read.y) ? `“Better ↑ up” for ${y.label}` : null,
+  ].filter((t) => t != null);
+  const toggleNote =
+    toggles.length > 0
+      ? `The Correlations view reads ranks by standing (a better rank counts as higher); turn on ${toggles.join(' and ')} to read ${toggles.length === 1 ? 'it' : 'them'} that way here.`
       : null;
   return (
     <Card title="The numbers behind it">
@@ -203,9 +253,15 @@ export function InsightCard({
         />
       </dl>
       <p className="text-muted mt-3 text-xs">
-        {describeCorrelation(c)} between the{' '}
-        {logged ? 'plotted (log-scale) values' : 'raw values'}.
+        {describeCorrelation(c)}
+        {logged
+          ? ' between the plotted (log-scale) values'
+          : byStanding
+            ? ''
+            : ' between the raw values'}
+        .{standingNote}
         {signNote != null ? ` ${signNote}` : ''}
+        {toggleNote != null ? ` ${toggleNote}` : ''}
         {logNote != null ? ` ${logNote}` : ''}
       </p>
       <p className="text-muted border-app mt-3 flex gap-2 border-t pt-3 text-xs leading-relaxed">
@@ -372,7 +428,10 @@ export function PerformersCard({
   highlight,
   onToggle,
 }: StatsPanelProps) {
+  // Residuals are measured on the stored numbers, so the lists use the stored meaning of y; the
+  // arrow follows the standing reading, where ranking better than expected points up.
   const { better, worse } = residualLeaders(analysis, y, 5);
+  const readY = standingAxes(analysis, x, y).y;
   const heading = (good: boolean) => {
     if (y.isRank)
       return `Rank ${good ? 'better' : 'worse'} on ${y.label} than expected`;
@@ -399,7 +458,7 @@ export function PerformersCard({
                 y.neutral ? 'text-app' : list.good ? 'text-good' : 'text-bad'
               )}
             >
-              {list.good === goodIsHigh(y) ? (
+              {list.good === goodIsHigh(readY) ? (
                 <TrendingUp className="size-3.5 shrink-0" aria-hidden />
               ) : (
                 <TrendingDown className="size-3.5 shrink-0" aria-hidden />

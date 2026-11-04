@@ -31,12 +31,32 @@ export interface ScatterAnalysis {
   /** Effective log flags: requested and valid */
   logX: boolean;
   logY: boolean;
-  /** Pearson r in the plotted space (on log10 values for a log axis) */
+  /**
+   * Axes whose stored number is negated for the coefficients below (`standing` input): a
+   * best-first rank read by standing, so a better rank counts as higher.
+   */
+  negated: { x: boolean; y: boolean };
+  /**
+   * True when exactly one axis is negated, so `pearson`, `unloggedPearson` and `spearman` have
+   * the opposite sign of the same coefficients on the stored numbers (`stored`). Negating both
+   * axes leaves every coefficient as it was.
+   */
+  signFlipped: boolean;
+  /** Pearson r in the plotted space (on log10 values for a log axis), read by standing */
   pearson: Correlation;
-  /** Pearson r on the raw values; differs from `pearson` only when an axis is logarithmic */
-  rawPearson: Correlation;
+  /**
+   * Pearson r on the unlogged values, read by standing; differs from `pearson` only when an axis
+   * is logarithmic
+   */
+  unloggedPearson: Correlation;
+  /** Spearman ρ, read by standing */
   spearman: Correlation;
-  /** Least-squares fit of ty on tx; residual arrays align with `points` */
+  /** Pearson r and Spearman ρ in the plotted space on the stored numbers, before any negation */
+  stored: { pearson: Correlation; spearman: Correlation };
+  /**
+   * Least-squares fit of ty on tx over the stored numbers (what the chart draws); residual arrays
+   * align with `points`. R² is the same in either reading.
+   */
   regression: Regression;
   /** Fitted raw y for each point (aligned with `points`) */
   predicted: Float64Array;
@@ -50,6 +70,14 @@ const finite = (v: number) => Number.isFinite(v);
  * Pairs two metric columns over the filtered places and computes everything
  * the overlay explains: correlations and a regression in the plotted space
  * (so a log axis is fitted as a log relationship), plus medians for quadrants.
+ *
+ * `standing` names the axes read by standing, like the correlation matrix reads its columns (see
+ * `standingColumns`): a best-first rank (rank 1 = best) stores its best place as the smallest
+ * number, so its raw r with income comes out negative although better-ranked places are richer.
+ * Its coefficients are taken on the negated number, which flips the sign of r and ρ when exactly
+ * one axis is negated and leaves p, n and R² alone. Points, medians, the regression and the
+ * predicted values stay on the stored numbers, since the chart, the four groups and the
+ * over/under-performers are measured on those.
  */
 export function analyzeScatter(input: {
   entityIdx: readonly number[];
@@ -57,6 +85,7 @@ export function analyzeScatter(input: {
   ys: ArrayLike<number>;
   logX: boolean;
   logY: boolean;
+  standing?: { x: boolean; y: boolean };
 }): ScatterAnalysis {
   const raw: { idx: number; x: number; y: number }[] = [];
   let missing = 0;
@@ -86,10 +115,27 @@ export function analyzeScatter(input: {
   const ty = Float64Array.from(points, (p) => p.ty);
   const regression = linearRegression(tx, ty);
   const r = pearson(tx, ty);
+  const rho = spearman(tx, ty);
   const predicted = Float64Array.from(points, (p) => {
     const fit = regression.intercept + regression.slope * p.tx;
     return logY ? 10 ** fit : fit;
   });
+  const negated = {
+    x: input.standing?.x === true,
+    y: input.standing?.y === true,
+  };
+  // Negating one column negates r and ρ (ranks reverse, ties stay ties); p and n only depend on |r|.
+  const signFlipped = negated.x !== negated.y;
+  const read = (c: Correlation): Correlation =>
+    signFlipped ? { ...c, r: -c.r } : c;
+  const unlogged =
+    logX || logY
+      ? pearson(
+          Float64Array.from(points, (p) => p.x),
+          Float64Array.from(points, (p) => p.y)
+        )
+      : r;
+  const pearsonRead = read(r);
   return {
     points,
     missing,
@@ -97,15 +143,12 @@ export function analyzeScatter(input: {
     canLogY,
     logX,
     logY,
-    pearson: r,
-    rawPearson:
-      logX || logY
-        ? pearson(
-            Float64Array.from(points, (p) => p.x),
-            Float64Array.from(points, (p) => p.y)
-          )
-        : r,
-    spearman: spearman(tx, ty),
+    negated,
+    signFlipped,
+    pearson: pearsonRead,
+    unloggedPearson: logX || logY ? read(unlogged) : pearsonRead,
+    spearman: read(rho),
+    stored: { pearson: r, spearman: rho },
     regression,
     predicted,
     medianX: summarize(points.map((p) => p.x)).median,
@@ -129,6 +172,23 @@ export function goodIsHigh(a: AxisMeaning): boolean {
   return a.neutral ? !a.isRank : a.dir === 1;
 }
 
+/**
+ * The two axes as the standing coefficients (`pearson`, `spearman`) read them: a negated
+ * best-first rank grows as places get better, so its better direction becomes "higher". The
+ * sentence, verdict and sign notes take these meanings so they agree with the sign shown; the
+ * four groups and the over/under-performers keep the stored meanings, since their medians and
+ * residuals are measured on the stored numbers.
+ */
+export function standingAxes(
+  a: Pick<ScatterAnalysis, 'negated'>,
+  x: AxisMeaning,
+  y: AxisMeaning
+): { x: AxisMeaning; y: AxisMeaning } {
+  const read = (m: AxisMeaning, negated: boolean): AxisMeaning =>
+    negated ? { ...m, dir: 1, neutral: false } : m;
+  return { x: read(x, a.negated.x), y: read(y, a.negated.y) };
+}
+
 /** A sentence fragment; `strong` marks metric names for emphasis. */
 export interface SentencePart {
   text: string;
@@ -139,7 +199,10 @@ export interface SentencePart {
  * Plain-English reading of a correlation that respects each metric's better
  * direction, e.g. "States that rank better on Education Rank tend to have
  * higher Median Household Income". Uses the good end of x as the subject so
- * rank-style and lower-is-better metrics read naturally.
+ * rank-style and lower-is-better metrics read naturally. `c` and the axes must
+ * share one reading: the overlay passes its standing r with `standingAxes`.
+ * Negating an axis flips both the sign of r and that axis's better side, so
+ * the sentence reads the same either way.
  */
 export function relationshipSentence(
   c: Correlation,
@@ -192,7 +255,8 @@ export function relationshipSentence(
  * For two metrics with a known better direction: whether doing well on one
  * goes with doing well on the other (synergy) or worse (trade-off). Only a
  * statistically significant correlation (p < 0.05) earns a verdict; a weak,
- * possibly chance pattern gets none.
+ * possibly chance pattern gets none. Like `relationshipSentence`, `c` and the
+ * axes must share one reading.
  */
 export function verdict(
   c: Correlation,

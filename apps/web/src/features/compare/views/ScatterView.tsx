@@ -9,6 +9,7 @@ import {
   type AxisMeaning,
   outlierPoints,
   relationshipSentence,
+  standingAxes,
 } from '../scatter/analysis';
 import { buildColorModel, type ColorModel } from '../scatter/colorModel';
 import { DotStrip } from '../scatter/DotStrip';
@@ -190,6 +191,12 @@ function Overlay(props: CompareViewProps) {
     dirX === -1 && (flips[String(xMetric.id)] ?? readsBackwards(xMetric, dirX));
   const flipY =
     dirY === -1 && (flips[String(yMetric.id)] ?? readsBackwards(yMetric, dirY));
+  // A best-first rank drawn better → right / up (the default above, which honours direction
+  // overrides and the "Better → right" toggle) is read by standing, as the Correlations view
+  // reads it: r and ρ count a better rank as higher, so they agree with the upward trend drawn.
+  // With the toggle off, the axis and the coefficients both use the rank numbers as listed.
+  const standX = flipX && readsBackwards(xMetric, dirX);
+  const standY = flipY && readsBackwards(yMetric, dirY);
 
   const log = search.log ?? [];
   const logX = log.includes('x');
@@ -202,8 +209,9 @@ function Overlay(props: CompareViewProps) {
         ys: dataset.numeric(yMetric.id),
         logX,
         logY,
+        standing: { x: standX, y: standY },
       }),
-    [entityIdx, dataset, xMetric, yMetric, logX, logY]
+    [entityIdx, dataset, xMetric, yMetric, logX, logY, standX, standY]
   );
   const color = useMemo(
     () =>
@@ -253,7 +261,8 @@ function Overlay(props: CompareViewProps) {
     update((s) => ({ m: s.m.includes(id) ? s.m : [...s.m, id], [key]: id }));
 
   const noun = pluralNoun(dataset);
-  const sentence = relationshipSentence(analysis.pearson, x, y, noun)
+  const read = standingAxes(analysis, x, y);
+  const sentence = relationshipSentence(analysis.pearson, read.x, read.y, noun)
     .map((p) => p.text)
     .join('');
   const n = analysis.points.length;

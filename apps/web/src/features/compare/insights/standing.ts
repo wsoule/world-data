@@ -51,3 +51,10 @@ export function hasRankColumn(
 /** Short note for subtitles and tooltips about how rank columns are correlated. */
 export const STANDING_NOTE =
   'ranks read by standing (a better rank counts as higher)';
+
+/**
+ * The same note as a sentence for footnotes under a coefficient (the overlay's numbers card),
+ * without the closing full stop so a caller can append a detail first.
+ */
+export const STANDING_SENTENCE =
+  'Ranks read by standing: a better rank counts as higher';

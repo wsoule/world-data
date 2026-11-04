@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
+import { correlationPairs } from '../src/features/compare/insights/correlation';
+import { standingColumns } from '../src/features/compare/insights/standing';
 import { presetSearch } from '../src/features/compare/presets';
 import {
   analyzeScatter,
@@ -10,6 +12,7 @@ import {
   rankTicks,
   relationshipSentence,
   residualLeaders,
+  standingAxes,
   verdict,
 } from '../src/features/compare/scatter/analysis';
 
@@ -133,9 +136,154 @@ describe('relationshipSentence', () => {
     const base = { entityIdx: [0, 1, 2, 3, 4], xs, ys, logY: false };
     const logged = analyzeScatter({ ...base, logX: true });
     expect(logged.pearson.r).toBeCloseTo(1);
-    expect(logged.rawPearson.r).toBeLessThan(0.9);
+    expect(logged.unloggedPearson.r).toBeLessThan(0.9);
     const plain = analyzeScatter({ ...base, logX: false });
-    expect(plain.rawPearson).toBe(plain.pearson);
+    expect(plain.unloggedPearson).toBe(plain.pearson);
+  });
+});
+
+describe('overlay read by standing', () => {
+  // 30 places, better off as the index grows: income rises, the best-first education rank falls
+  // (rank 1 = best), violent crime falls, all with some scatter.
+  const n = 30;
+  const idx = Array.from({ length: n }, (_, i) => i);
+  const score = (i: number) => i + (((i * 13) % 7) - 3) * 2.5;
+  const eduRanks = new Float64Array(n);
+  [...idx]
+    .sort((a, b) => score(b) - score(a))
+    .forEach((place, k) => (eduRanks[place] = k + 1));
+  const incomes = Float64Array.from(
+    idx,
+    (i) => 40_000 + i * 2_000 + (((i * 37) % 11) - 5) * 3_000
+  );
+  const crimes = Float64Array.from(
+    idx,
+    (i) => 900 - i * 20 + ((i * 11) % 7) * 45
+  );
+  const base = { entityIdx: idx, logX: false, logY: false };
+  const stored = analyzeScatter({ ...base, xs: eduRanks, ys: incomes });
+  const read = analyzeScatter({
+    ...base,
+    xs: eduRanks,
+    ys: incomes,
+    standing: { x: true, y: false },
+  });
+
+  test('a best-first rank against income: positive r and ρ, same p, n and R²', () => {
+    expect(stored.pearson.r).toBeLessThan(-0.5);
+    expect(read.signFlipped).toBe(true);
+    expect(read.negated).toEqual({ x: true, y: false });
+    expect(read.pearson.r).toBeGreaterThan(0.5);
+    expect(read.spearman.r).toBeGreaterThan(0.5);
+    expect(read.pearson.r).toBe(-stored.pearson.r);
+    expect(read.spearman.r).toBe(-stored.spearman.r);
+    expect(read.unloggedPearson.r).toBe(read.pearson.r);
+    expect(read.pearson.p).toBe(stored.pearson.p);
+    expect(read.pearson.n).toBe(stored.pearson.n);
+    expect(read.regression.r2).toBe(stored.regression.r2);
+    // The coefficients on the rank numbers as listed stay available for the footnote.
+    expect(read.stored.pearson).toEqual(stored.pearson);
+    expect(read.stored.spearman).toEqual(stored.spearman);
+  });
+
+  test('matches the correlation matrix for the same pair', () => {
+    const st = standingColumns(
+      [
+        { fmt: 'ranking', pol: -1 },
+        { fmt: 'moneyWithCurrency', pol: 1 },
+      ],
+      [eduRanks, incomes],
+      [-1, 1]
+    );
+    const [pair] = correlationPairs(st.columns, [1, 2]);
+    expect(read.pearson.r).toBeCloseTo(pair.pearson.r, 12);
+    expect(read.spearman.r).toBeCloseTo(pair.spearman.r, 12);
+    // The same pair with the rank on y, as a click on the matrix's rank row opens it.
+    const swapped = analyzeScatter({
+      ...base,
+      xs: incomes,
+      ys: eduRanks,
+      standing: { x: false, y: true },
+    });
+    expect(swapped.pearson.r).toBeCloseTo(pair.pearson.r, 12);
+  });
+
+  test('a normal pair keeps its raw r', () => {
+    const plain = analyzeScatter({
+      ...base,
+      xs: incomes,
+      ys: crimes,
+      standing: { x: false, y: false },
+    });
+    expect(plain.signFlipped).toBe(false);
+    expect(plain.pearson.r).toBeLessThan(-0.5);
+    expect(plain.pearson).toBe(plain.stored.pearson);
+    expect(plain.spearman).toBe(plain.stored.spearman);
+    // Leaving `standing` out reads every axis by its stored number.
+    expect(
+      analyzeScatter({ ...base, xs: incomes, ys: crimes }).pearson
+    ).toEqual(plain.pearson);
+  });
+
+  test('two best-first ranks keep their sign', () => {
+    const other = Float64Array.from(eduRanks, (v, i) => (i === 9 ? v + 3 : v));
+    const both = analyzeScatter({
+      ...base,
+      xs: eduRanks,
+      ys: other,
+      standing: { x: true, y: true },
+    });
+    expect(both.signFlipped).toBe(false);
+    expect(both.pearson.r).toBeGreaterThan(0.9);
+  });
+
+  test('a log axis flips the unlogged r with the plotted one', () => {
+    const logged = analyzeScatter({
+      ...base,
+      xs: eduRanks,
+      ys: incomes,
+      logX: true,
+      standing: { x: true, y: false },
+    });
+    expect(logged.logX).toBe(true);
+    expect(logged.pearson.r).toBeGreaterThan(0);
+    expect(logged.unloggedPearson.r).toBe(read.pearson.r);
+    expect(logged.stored.pearson.r).toBe(-logged.pearson.r);
+  });
+
+  test('words and verdict read the same, and agree with the standing sign', () => {
+    const axes = standingAxes(read, eduRank, income);
+    expect(axes.x).toEqual({ ...eduRank, dir: 1 });
+    expect(axes.y).toBe(income);
+    const sentence = text(
+      relationshipSentence(read.pearson, axes.x, axes.y, 'States')
+    );
+    expect(sentence).toBe(
+      text(relationshipSentence(stored.pearson, eduRank, income, 'States'))
+    );
+    expect(sentence).toStartWith(
+      'States that rank better on Education Rank tend to have higher Median Household Income'
+    );
+    expect(verdict(read.pearson, axes.x, axes.y)).toBe('together');
+    // Without a negated axis the meanings are passed through.
+    expect(standingAxes(stored, eduRank, income).x).toBe(eduRank);
+  });
+
+  test('four groups and over/under-performers stay on the stored numbers', () => {
+    expect(read.points).toEqual(stored.points);
+    expect(read.medianX).toBe(stored.medianX);
+    expect(read.regression.slope).toBe(stored.regression.slope);
+    expect([...read.predicted]).toEqual([...stored.predicted]);
+    expect(quadrants(read, eduRank, income)).toEqual(
+      quadrants(stored, eduRank, income)
+    );
+    expect(residualLeaders(read, income)).toEqual(
+      residualLeaders(stored, income)
+    );
+    // The best-on-both cell is the low-rank-number, high-income one.
+    const best = quadrants(read, eduRank, income).cells.find((c) => c.best);
+    expect(best?.xHigh).toBe(false);
+    expect(best?.yHigh).toBe(true);
   });
 });
 
