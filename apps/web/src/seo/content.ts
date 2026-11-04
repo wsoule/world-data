@@ -2,6 +2,7 @@
 // AI answer engines. Computed in route loaders (on the server while
 // prerendering), so only these small objects are embedded in the HTML.
 
+import { isIndexablePlace, isIndexableTopic, topicCoverage } from './indexing';
 import { topicAnswers } from './topic-content';
 import type { Dataset } from '~/data/dataset';
 import { isRankColumn } from '~/data/rankOrder';
@@ -12,6 +13,7 @@ import type {
   Metric,
   TopicFile,
 } from '~/data/types';
+import { datasetFacts } from '~/features/places/datasetFacts';
 import { rankText } from '~/features/places/percentile';
 import {
   byKeys,
@@ -19,6 +21,7 @@ import {
   isPolar,
   type PlaceMetric,
   placeStandings,
+  qualifyingRows,
   rankableMetrics,
   sizeDrivenMetrics,
 } from '~/features/places/profileModel';
@@ -26,9 +29,6 @@ import { hasUndated, resolveYear, seriesYears } from '~/features/topic/model';
 import { formatInt, ordinal, typeNoun } from '~/lib/format';
 import { breadcrumbs, faqPage, publisher } from '~/lib/seo';
 import { absoluteUrl, SITE } from '~/site';
-
-/** Places with fewer metrics than this are thin: marked noindex and left out of the sitemap. */
-export const MIN_PLACE_METRICS = 10;
 
 export interface QA {
   question: string;
@@ -174,7 +174,7 @@ export function topicSummary(
     faq,
     crumbs,
     jsonLd: [dataset, breadcrumbs(crumbs), faqPage(faq)],
-    noindex: false,
+    noindex: !isIndexableTopic(topicCoverage(topic, (id) => ds.metric(id))),
   };
 }
 
@@ -331,6 +331,14 @@ export function placeSummary(ds: Dataset, index: number): PageSummary {
       { '@type': 'PropertyValue', name: 'Population', value: e.pop },
     ];
   }
+  // The rows the profile's "Strengths and weak spots" ranks, population totals left out as
+  // the page does by default; too few and the profile is thin (isIndexablePlace).
+  const facts = datasetFacts(ds);
+  const widelyRanked = qualifyingRows(
+    all,
+    facts.cut,
+    new Set([...facts.selectedLists, ...facts.sizeDriven])
+  ).length;
   return {
     title: `${e.name}: rankings and statistics`,
     description: summary,
@@ -338,6 +346,6 @@ export function placeSummary(ds: Dataset, index: number): PageSummary {
     faq,
     crumbs,
     jsonLd: [place, breadcrumbs(crumbs), faqPage(faq)],
-    noindex: all.length < MIN_PLACE_METRICS,
+    noindex: !isIndexablePlace(all.length, widelyRanked),
   };
 }

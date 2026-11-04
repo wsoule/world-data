@@ -12,13 +12,15 @@
 //
 // It also tidies what `vite build` leaves behind: sitemap URLs lose the
 // trailing slash index routes get ("/categories/" -> "/categories", which the
-// server would 308), and TanStack's pages.json build manifest is removed so it
+// server would 308), the sitemap keeps only pages
+// whose own HTML is indexable and self-canonical (place profiles decide that
+// while rendering), and TanStack's pages.json build manifest is removed so it
 // is not published.
 //
 // Run by the web:build moon task (and the Dockerfile) after `vite build`, from
 // apps/web: 404.html needs the server bundle that build leaves in dist/server.
 
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, open, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -32,7 +34,14 @@ import type {
 } from '../src/data/types';
 import { formatValue, typeNoun } from '../src/lib/format';
 import { SITE, SITE_URL } from '../src/site';
-import { canonicalSitemap } from './lib/sitemap';
+import {
+  belongsInSitemap,
+  canonicalSitemap,
+  filterSitemap,
+  type PageIndexing,
+  pageIndexing,
+  sitemapLocs,
+} from './lib/sitemap';
 
 const DATA = path.resolve('public/data');
 const OUT = path.resolve('dist/client');
@@ -73,6 +82,77 @@ function robots(): string {
     `Sitemap: ${SITE_URL}/sitemap.xml`,
     '',
   ].join('\n');
+}
+
+/** The built page for a site URL: dist/client/<path>/index.html. */
+function pageFile(loc: string): string {
+  const route = decodeURIComponent(new URL(loc).pathname).replace(
+    /^\/+|\/+$/g,
+    ''
+  );
+  return path.join(OUT, route, 'index.html');
+}
+
+/**
+ * Robots and canonical tags of a built page, read from its first 64 KB (the
+ * largest <head> is about 16 KB), or the whole file if the head runs longer.
+ */
+async function builtPageIndexing(file: string): Promise<PageIndexing> {
+  const handle = await open(file);
+  try {
+    const buf = Buffer.alloc(65_536);
+    const { bytesRead } = await handle.read(buf, 0, buf.length, 0);
+    const start = buf.toString('utf8', 0, bytesRead);
+    return pageIndexing(
+      start.includes('</head>') ? start : await readFile(file, 'utf8')
+    );
+  } finally {
+    await handle.close();
+  }
+}
+
+/**
+ * Rewrites sitemap.xml: canonical <loc>s, then only the
+ * URLs whose built page is indexable and names itself as canonical. Thin place
+ * profiles (isIndexablePlace) are removed here, since only the rendered page
+ * knows; topics already left out by prerender-pages.ts would be too. Fails
+ * when a listed URL has no page. Returns how many URLs were kept and dropped
+ * per section ("places/world-city", "topics/state", …).
+ */
+async function tidySitemap(): Promise<{
+  kept: number;
+  dropped: Map<string, number>;
+}> {
+  const file = path.join(OUT, 'sitemap.xml');
+  const xml = canonicalSitemap(await readFile(file, 'utf8'));
+  const keep = new Set<string>();
+  const dropped = new Map<string, number>();
+  const missing: string[] = [];
+  for (const loc of sitemapLocs(xml)) {
+    let page: PageIndexing;
+    try {
+      page = await builtPageIndexing(pageFile(loc));
+    } catch {
+      missing.push(loc);
+      continue;
+    }
+    if (belongsInSitemap(loc, page)) {
+      keep.add(loc);
+      continue;
+    }
+    const section = new URL(loc).pathname.split('/').slice(1, 3).join('/');
+    dropped.set(section, (dropped.get(section) ?? 0) + 1);
+  }
+  if (missing.length > 0) {
+    throw new Error(
+      `sitemap.xml lists URLs without a built page:\n${missing.join('\n')}`
+    );
+  }
+  await writeFile(
+    file,
+    filterSitemap(xml, (loc) => keep.has(loc))
+  );
+  return { kept: keep.size, dropped };
 }
 
 /** A path no route matches, rendered to make 404.html. */
@@ -304,11 +384,7 @@ async function main(): Promise<void> {
     'compare/index.html',
     'topics/state/median-household-income-by-state/index.html',
   ]);
-  const sitemapFile = path.join(OUT, 'sitemap.xml');
-  await writeFile(
-    sitemapFile,
-    canonicalSitemap(await readFile(sitemapFile, 'utf8'))
-  );
+  const sitemap = await tidySitemap();
   await rm(path.join(OUT, 'pages.json'), { force: true });
   await writeFile(path.join(OUT, 'llms.txt'), llms.join('\n'));
   await writeFile(path.join(OUT, 'llms-full.txt'), full.join('\n'));
@@ -316,8 +392,11 @@ async function main(): Promise<void> {
     path.join(OUT, 'site.webmanifest'),
     `${JSON.stringify(webManifest, null, 2)}\n`
   );
+  const dropped = [...sitemap.dropped]
+    .map(([section, n]) => `${n} ${section}`)
+    .join(', ');
   console.log(
-    `seo-files: robots.txt, 404.html, sitemap.xml tidied, llms.txt, llms-full.txt (${topics.length} topics), site.webmanifest, ${csvCount} CSV files`
+    `seo-files: robots.txt, 404.html, sitemap.xml (${sitemap.kept} URLs${dropped === '' ? '' : `; left out as noindex or non-canonical: ${dropped}`}), llms.txt, llms-full.txt (${topics.length} topics), site.webmanifest, ${csvCount} CSV files`
   );
 }
 

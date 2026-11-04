@@ -2,9 +2,16 @@
 // sitemap metadata. Read by vite.config.ts at build time.
 //
 // Every topic, category, place-type and place page is included, so every real
-// URL is a static file and anything else gets the host's 404 page. Places with
-// too little data to stand on their own (MIN_PLACE_METRICS) are still
-// prerendered, but kept out of the sitemap and marked noindex.
+// URL is a static file and anything else gets the host's 404 page. Pages that
+// are not worth indexing are still prerendered and linked, but kept out of the
+// sitemap, using the same rules (src/seo/indexing.ts) the pages use for their
+// robots and canonical tags:
+//
+// - thin topics (isIndexableTopic) and topics that only retitle another topic
+//   (TOPIC_ALIASES) are left out here;
+// - place profiles decide in their route loader (isIndexablePlace needs the
+//   whole Dataset, which this file cannot load), and seo-files.ts drops every
+//   sitemap URL whose built page says noindex or names another canonical.
 
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -14,16 +21,14 @@ import type {
   EntityType,
   Manifest,
   Metric,
+  TopicFile,
   TopicSummary,
-  ValuesFile,
 } from '../src/data/types';
-
-/**
- * Places with fewer numeric metrics than this are left out of the sitemap.
- * Keep in sync with MIN_PLACE_METRICS in src/seo/content.ts, which marks the
- * same pages noindex.
- */
-export const MIN_PLACE_METRICS = 10;
+import {
+  canonicalTopicSlug,
+  isIndexableTopic,
+  topicCoverage,
+} from '../src/seo/indexing';
 
 interface SitemapOptions {
   priority?: number;
@@ -40,19 +45,32 @@ export interface PrerenderPage {
 const readJson = <T>(dataDir: string, file: string): T =>
   JSON.parse(readFileSync(path.join(dataDir, file), 'utf8')) as T;
 
-/** Number of numeric, non-bookkeeping metrics with a value, per entity index. */
-function metricCounts(
-  values: ValuesFile,
-  metrics: readonly Metric[]
-): Uint32Array {
-  const rankable = new Set(
-    metrics.filter((m) => m.kind === 'num' && m.meta !== true).map((m) => m.id)
-  );
-  const counts = new Uint32Array(values.entityCount);
-  for (const [id, idx] of values.metrics) {
-    if (rankable.has(id)) for (const i of idx) counts[i]++;
+/** Sorted ids joined, so two topics with the same metrics or places get the same key. */
+const setKey = (ids: readonly number[]): string =>
+  [...ids].sort((a, b) => a - b).join(',');
+
+/**
+ * Fails the build when a TOPIC_ALIASES entry no longer retitles its primary (a data rebuild
+ * changed one of them), since its canonical tag would then hide a different page.
+ */
+function assertAliases(
+  topics: readonly TopicSummary[],
+  shape: ReadonlyMap<string, string>
+): void {
+  const broken: string[] = [];
+  for (const t of topics) {
+    const primary = canonicalTopicSlug(t.type, t.slug);
+    if (primary === t.slug) continue;
+    const own = shape.get(`${t.type}/${t.slug}`);
+    if (own == null || own !== shape.get(`${t.type}/${primary}`)) {
+      broken.push(`${t.type}/${t.slug} -> ${primary}`);
+    }
   }
-  return counts;
+  if (broken.length > 0) {
+    throw new Error(
+      `TOPIC_ALIASES (src/seo/indexing.ts) names pages that are no longer exact duplicates:\n${broken.join('\n')}`
+    );
+  }
 }
 
 /** All prerendered pages for the dataset in `dataDir` (public/data). */
@@ -60,6 +78,12 @@ export function prerenderPages(dataDir: string): PrerenderPage[] {
   const manifest = readJson<Manifest>(dataDir, 'manifest.json');
   const topics = readJson<TopicSummary[]>(dataDir, 'topics.json');
   const built = manifest.generatedAt.slice(0, 10);
+
+  const metrics = new Map<EntityType, Map<number, Metric>>();
+  for (const t of manifest.types) {
+    const list = readJson<Metric[]>(dataDir, `${t.id}/metrics.json`);
+    metrics.set(t.id, new Map(list.map((m) => [m.id, m])));
+  }
 
   const pages: PrerenderPage[] = [
     {
@@ -106,31 +130,42 @@ export function prerenderPages(dataDir: string): PrerenderPage[] {
       sitemap: { priority: 0.7, lastmod: built },
     });
   }
+  // Topics: indexable or not, canonical or alias.
+  const shape = new Map<string, string>();
   for (const t of topics) {
+    const file = readJson<TopicFile>(
+      dataDir,
+      `${t.type}/topics/${t.slug}.json`
+    );
+    const known = metrics.get(t.type);
+    const indexable = isIndexableTopic(
+      topicCoverage(file, (id) => known?.get(id))
+    );
+    shape.set(
+      `${t.type}/${t.slug}`,
+      `${setKey(file.metrics)}|${setKey(file.entities)}`
+    );
     pages.push({
       path: `/topics/${t.type}/${t.slug}`,
-      sitemap: { priority: 0.6, lastmod: t.updated ?? built },
+      sitemap:
+        !indexable || canonicalTopicSlug(t.type, t.slug) !== t.slug
+          ? { exclude: true }
+          : { priority: 0.6, lastmod: t.updated ?? built },
     });
   }
+  assertAliases(topics, shape);
   for (const t of manifest.types) {
     const type: EntityType = t.id;
     const entities = readJson<Entity[]>(dataDir, `${type}/entities.json`);
-    const counts = metricCounts(
-      readJson<ValuesFile>(dataDir, `${type}/values.json`),
-      readJson<Metric[]>(dataDir, `${type}/metrics.json`)
-    );
-    entities.forEach((e, i) => {
+    for (const e of entities) {
       pages.push({
         path: `/places/${type}/${e.slug}`,
-        sitemap:
-          counts[i] < MIN_PLACE_METRICS
-            ? { exclude: true }
-            : {
-                priority: type === 'country' || type === 'state' ? 0.6 : 0.4,
-                lastmod: built,
-              },
+        sitemap: {
+          priority: type === 'country' || type === 'state' ? 0.6 : 0.4,
+          lastmod: built,
+        },
       });
-    });
+    }
   }
   return pages;
 }

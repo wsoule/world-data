@@ -9,6 +9,7 @@ import { LATEST, type YearRequest } from '~/features/topic/model';
 import { TopicPage } from '~/features/topic/TopicPage';
 import { pageHead } from '~/lib/seo';
 import { topicSummary } from '~/seo/content';
+import { canonicalTopicSlug } from '~/seo/indexing';
 
 export interface TopicSearch {
   /** Focused metric id */
@@ -67,12 +68,18 @@ export const Route = createFileRoute('/topics/$type/$slug')({
     // Only this small summary is embedded in the HTML for hydration.
     return { seo: topicSummary(topic, ds, manifest.categories) };
   },
+  // A page that only retitles another names that one as canonical (TOPIC_ALIASES); a thin
+  // page is noindex and keeps its own, so the two signals never conflict.
   head: ({ loaderData, params }) =>
     loaderData == null
       ? notFoundHead()
       : pageHead({
           ...loaderData.seo,
-          path: `/topics/${params.type}/${params.slug}`,
+          path: `/topics/${params.type}/${
+            loaderData.seo.noindex
+              ? params.slug
+              : canonicalTopicSlug(params.type, params.slug)
+          }`,
         }),
   component: TopicPage,
 });
