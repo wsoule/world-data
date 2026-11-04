@@ -19,6 +19,7 @@ import {
   yearParam,
 } from './model';
 import { MoversCard } from './MoversCard';
+import { RelatedTopics } from './related/RelatedTopics';
 import { SuggestedTopics } from './SuggestedTopics';
 import { TopicHeader } from './TopicHeader';
 import { TopicTables } from './TopicTable';
@@ -243,6 +244,7 @@ function TopicView({ type, slug }: { type: EntityType; slug: string }) {
         />
       )}
       <QuickAnswers items={answers.faq} className="mt-8" />
+      <RelatedTopics topic={topic} />
       <SuggestedTopics topic={topic} />
     </div>
   );
