@@ -39,14 +39,14 @@ const METRICS: ExternalMetric[] = [
   {
     id: ACS.medianRent,
     key: 'acsMedianRent',
-    header: 'Median Rent (Monthly; $3,501 Means $3,500 or More)',
+    header: 'Median Rent (Monthly, Capped at $3,501)',
     format: 'moneyWithCurrency',
     pol: -1,
   },
   {
     id: ACS.medianHomeValue,
     key: 'acsMedianHomeValue',
-    header: 'Median Home Value ($2,000,001 Means $2M or More)',
+    header: 'Median Home Value (Capped at $2M)',
     format: 'moneyWithCurrency',
     pol: -1,
   },

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-03T21:40:31.537Z",
+  "generatedAt": "2026-11-04T02:36:48.457Z",
   "source": "https://worldpopulationreview.com",
   "types": [
     {
@@ -18,9 +18,9 @@
       "singular": "State",
       "prefix": "state-rankings",
       "entities": 51,
-      "metrics": 4206,
-      "numericMetrics": 2634,
-      "topics": 1263
+      "metrics": 4209,
+      "numericMetrics": 2637,
+      "topics": 1265
     },
     {
       "id": "city",
@@ -28,9 +28,9 @@
       "singular": "US City",
       "prefix": "us-city-rankings",
       "entities": 477,
-      "metrics": 98,
-      "numericMetrics": 93,
-      "topics": 25
+      "metrics": 100,
+      "numericMetrics": 95,
+      "topics": 26
     },
     {
       "id": "world-city",
@@ -48,9 +48,9 @@
       "singular": "County",
       "prefix": "us-county-rankings",
       "entities": 3094,
-      "metrics": 60,
-      "numericMetrics": 58,
-      "topics": 19
+      "metrics": 61,
+      "numericMetrics": 59,
+      "topics": 20
     }
   ],
   "categories": [
@@ -72,7 +72,7 @@
     {
       "id": "economics",
       "label": "Economics",
-      "topics": 392
+      "topics": 396
     },
     {
       "id": "education",

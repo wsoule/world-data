@@ -214,8 +214,8 @@ export async function blsPages(
         type,
         slug:
           type === 'state'
-            ? 'unemployment-rate-by-state'
-            : 'unemployment-rate-by-county',
+            ? 'unemployment-rate-by-state-bls'
+            : 'unemployment-rate-by-county-bls',
         title:
           type === 'state'
             ? 'Unemployment Rate by State (BLS)'

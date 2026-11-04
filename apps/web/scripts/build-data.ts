@@ -1320,6 +1320,11 @@ async function main(): Promise<void> {
         `${ext.slug}: ${page.rows.length - known.length} of ${page.rows.length} rows`
       );
     page.rows = known;
+    // A slug the ranking site already uses would silently replace its topic page.
+    if (T.topics.some((t) => t.slug === ext.slug))
+      throw new Error(
+        `external topic ${ext.type}/${ext.slug} collides with an existing topic; give it another slug`
+      );
     categories.set(`${ext.type}:${ext.slug}`, new Set(ext.cats));
     ingestPage(page, T, categories);
   }
