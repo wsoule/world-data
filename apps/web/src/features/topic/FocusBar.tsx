@@ -15,7 +15,8 @@ import type { Metric, TopicTable } from '~/data/types';
 import { formatInt, formatValue } from '~/lib/format';
 
 /** At most this many focus metrics render as pills; more switch to a grouped dropdown. */
-const PILL_LIMIT = 4;
+/** Up to this many metrics are shown as buttons, so every choice is visible; more use a menu. */
+const PILL_LIMIT = 12;
 
 /** Tooltip of the "Latest" year choice (the source's column without a year). */
 const LATEST_TITLE =
@@ -79,10 +80,11 @@ export function FocusBar({
   const type = dataset.type.id;
   const total = dataset.type.entities;
   const noun = placeNoun(dataset.type.id, total);
+  const labelLength = metrics.reduce((s, m) => s + m.label.length, 0);
   const usePills =
-    metrics.length > 1 &&
-    metrics.length <= PILL_LIMIT &&
-    metrics.reduce((s, m) => s + m.label.length, 0) <= 90;
+    metrics.length > 1 && metrics.length <= PILL_LIMIT && labelLength <= 480;
+  // Many or long labels get their own full-width, wrapping row of buttons.
+  const widePills = usePills && labelLength > 90;
   const labels = tableLabels(tables);
   const grouped = tables
     .map((table, index) => ({ table, label: labels[index], index }))
@@ -115,7 +117,10 @@ export function FocusBar({
               <div
                 role="radiogroup"
                 aria-labelledby={`${metricId}-label`}
-                className="border-app bg-surface-2 inline-flex flex-wrap rounded-lg border p-0.5"
+                className={cx(
+                  'border-app bg-surface-2 inline-flex flex-wrap rounded-lg border p-0.5',
+                  widePills && 'w-full'
+                )}
               >
                 {metrics.map((m) => (
                   <button
@@ -126,7 +131,7 @@ export function FocusBar({
                     onClick={() => onFocus(m.id)}
                     className={pill(m.id === focus.id)}
                   >
-                    {m.label}
+                    {m.label.replace(/\s*\(%\)$/, '')}
                   </button>
                 ))}
               </div>
