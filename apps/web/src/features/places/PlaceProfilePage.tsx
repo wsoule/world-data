@@ -13,6 +13,7 @@ import {
 import { useCategoryLabels } from './hooks';
 import { MetricExplorer } from './MetricExplorer';
 import { GROUP_LABEL } from './PlacesPage';
+import { PlaceStories } from './PlaceStories';
 import {
   basisCoverage,
   categoryScores,
@@ -299,6 +300,8 @@ function Profile({
       {related.children.map((group) => (
         <RelatedPlaceList key={group.type} group={group} />
       ))}
+
+      <PlaceStories dataset={dataset} index={index} />
 
       <QuickAnswers items={faq} />
 

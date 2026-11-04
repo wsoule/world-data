@@ -67,15 +67,23 @@ export function HomePage() {
 
       <Section
         title="What goes with what"
-        subtitle="Live charts from the data. Open one to highlight places, colour by party or swap a statistic."
+        subtitle="Live charts from the data. Open one to highlight places, colour by party or swap a statistic, or read the story behind it."
         action={
-          <Link
-            to="/compare"
-            search={{ type: 'state', view: 'scatter', m: [] }}
-            className="text-accent-600 dark:text-accent-300 text-sm font-medium hover:underline"
-          >
-            Compare any two statistics
-          </Link>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            <Link
+              to="/articles"
+              className="text-accent-600 dark:text-accent-300 text-sm font-medium hover:underline"
+            >
+              All data stories
+            </Link>
+            <Link
+              to="/compare"
+              search={{ type: 'state', view: 'scatter', m: [] }}
+              className="text-accent-600 dark:text-accent-300 text-sm font-medium hover:underline"
+            >
+              Compare any two statistics
+            </Link>
+          </div>
         }
       >
         <ul className="grid grid-cols-1 gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
@@ -318,37 +326,49 @@ const PLACES: Record<StorySummary['type'], string> = {
 
 /**
  * A live comparison on the home page: the pair's chart, its question and how strong the link is.
- * It opens the interactive overlay with the same two statistics (and party colouring), not an article.
+ * The chart and title open the interactive overlay with the same two statistics (and party
+ * colouring); a separate link under it opens the written data story about the pair.
  */
 function ConnectionCard({ story }: { story: StorySummary }) {
   const w = strengthWord(story.r);
   return (
-    <Link
-      to="/compare"
-      search={{
-        type: story.type,
-        view: 'scatter',
-        m: [story.xId, story.yId],
-        x: story.xId,
-        y: story.yId,
-        c: story.colorId ?? undefined,
-        log: story.logX ? ['x'] : undefined,
-      }}
-      className="group block"
-    >
-      <StoryThumb
-        story={story}
-        className="border-app bg-surface group-hover:border-accent-300 dark:group-hover:border-accent-700 h-auto w-full rounded-xl border p-2 transition-colors"
-      />
-      <h3 className="group-hover:text-accent-700 dark:group-hover:text-accent-300 mt-3 text-base leading-snug font-semibold text-balance">
-        {story.title}
-      </h3>
-      <p className="text-muted mt-1 text-sm">
-        {w == null
-          ? 'No clear link'
-          : `${w.charAt(0).toUpperCase()}${w.slice(1)} link`}{' '}
-        across {story.n.toLocaleString('en-US')} {PLACES[story.type]}
-      </p>
-    </Link>
+    <div>
+      <Link
+        to="/compare"
+        search={{
+          type: story.type,
+          view: 'scatter',
+          m: [story.xId, story.yId],
+          x: story.xId,
+          y: story.yId,
+          c: story.colorId ?? undefined,
+          log: story.logX ? ['x'] : undefined,
+        }}
+        className="group block"
+      >
+        <StoryThumb
+          story={story}
+          className="border-app bg-surface group-hover:border-accent-300 dark:group-hover:border-accent-700 h-auto w-full rounded-xl border p-2 transition-colors"
+        />
+        <h3 className="group-hover:text-accent-700 dark:group-hover:text-accent-300 mt-3 text-base leading-snug font-semibold text-balance">
+          {story.title}
+        </h3>
+        <p className="text-muted mt-1 text-sm">
+          {w == null
+            ? 'No clear link'
+            : `${w.charAt(0).toUpperCase()}${w.slice(1)} link`}{' '}
+          across {story.n.toLocaleString('en-US')} {PLACES[story.type]}
+        </p>
+      </Link>
+      <Link
+        to="/articles/$slug"
+        params={{ slug: story.slug }}
+        className="text-accent-600 dark:text-accent-300 mt-2 inline-flex items-center gap-1 text-sm font-medium hover:underline"
+      >
+        Read the story
+        <span className="sr-only">: {story.title}</span>
+        <ArrowRight className="size-3.5" aria-hidden />
+      </Link>
+    </div>
   );
 }

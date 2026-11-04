@@ -20,6 +20,7 @@ import {
 } from './model';
 import { MoversCard } from './MoversCard';
 import { RelatedTopics } from './related/RelatedTopics';
+import { TopicStories } from './related/TopicStories';
 import { SuggestedTopics } from './SuggestedTopics';
 import { TopicHeader } from './TopicHeader';
 import { TopicTables } from './TopicTable';
@@ -52,6 +53,8 @@ import {
   type TopicFile,
   type TopicTable,
 } from '~/data/types';
+import { usePrefetchStories } from '~/features/articles/StoryLinks';
+import { mayHaveStories } from '~/features/articles/storyPicks';
 import { datasetFacts } from '~/features/places/datasetFacts';
 import { finiteExtent } from '~/lib/axis';
 import { labelFormat } from '~/lib/format';
@@ -69,6 +72,8 @@ export function TopicPage() {
 
 function TopicView({ type, slug }: { type: EntityType; slug: string }) {
   const { data: topic } = useSuspenseQuery(topicQuery(type, slug));
+  // The story links near the end need the stories index: fetch it alongside the dataset.
+  usePrefetchStories(mayHaveStories(topic.metrics));
   const base = useDataset(type);
   const { seo } = route.useLoaderData();
   // Prerendered HTML is built without search params, so the first (hydrating)
@@ -243,6 +248,7 @@ function TopicView({ type, slug }: { type: EntityType; slug: string }) {
           onSelect={toggleSelected}
         />
       )}
+      <TopicStories topic={topic} focusId={focus?.id ?? null} />
       <QuickAnswers items={answers.faq} className="mt-8" />
       <RelatedTopics topic={topic} />
       <SuggestedTopics topic={topic} />

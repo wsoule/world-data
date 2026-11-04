@@ -2,7 +2,9 @@ import { useSuspenseQuery } from '@tanstack/react-query';
 import { getRouteApi, Link } from '@tanstack/react-router';
 
 import { shortLabel, storyText } from './prose';
-import { StoryChart, StoryThumb } from './StoryChart';
+import { StoryChart } from './StoryChart';
+import { storyStrength } from './StoryLinks';
+import { furtherReading } from './storyPicks';
 import { InfoTip } from '~/components/InfoTip';
 import type { StoryData, StoryPoint } from '~/content/storyTypes';
 import { storiesIndexQuery, storyQuery } from '~/data/api';
@@ -25,16 +27,7 @@ export function ArticlePage() {
   const { data: story } = useSuspenseQuery(storyQuery(slug));
   const { data: index } = useSuspenseQuery(storiesIndexQuery);
   const text = storyText(story);
-  const related = index
-    .filter(
-      (s) =>
-        s.slug !== story.slug &&
-        (s.type === story.type || s.cats.some((c) => story.cats.includes(c)))
-    )
-    .sort(
-      (a, b) => Number(b.kind === 'flagship') - Number(a.kind === 'flagship')
-    )
-    .slice(0, 4);
+  const further = furtherReading(index, story.slug);
   const explore = siteHref('/compare', {
     type: story.type,
     view: 'scatter',
@@ -150,25 +143,24 @@ export function ArticlePage() {
         </ul>
       </section>
 
-      {related.length > 0 ? (
-        <section className="mt-12">
-          <h2 className="text-lg font-semibold">More connections</h2>
-          <ul className="mt-4 grid gap-4 sm:grid-cols-2">
-            {related.map((s) => (
+      {further.length > 0 ? (
+        <section aria-labelledby="further-reading" className="mt-12">
+          <h2 id="further-reading" className="text-lg font-semibold">
+            Further reading
+          </h2>
+          <ul className="mt-4 grid gap-3 sm:grid-cols-3">
+            {further.map((s) => (
               <li key={s.slug}>
                 <Link
                   to="/articles/$slug"
                   params={{ slug: s.slug }}
-                  className="group block"
+                  className="border-app bg-surface hover:border-accent-300 dark:hover:border-accent-700 group block h-full rounded-xl border p-3 transition-colors"
                 >
-                  {s.thumb.length > 0 ? (
-                    <StoryThumb
-                      story={s}
-                      className="border-app bg-surface mb-2 h-auto w-full rounded-lg border p-1.5"
-                    />
-                  ) : null}
-                  <span className="group-hover:text-accent-700 dark:group-hover:text-accent-300 font-medium">
+                  <span className="group-hover:text-accent-700 dark:group-hover:text-accent-300 block leading-snug font-medium text-balance">
                     {s.title}
+                  </span>
+                  <span className="text-muted mt-1 block text-xs">
+                    {storyStrength(s)}
                   </span>
                 </Link>
               </li>
