@@ -2,6 +2,7 @@ import { getRouteApi, Link, useNavigate } from '@tanstack/react-router';
 import { BarChart3, ChevronRight } from 'lucide-react';
 import { Fragment, useMemo, useRef, useState } from 'react';
 
+import { AtAGlance } from './AtAGlance';
 import { CategoryChart } from './CategoryChart';
 import {
   datasetFacts,
@@ -192,6 +193,8 @@ function Profile({
           workbenchMetrics.length > 0 ? workbenchMetrics : [-1, -2]
         }
       />
+
+      <AtAGlance dataset={dataset} index={index} />
 
       <section aria-labelledby="strengths-heading" className="space-y-3">
         <div className="flex flex-wrap items-end justify-between gap-3">
