@@ -18,7 +18,7 @@ import {
   topicListOrder,
 } from '../src/features/topic/headline';
 import { rankingOrderLabel } from '../src/features/topic/model';
-import { topicClosing } from '../src/seo/content';
+import { topicClosing, topicPageTitle } from '../src/seo/content';
 import {
   coverage,
   joinNames,
@@ -521,7 +521,46 @@ describe('sourceAnswer', () => {
   });
 });
 
-describe('topicClosing', () => {
+describe('topicPageTitle', () => {
+  test('frames a title with the longest variant that fits 65 characters', () => {
+    expect(topicPageTitle('Coldest States', true)).toBe(
+      'Coldest States: Ranked, Mapped & Compared'
+    );
+    expect(topicPageTitle('Median Household Income by State', true)).toBe(
+      'Median Household Income by State: Ranked & Mapped'
+    );
+    expect(
+      topicPageTitle(
+        'Percentage of Households Making Over $250,000 by State',
+        true
+      )
+    ).toBe('Percentage of Households Making Over $250,000 by State');
+    expect(topicPageTitle('Education Rankings by Country', true)).toBe(
+      'Education Rankings by Country: Mapped & Compared'
+    );
+    expect(topicPageTitle('Abortion Laws by State', false)).toBe(
+      'Abortion Laws by State: Full List'
+    );
+    expect(topicPageTitle('Is Turkey a Muslim Country?', false)).toBe(
+      'Is Turkey a Muslim Country? Answered with Data'
+    );
+  });
+
+  test('never makes the <title> longer than 65 characters by framing it', () => {
+    for (const title of [
+      'Volleyball Rankings by Country / Beach Volleyball Rankings by Country',
+      'South Asian Association for Regional Cooperation (SAARC) Countries',
+      'Countries Where You’re Not Allowed to Renounce Citizenship',
+      'Which Countries Require Six Months of Passport Validity?',
+      'Countries with Black and White Flags with a Red Stripe',
+    ]) {
+      const framed = topicPageTitle(title, true);
+      expect(framed === title || `${framed} — Rankodex`.length <= 65).toBe(
+        true
+      );
+    }
+  });
+
   test('names the topic in the closing sentence of its description', () => {
     expect(topicClosing('Coldest States', 50, 3, true, TYPE)).toBe(
       'Coldest States: 50 US states ranked on 3 metrics, mapped and compared.'

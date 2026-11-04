@@ -77,6 +77,32 @@ export function shownMetrics(topic: TopicFile, ds: Dataset): Metric[] {
     .filter((m): m is Metric => m != null && m.meta !== true);
 }
 
+/** Room for a page title before " — Rankodex" pushes the <title> past 65 characters. */
+const TITLE_ROOM = 65 - ` — ${SITE.name}`.length;
+
+/**
+ * The <title> and og:title of a topic page: its name plus the first Rankodex framing that fits
+ * the room left, so the tag reads differently from the source's own title while the H1 stays
+ * the plain topic name. Ranked topics are "Ranked, Mapped & Compared", then "Ranked & Mapped",
+ * then "Ranked" (a title that already says "rank" is "Mapped & Compared" or "Mapped"), lists of
+ * places a "Full List", and questions are "Answered with Data". A name too long for any
+ * framing stays as it is.
+ */
+export function topicPageTitle(title: string, ranked: boolean): string {
+  const variants = title.endsWith('?')
+    ? [' Answered with Data']
+    : !ranked
+      ? [': Full List']
+      : /\brank/i.test(title)
+        ? [': Mapped & Compared', ': Mapped']
+        : [': Ranked, Mapped & Compared', ': Ranked & Mapped', ': Ranked'];
+  for (const v of variants) {
+    const framed = `${title}${v}`;
+    if (framed.length <= TITLE_ROOM) return framed;
+  }
+  return title;
+}
+
 /**
  * The closing sentence of a topic's description, after the answer: what the page holds, named
  * by its title so pages over the same table still read apart ("Coldest States: 50 US states
@@ -193,7 +219,7 @@ export function topicSummary(
   if (basedOn.length > 0) dataset.isBasedOn = [...new Set(basedOn)];
 
   return {
-    title: topic.title,
+    title: topicPageTitle(topic.title, metric != null),
     description,
     summary,
     faq,
