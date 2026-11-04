@@ -210,7 +210,8 @@ function HitList({
                     <Link
                       to="/topics/$type/$slug"
                       params={{ type: dataset.type.id, slug: m.topics[0] }}
-                      search={{ m: m.id }}
+                      // A bare topic URL; the metric to open on goes in history state.
+                      state={{ topicFocus: m.id }}
                       className="block truncate text-sm font-medium hover:underline"
                       title={dataset.metricFullLabel(h.id)}
                     >

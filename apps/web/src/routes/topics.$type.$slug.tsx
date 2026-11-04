@@ -35,6 +35,16 @@ export interface TopicSearch {
   col?: true;
 }
 
+declare module '@tanstack/react-router' {
+  interface HistoryState {
+    /**
+     * Metric a topic page opens on when a link names it in history state instead of `?m=`, so
+     * the link is the bare topic URL (robots.txt keeps crawlers off topic URLs with a query).
+     */
+    topicFocus?: number;
+  }
+}
+
 /** A finite number from a search value ("12" or 12), else undefined. */
 function numberParam(raw: unknown): number | undefined {
   if (raw === undefined || raw === null || raw === '') return undefined;

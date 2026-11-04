@@ -1,8 +1,18 @@
 import { useQueryClient, useSuspenseQueries } from '@tanstack/react-query';
-import { getRouteApi, useHydrated } from '@tanstack/react-router';
+import {
+  getRouteApi,
+  useHydrated,
+  useRouterState,
+} from '@tanstack/react-router';
 import { summarize } from '@world-data/stats';
 import { FileQuestion } from 'lucide-react';
-import { type ReactNode, useCallback, useMemo, useState } from 'react';
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 
 import { CategoricalTopic } from './CategoricalTopic';
 import { CorrelationsCard, correlationsTitle } from './CorrelationsCard';
@@ -100,7 +110,16 @@ function TopicView({ type, slug }: { type: EntityType; slug: string }) {
   // render uses the defaults and ?m / ?year apply right after hydration.
   const hydrated = useHydrated();
   const urlSearch = route.useSearch();
-  const search: TopicSearch = hydrated ? urlSearch : {};
+  // A link from a place profile or a correlation names the metric to open on in its history
+  // state (`topicFocus`), so the link itself is the bare topic URL crawlers may follow.
+  const stateFocus = useRouterState({
+    select: (s) => s.location.state.topicFocus,
+  });
+  const search: TopicSearch = !hydrated
+    ? {}
+    : urlSearch.m == null && stateFocus != null
+      ? { ...urlSearch, m: stateFocus }
+      : urlSearch;
   const navigate = route.useNavigate();
 
   // Adjustments (?adj) offered for this topic's statistics: cost of living for wages, share of
@@ -156,6 +175,20 @@ function TopicView({ type, slug }: { type: EntityType; slug: string }) {
     return focusables.find((m) => m.id === id) ?? focusables[0] ?? null;
   }, [topic, dataset, focusables]);
   const focus = focusables.find((m) => m.id === search.m) ?? lead;
+  // Once open, the focus from history state moves into the URL (?m, left out for the lead
+  // metric) like any other choice, so later year or table changes keep it.
+  useEffect(() => {
+    if (!hydrated || stateFocus == null || urlSearch.m != null) return;
+    void navigate({
+      search: (prev) => ({
+        ...prev,
+        m: focus == null || focus.id === lead?.id ? undefined : focus.id,
+      }),
+      state: (prev) => ({ ...prev, topicFocus: undefined }),
+      replace: true,
+      resetScroll: false,
+    });
+  }, [hydrated, stateFocus, urlSearch.m, focus, lead, navigate]);
   const years = useMemo(
     () => (focus == null ? [] : seriesYears(topic, focus.id)),
     [topic, focus]

@@ -23,7 +23,8 @@ import type { Theme } from '~/lib/theme';
 
 /**
  * Metric label (or `children`) linking to the metric's primary topic page with the metric
- * focused; plain text for synthetic metrics, which have no topic.
+ * focused; plain text for synthetic metrics, which have no topic. The link is the bare topic
+ * URL, which crawlers may follow; the metric to focus travels in history state (`topicFocus`).
  */
 export function MetricLink({
   dataset,
@@ -48,7 +49,7 @@ export function MetricLink({
     <Link
       to="/topics/$type/$slug"
       params={{ type: dataset.type.id, slug: topic }}
-      search={{ m: metric.id }}
+      state={{ topicFocus: metric.id }}
       title={full}
       className={cx(
         'hover:text-accent-600 dark:hover:text-accent-300 truncate hover:underline',
