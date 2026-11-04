@@ -4,9 +4,11 @@ import { decorative } from '@tanstack/charts/mark/decorative';
 import { Chart } from '@tanstack/charts/react';
 import { tooltip } from '@tanstack/charts/tooltip';
 import {
-  geoAlbersUsa,
   geoCentroid,
   geoEqualEarth,
+  geoIdentity,
+  type GeoIdentityTransform,
+  geoPath,
   type GeoProjection,
 } from 'd3-geo';
 import { scaleQuantile, scaleSequential } from 'd3-scale';
@@ -19,7 +21,14 @@ import {
 import type { Feature, FeatureCollection, Point } from 'geojson';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { type GeoKind, type PlaceFeature, useGeo } from './geo/useGeo';
+import {
+  type GeoKind,
+  isProjected,
+  type PlaceFeature,
+  usAtlasAlbers,
+  useGeo,
+} from './geo/useGeo';
+import { useNearViewport } from './useNearViewport';
 import { Spinner } from '~/components/feedback';
 import type { Dataset } from '~/data/dataset';
 import type { Polarity } from '~/data/types';
@@ -173,7 +182,10 @@ export function Choropleth({
 }: ChoroplethProps) {
   const type = dataset.type.id;
   const kind = GEO_FOR[type];
-  const geo = useGeo(kind);
+  // The geometry (up to 250 KB gzip) downloads once the map is about to scroll into view, so
+  // a map further down a page never holds up what is above it.
+  const placeholder = useRef<HTMLDivElement>(null);
+  const geo = useGeo(kind, useNearViewport(placeholder));
   const theme = useTheme();
   const colors = chartColors(theme);
   const isPoints = type === 'city' || type === 'world-city';
@@ -234,7 +246,11 @@ export function Choropleth({
     );
   if (geo.data == null) {
     return (
-      <div className="flex items-center justify-center" style={{ height }}>
+      <div
+        ref={placeholder}
+        className="flex items-center justify-center"
+        style={{ height }}
+      >
         <Spinner label="Loading map…" />
       </div>
     );
@@ -316,15 +332,21 @@ function sameElements<T>(a: ArrayLike<T>, b: ArrayLike<T>): boolean {
  * every feature (all 3,000 counties), and the map would otherwise refit on
  * every render, once per mark.
  */
-const fittedProjections = new WeakMap<object, Map<string, GeoProjection>>();
+const fittedProjections = new WeakMap<
+  object,
+  Map<string, GeoProjection | GeoIdentityTransform>
+>();
 
-/** Projection fitted to the plot area: the globe for world maps, the drawn features for US maps. */
+/**
+ * Projection fitted to the plot area: the globe for world maps; for US maps, whose shapes come
+ * already projected (see `isProjected`), a scale and offset that fit the drawn features.
+ */
 function projectionFor(kind: GeoKind, fitTo: FeatureCollection) {
   return ({
     chart,
   }: {
     chart: { x: number; y: number; width: number; height: number };
-  }): GeoProjection => {
+  }): GeoProjection | GeoIdentityTransform => {
     const key = `${kind}:${chart.x},${chart.y},${chart.width},${chart.height}`;
     let byExtent = fittedProjections.get(fitTo);
     if (byExtent == null) {
@@ -341,25 +363,28 @@ function projectionFor(kind: GeoKind, fitTo: FeatureCollection) {
       [chart.x + inset, chart.y + inset],
       [chart.x + chart.width - inset, chart.y + chart.height - inset],
     ];
-    const projection =
-      kind === 'world'
-        ? geoEqualEarth().fitExtent(extent, { type: 'Sphere' })
-        : geoAlbersUsa().fitExtent(extent, fitTo);
+    const projection = isProjected(kind)
+      ? geoIdentity().fitExtent(extent, fitTo)
+      : geoEqualEarth().fitExtent(extent, { type: 'Sphere' });
     byExtent.set(key, projection);
     return projection;
   };
 }
 
 /**
- * Longitude/latitude centroid per feature, computed once. geoShape otherwise
- * recomputes the spherical centroid of every shape on every render to place
- * its hover point.
+ * Centroid per feature, computed once, in the coordinates the map's projection takes:
+ * longitude/latitude for the world, the plane for already projected US shapes. geoShape
+ * otherwise recomputes the centroid of every shape on every render to place its hover point.
  */
 const centroids = new WeakMap<object, readonly [number, number]>();
+const planar = geoPath();
 function centroidOf(f: Feature): readonly [number, number] {
   let c = centroids.get(f);
   if (c == null) {
-    c = geoCentroid(f);
+    c =
+      (f as PlaceFeature).projected === true
+        ? planar.centroid(f)
+        : geoCentroid(f);
     centroids.set(f, c);
   }
   return c;
@@ -497,9 +522,15 @@ function PointChart({
     dataset.entities.forEach((e, i) => {
       if (e.lat == null || e.lng == null) return;
       if (valueOf(i) == null) return;
+      // On already projected US shapes, a dot goes where the shapes' projection puts it
+      // (nowhere outside the lower 48, Alaska and Hawaii).
+      const at = isProjected(kind)
+        ? usAtlasAlbers([e.lng, e.lat])
+        : [e.lng, e.lat];
+      if (at == null) return;
       pts.push({
         type: 'Feature',
-        geometry: { type: 'Point', coordinates: [e.lng, e.lat] },
+        geometry: { type: 'Point', coordinates: [at[0], at[1]] },
         properties: { name: e.name },
         key: e.id,
         idx: i,
