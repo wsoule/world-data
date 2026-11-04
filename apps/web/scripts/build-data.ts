@@ -32,6 +32,7 @@ import type {
   ValuesFile,
 } from '../src/data/types';
 import { toSearchCatalog } from '../src/features/search/searchCatalog';
+import { buildHomeMaps } from './build-home-maps';
 import { buildStories } from './build-stories';
 import { parseInlineData, parseIslands } from './lib/astro';
 import {
@@ -1365,6 +1366,7 @@ async function main(): Promise<void> {
   );
 
   console.log(`${await buildStories(OUT)} data stories`);
+  console.log(`${await buildHomeMaps(OUT)} home maps`);
 
   console.log('\nwarnings:');
   for (const [k, w] of [...warnings].sort((a, b) => b[1].count - a[1].count)) {

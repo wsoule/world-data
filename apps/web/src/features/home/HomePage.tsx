@@ -3,6 +3,7 @@ import { Link } from '@tanstack/react-router';
 import { ArrowRight, ChevronRight, Search } from 'lucide-react';
 import { type ReactNode, useMemo } from 'react';
 
+import { HomeMaps } from './HomeMaps';
 import { POPULAR_TOPICS } from './presets';
 import { TYPE_ICONS } from '~/components/TypeTabs';
 import { Badge, cx } from '~/components/ui';
@@ -55,6 +56,13 @@ export function HomePage() {
   return (
     <div className="space-y-16 pb-4">
       <Hero places={totals.places} metrics={totals.metrics} />
+
+      <Section
+        title="Maps"
+        subtitle="Where things are highest and lowest. Open a map for the full ranking."
+      >
+        <HomeMaps />
+      </Section>
 
       <Section
         title="What goes with what"

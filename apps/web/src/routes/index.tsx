@@ -1,6 +1,11 @@
 import { createFileRoute } from '@tanstack/react-router';
 
-import { storiesIndexQuery, topicsIndexQuery } from '~/data/api';
+import {
+  homeMapsQuery,
+  mapShapesQuery,
+  storiesIndexQuery,
+  topicsIndexQuery,
+} from '~/data/api';
 import { HomePage } from '~/features/home/HomePage';
 import { pageHead, publisher } from '~/lib/seo';
 import { SITE } from '~/site';
@@ -11,6 +16,9 @@ export const Route = createFileRoute('/')({
     await Promise.all([
       context.queryClient.ensureQueryData(topicsIndexQuery),
       context.queryClient.ensureQueryData(storiesIndexQuery),
+      context.queryClient.ensureQueryData(homeMapsQuery),
+      context.queryClient.ensureQueryData(mapShapesQuery('us-states')),
+      context.queryClient.ensureQueryData(mapShapesQuery('world')),
     ]);
   },
   head: () =>
