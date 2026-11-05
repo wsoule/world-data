@@ -14,27 +14,32 @@ import {
   TrustSection,
   type TrustSectionInfo,
 } from './TrustLayout';
-import { SITE } from '~/site';
+import { ANALYTICS_TOKEN, SITE } from '~/site';
+
+const FLAG_HOSTS = THIRD_PARTY_HOSTS.filter((h) => h.analytics !== true);
 
 const SECTIONS = {
   short: { id: 'in-short', title: 'In short' },
   browser: { id: 'your-browser', title: 'What stays in your browser' },
   hosting: { id: 'hosting', title: 'What the hosting providers see' },
+  analytics: { id: 'analytics', title: 'Visit counts' },
   flags: { id: 'flag-images', title: 'Flag images' },
   links: { id: 'links', title: 'Links to other sites' },
   changes: { id: 'changes', title: 'Changes and questions' },
 } satisfies Record<string, TrustSectionInfo>;
 
 /**
- * /privacy: no accounts, cookies or trackers; the browser-storage keys and outside hosts the
- * code uses (from privacy.ts, checked against the code by a test); and what the host and CDN
- * process.
+ * /privacy: no accounts, cookies or ad trackers; the browser-storage keys and outside hosts the
+ * code uses (from privacy.ts, checked against the code by a test); what the host and CDN
+ * process; and, when the build turns them on, the cookieless Cloudflare visit counts.
  */
 export function PrivacyPage() {
   return (
     <TrustLayout
       id="privacy"
-      sections={Object.values(SECTIONS)}
+      sections={Object.values(SECTIONS).filter(
+        (s) => s !== SECTIONS.analytics || ANALYTICS_TOKEN != null
+      )}
       lede={
         <p>
           {SITE.name} is a static site: pages and data files, with nothing to
@@ -50,11 +55,20 @@ export function PrivacyPage() {
             what you type in the search box is not sent anywhere.
           </li>
           <li>The site sets no cookies.</li>
-          <li>
-            There are no analytics, advertising or tracking scripts. Pages,
-            scripts, styles and data files all come from {SITE.name}’s own
-            address; the one exception is flag images, described below.
-          </li>
+          {ANALYTICS_TOKEN != null ? (
+            <li>
+              There are no advertising or tracking scripts. One small script
+              counts visits without cookies or identifying you, described below.
+              Everything else comes from {SITE.name}’s own address, apart from
+              flag images.
+            </li>
+          ) : (
+            <li>
+              There are no analytics, advertising or tracking scripts. Pages,
+              scripts, styles and data files all come from {SITE.name}’s own
+              address; the one exception is flag images, described below.
+            </li>
+          )}
           <li>
             Your choices in a comparison (places, statistics, weights) live in
             the page address, so they are only shared when you share the link.
@@ -113,14 +127,32 @@ export function PrivacyPage() {
         </p>
       </TrustSection>
 
+      {ANALYTICS_TOKEN != null ? (
+        <TrustSection section={SECTIONS.analytics}>
+          <p>
+            To see which pages are useful and how people find them, the site
+            loads{' '}
+            <OutLink href="https://www.cloudflare.com/web-analytics/">
+              Cloudflare Web Analytics
+            </OutLink>{' '}
+            from <code className="text-sm">static.cloudflareinsights.com</code>.
+            It sets no cookies, keeps nothing in your browser and does not
+            follow you across sites. It reports the page you viewed, the site
+            that linked you here, your browser and device type, your country and
+            how fast the page loaded. {SITE.name} sees only totals, never
+            individual visitors.
+          </p>
+        </TrustSection>
+      ) : null}
+
       <TrustSection section={SECTIONS.flags}>
-        {THIRD_PARTY_HOSTS.map((h) => (
+        {FLAG_HOSTS.map((h) => (
           <p key={h.host}>
             Pages that list places show small flag images, which your browser
             loads from <code className="text-sm">{h.host}</code>, an outside
             image service. Like any web server, it receives your IP address and
             the image requested, and at most {SITE.name}’s address as the page
-            that asked for it, not which page you were on. Nothing else is
+            that asked for it, not which page you were on. No other image is
             loaded from another site.
           </p>
         ))}

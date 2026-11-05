@@ -8,7 +8,8 @@
 # Canonical URLs, Open Graph tags and the sitemap are baked in at build time
 # from VITE_SITE_URL (a Railway service variable or --build-arg). When it is
 # unset, Railway's generated domain is used if there is one, and otherwise
-# https://rankodex.com (src/site-url.ts).
+# https://rankodex.com (src/site-url.ts). VITE_CF_ANALYTICS_TOKEN, also a
+# build-time variable, turns on the Cloudflare Web Analytics beacon (src/site.ts).
 #
 # Base images are the official Docker Hub images pulled through Google's
 # mirror, because Docker Hub rate-limits shared build machines (429s).
@@ -39,6 +40,7 @@ COPY apps/web apps/web
 # stats:build, then web:build (vite build prerenders every page and writes
 # sitemap.xml; seo-files.ts adds robots.txt, llms.txt, 404.html and CSVs).
 ARG VITE_SITE_URL
+ARG VITE_CF_ANALYTICS_TOKEN
 ARG RAILWAY_PUBLIC_DOMAIN
 RUN cd packages/stats && pnpm exec tsdown --clean
 RUN if [ -z "$VITE_SITE_URL" ] && [ -n "$RAILWAY_PUBLIC_DOMAIN" ]; then \

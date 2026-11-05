@@ -10,11 +10,19 @@ export interface ThirdPartyHost {
   what: string;
   /** Source file under apps/web/src that builds the URL */
   file: string;
+  /** Loaded only when the build turns analytics on (VITE_CF_ANALYTICS_TOKEN) */
+  analytics?: true;
 }
 
 /** Every outside host the site's pages load files from (not plain links). */
 export const THIRD_PARTY_HOSTS: readonly ThirdPartyHost[] = [
   { host: 'flagcdn.com', what: 'flag images', file: 'components/Flag.tsx' },
+  {
+    host: 'static.cloudflareinsights.com',
+    what: 'the Cloudflare Web Analytics script',
+    file: 'components/AnalyticsBeacon.tsx',
+    analytics: true,
+  },
 ];
 
 export interface StoredItem {

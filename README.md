@@ -141,6 +141,11 @@ deprecated). It deploys the repository's default branch, so merge this work into
    when the container starts, so it takes effect with the next deploy. Set it
    only once the custom domain serves the site, or the redirect points at a host
    that does not answer yet.
+7. Optional: for visit counts, add the site under Cloudflare, Analytics & Logs,
+   Web Analytics, choosing the manual JavaScript snippet (not automatic
+   injection, which would count every view twice). Set its 32-character token as
+   the `VITE_CF_ANALYTICS_TOKEN` variable and redeploy. The beacon is
+   cookieless, and the privacy page describes it only when the token is set.
 
 The CLI equivalent of steps 1-3 is `railway init`, `railway up` (which uploads
 this checkout, without GitHub autodeploys) and `railway domain`; set the

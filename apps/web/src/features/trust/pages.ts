@@ -75,7 +75,7 @@ export const TRUST_PAGES: readonly TrustPageInfo[] = [
     heading: 'Privacy',
     label: 'Privacy',
     description:
-      'Rankodex has no accounts, cookies, analytics or ad trackers. What your browser keeps on your device, and what the hosting providers process when you visit.',
+      'Rankodex has no accounts, cookies or ad trackers. What your browser keeps on your device, and what the hosting providers process when you visit.',
     schemaType: 'WebPage',
   },
   {

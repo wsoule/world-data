@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { type ReactNode, Suspense } from 'react';
 
+import { AnalyticsBeacon } from '~/components/AnalyticsBeacon';
 import { BrandMark } from '~/components/BrandMark';
 import {
   NavigationProgress,
@@ -99,6 +100,7 @@ function RootDocument({ children }: { children: ReactNode }) {
       <body>
         {children}
         <Scripts />
+        <AnalyticsBeacon />
       </body>
     </html>
   );

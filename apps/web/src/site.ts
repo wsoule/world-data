@@ -17,6 +17,20 @@ export const SITE = {
   sourceUrl: 'https://worldpopulationreview.com',
 } as const;
 
+/**
+ * Cloudflare Web Analytics site token from VITE_CF_ANALYTICS_TOKEN at build time, or null when
+ * unset (no beacon is loaded and the privacy page says there are no analytics). Cloudflare's
+ * tokens are 32 hex characters; anything else is ignored rather than shipped into a script tag.
+ */
+export const ANALYTICS_TOKEN: string | null = analyticsToken(
+  import.meta.env.VITE_CF_ANALYTICS_TOKEN
+);
+
+function analyticsToken(raw: string | undefined): string | null {
+  const token = raw?.trim() ?? '';
+  return /^[0-9a-f]{32}$/i.test(token) ? token : null;
+}
+
 /** Absolute URL for a site path ("/topics/…" → "https://…/topics/…"). */
 export function absoluteUrl(path: string): string {
   return `${SITE_URL}${path.startsWith('/') ? path : `/${path}`}`;
