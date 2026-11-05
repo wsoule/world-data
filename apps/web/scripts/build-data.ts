@@ -55,7 +55,7 @@ import {
   type RowEntity,
 } from './lib/entities';
 import type { ExternalPage } from './lib/external';
-import { METRIC_FIXES } from './lib/metric-fixes';
+import { applyYearFixes, METRIC_FIXES } from './lib/metric-fixes';
 import {
   lastUpdated,
   type PageLink,
@@ -64,6 +64,7 @@ import {
   stripYear,
 } from './lib/page';
 import { CATEGORY_LABELS, guessPolarity } from './lib/reference';
+import { isBreak, outlierYears, rankFlips, yearSteps } from './lib/year-scale';
 import { sourcePages } from './sources';
 
 const SITE = 'https://worldpopulationreview.com';
@@ -234,6 +235,19 @@ function warn(kind: string, detail: string): void {
   w.count++;
   if (w.examples.length < 5) w.examples.push(detail);
   warnings.set(kind, w);
+}
+
+/**
+ * Checks on the data itself (year-scale breaks, rank flips) and every hand fix applied to it,
+ * by kind. Unlike warnings, the build log lists each one, since each may need a look at the
+ * source page.
+ */
+const checks = new Map<string, string[]>();
+
+function check(kind: string, detail: string): void {
+  const list = checks.get(kind) ?? [];
+  list.push(detail);
+  checks.set(kind, list);
 }
 
 const readPage = async (file: string): Promise<string> =>
@@ -753,9 +767,15 @@ const BUILD_YEAR = new Date().getUTCFullYear();
  *   newest year covering at least 15% of the best year (and 5 places) wins
  *   instead, so a decades-old series does not: Potato Production opens on
  *   2025's 13 surveyed states, not 2018's 49;
- * - an undated column covering 1.5× as many places beats the dated choice.
+ * - an undated column covering 1.5× as many places beats the dated choice;
+ * - a year whose values jump more than fivefold against both neighbours
+ *   (`outliers`, see outlierYears in lib/year-scale.ts) never counts.
  */
-function defaultYear(m: MetricAcc, kind: MetricKind): number | null {
+function defaultYear(
+  m: MetricAcc,
+  kind: MetricKind,
+  outliers: ReadonlySet<number> = new Set()
+): number | null {
   const coverageOf = (key: YearKey): number => {
     let n = 0;
     for (const v of m.years.get(key)?.values() ?? [])
@@ -763,7 +783,7 @@ function defaultYear(m: MetricAcc, kind: MetricKind): number | null {
     return n;
   };
   const all = [...m.years.keys()]
-    .filter((y): y is number => y !== '_')
+    .filter((y): y is number => y !== '_' && !outliers.has(y))
     .sort((a, b) => a - b);
   const current = all.filter((y) => y <= BUILD_YEAR);
   const years = current.length > 0 ? current : all;
@@ -986,7 +1006,14 @@ async function writeType(
   for (const m of D.metrics.values()) {
     const kind = kindOf(m);
     if (kind == null) continue;
-    const year = defaultYear(m, kind);
+    const steps = kind === 'num' ? yearSteps(m.years) : [];
+    const outliers = outlierYears(steps);
+    for (const y of outliers)
+      check(
+        'outlier-year',
+        `${T.id}:${m.id} ${m.key} ${y}: never the default year`
+      );
+    const year = defaultYear(m, kind, outliers);
     const store = m.years.get(year ?? '_');
     if (store == null) continue;
     const label =
@@ -1052,6 +1079,21 @@ async function writeType(
       );
     const sourceFmt = ranks ? 'ranking' : m.fmt;
     const fmt = fix?.fmt ?? outputFormat(sourceFmt);
+    // Year-scale and rank-order checks (lib/year-scale.ts): reported, never corrected here.
+    if (fmt === 'ranking') {
+      for (const f of rankFlips(m.years))
+        check(
+          'rank-order-flips',
+          `${T.id}:${m.id} "${label}" ${f.from} vs ${f.to}: Spearman ${f.rho.toFixed(2)}${f.firstToLast.length > 0 ? `, 1st in one year and in the bottom tenth of the other: ${f.firstToLast.join(', ')}` : ''}`
+        );
+    } else {
+      for (const s of steps)
+        if (isBreak(s))
+          check(
+            'year-scale-break',
+            `${T.id}:${m.id} "${label}" ${s.from}→${s.to} ×${s.ratio.toPrecision(3)} (${s.pairs > 0 ? `${s.pairs} places` : 'medians'})`
+          );
+    }
     const entry: Metric = {
       id: m.id,
       key: m.key,
@@ -1319,6 +1361,16 @@ async function main(): Promise<void> {
   console.log(`${external.length} topics from other sources`);
   const countries = db.get('country-rankings');
   if (countries != null) await mergeCountryIndex(countries);
+  // Hand fixes to whole years (METRIC_FIXES dropYears, scaleYears, swapYears), applied to each
+  // metric as merged over all pages and to every topic's copy of it.
+  for (const [prefix, D] of db) {
+    const merged = new Map([...D.metrics].map(([id, m]) => [id, m.years]));
+    for (const line of applyYearFixes(TYPES[prefix].id, [
+      merged,
+      ...D.topics.map((t) => t.series),
+    ]))
+      check('metric-fix', line);
+  }
 
   await rm(OUT, { recursive: true, force: true });
   await mkdir(OUT, { recursive: true });
@@ -1354,6 +1406,11 @@ async function main(): Promise<void> {
 
   console.log(`${await buildStories(OUT)} data stories`);
   console.log(`${await buildHomeMaps(OUT)} home maps`);
+
+  for (const [kind, list] of checks) {
+    console.log(`\n${kind}: ${list.length}`);
+    for (const line of list) console.log(`  ${line}`);
+  }
 
   console.log('\nwarnings:');
   for (const [k, w] of [...warnings].sort((a, b) => b[1].count - a[1].count)) {

@@ -3,6 +3,7 @@
 // against them (test/catalog-polarity.test.ts).
 
 import type { Polarity } from '../../src/data/types';
+import { round } from './clean';
 
 /** A correction to one metric's catalog entry; each field set wins over the build's own. */
 export interface MetricFix {
@@ -10,7 +11,19 @@ export interface MetricFix {
   unit?: string;
   fmt?: string;
   pol?: Polarity;
+  /**
+   * Years left out: columns that hold another measure under the metric's header (a Census of
+   * Agriculture count in an annual crop series, a growth rate in a production series).
+   */
+  dropYears?: readonly number[];
+  /** Years the source stores in another scale; their values are multiplied by `by`. */
+  scaleYears?: readonly { years: readonly number[]; by: number }[];
+  /** Years in which this metric's cells and metric `with`'s were stored under each other's header. */
+  swapYears?: { with: number; years: readonly number[] };
 }
+
+/** A metric's cells by year (or '_'), keyed by place id, as the data build accumulates them. */
+export type FixableSeries = Map<number | '_', Map<string, number | string>>;
 
 /**
  * The category scores of the State Integrity Investigation (Center for Public Integrity, 2015),
@@ -122,6 +135,138 @@ export const POLARITY: readonly (readonly [string, Polarity, string])[] = [
 ];
 
 /**
+ * The Census of Agriculture years (1997, 2002, 2007, 2012, 2017, 2022) in USDA NASS annual crop
+ * series, where the source put a census count of another kind under the survey's header:
+ * tobacco reads Kentucky 108.2M lbs (2021), 990,864 (2022) and 85.1M (2023), sorghum Kansas
+ * 265.2M bushels (2021), 42.1M (2022) and 169M (2023). Every census year dips 2 to 1,000 times
+ * against both neighbours. Hay, maple syrup and dry peas have no census value in 1997.
+ */
+const CENSUS_YEARS = [1997, 2002, 2007, 2012, 2017, 2022];
+
+/** The years from `from` to `to`, inclusive. */
+function yearRange(from: number, to: number): number[] {
+  return Array.from({ length: to - from + 1 }, (_, i) => from + i);
+}
+const NASS_SERIES: readonly (readonly [number, readonly number[]])[] = [
+  [13550, CENSUS_YEARS], // tobacco
+  [13556, CENSUS_YEARS.slice(1)], // hay
+  [21582, CENSUS_YEARS], // corn
+  [13543, CENSUS_YEARS], // soybeans
+  [13564, CENSUS_YEARS], // sorghum
+  [13561, CENSUS_YEARS], // sunflower
+  [13565, CENSUS_YEARS.slice(1)], // dry edible peas
+  [13548, CENSUS_YEARS], // sugarbeets
+  [13547, CENSUS_YEARS], // wheat
+  [13534, CENSUS_YEARS.slice(1)], // maple syrup
+  [13536, CENSUS_YEARS], // peanuts
+  [13541, CENSUS_YEARS], // rice
+];
+
+/**
+ * Years stored in another unit or holding another measure, found by the build's year-scale
+ * check (scripts/lib/year-scale.ts) and checked against the source page, whose table carries
+ * the same values:
+ */
+const YEAR_FIXES: Readonly<Record<string, MetricFix>> = {
+  // Transparency International scored 0-10 until 2011 (Denmark 9.3 in 2010, 91 in 2015).
+  'country:21700': {
+    scaleYears: [{ years: [1995, 2000, 2005, 2010], by: 10 }],
+  },
+  // 2021 in TWh (United States 3,979), later years in kWh (4.13 trillion in 2022).
+  'country:15724': { scaleYears: [{ years: [2021], by: 1e9 }] },
+  // Pharma employment: 2021-22 a million times too large (Germany 132,660,000,000 in 2022,
+  // 132,660 in 2023); market sales: 2022 in billions (US 631.5, then 631,500,000,000).
+  'country:14497': { scaleYears: [{ years: [2021, 2022], by: 1e-6 }] },
+  'country:14495': { scaleYears: [{ years: [2022], by: 1e9 }] },
+  // NATO defence spending: 2019 in millions (US 750,886; 770.65 billion in 2020).
+  'country:20065': { scaleYears: [{ years: [2019], by: 1e6 }] },
+  // Oil exports and consumption in thousand barrels a day before 2020 and 2023 (US exports
+  // 2,982 in 2019, 3,206,000 in 2020; US consumption 20,280 in 2022, 19,013,800 in 2023).
+  'country:12315': {
+    scaleYears: [{ years: [2003, 2008, 2013, 2018, 2019], by: 1000 }],
+  },
+  'country:15718': { scaleYears: [{ years: [2022], by: 1000 }] },
+  // Chromium ore: 2020-21 in thousand tonnes (South Africa 18,000; 19.7 million t in 2023).
+  'country:22095': { scaleYears: [{ years: [2020, 2021], by: 1000 }] },
+  // Share of emissions under a carbon tax: 2023 as a fraction (Sweden 0.4, 40 in 2026).
+  'country:22834': { scaleYears: [{ years: [2023], by: 100 }] },
+  // Natural gas in m³: 2020-23 hold cubic feet (US 30.6 trillion; × 0.0283168 = 866 billion m³,
+  // in line with 2024's 902 billion), and 2018-19 are shifted a row (the UK holds the US's
+  // 822 billion). The EJ column holds billion m³ for 2018-20 (US 822).
+  'country:23417': {
+    dropYears: [2018, 2019],
+    scaleYears: [{ years: [2020, 2021, 2022, 2023], by: 0.0283168 }],
+  },
+  'country:18712': { dropYears: [2018, 2019, 2020] },
+  // The 2020 Heritage column holds Fraser's 0-10 index (US 8.22; Heritage 72.1 in 2022).
+  'country:17804': { dropYears: [2020] },
+  // UN gun homicide victims and rate were stored under each other's header in 2020-21 (US
+  // "rate" 13,620 and "victims" 4.01 in 2020).
+  'country:19700': { swapYears: { with: 19699, years: [2020, 2021] } },
+  // Suicide "rate" 2021 holds counts (US 25,319; 8.64 in 2022).
+  'country:19988': { dropYears: [2021] },
+  // 2024 holds output in TWh (China 10,086.9 "%"), not the share of world output.
+  'country:16901': { dropYears: [2024] },
+  // Electricity production 2024 holds a growth rate (Germany -3, US 2.7), and the 10-year
+  // growth rate's 2024 the share of world output (China 32.3, US 14.8).
+  'country:11800': { dropYears: [2024] },
+  'country:23938': { dropYears: [2024] },
+  // Renewable generation by other sources in TWh: 2021 holds consumption in EJ (US 8.32, as
+  // the EJ column's 7.96 in 2020; 71.5 TWh in 2022).
+  'country:18367': { dropYears: [2021] },
+  // US News "Power Score" 2023 holds the power ranks (US 1, China 2; scores 100 and 95.8 in
+  // 2024).
+  'country:19633': { dropYears: [2023] },
+  // Coal consumption: the column is in exajoules, and 2024-25 are (China 92.16 EJ); 2020-23
+  // hold tonnes (China 5,243,651,000).
+  'country:18093': { dropYears: [2020, 2021, 2022, 2023] },
+  // Coal reserves 2025 lists 14 mining countries with another mineral's figures (Chile 180M).
+  'country:18553': { dropYears: [2025] },
+  // Renewable consumption in EJ: 2021 holds the renewable share in % (DR Congo 96.3) and 2025
+  // another, smaller series (US 0.88 EJ against 9.21 in 2023).
+  'country:18368': { dropYears: [2021, 2025] },
+  // NATO spending per person 2023 holds another measure (US 14.34, $2,100 in 2022).
+  'country:19266': { dropYears: [2023] },
+  // Organ transplants per million: deceased kidney 2024 and living liver 2023 hold another
+  // donor type's rates (Spain kidney 68.5 in 2023, 27.71 in 2024).
+  'country:22534': { dropYears: [2024] },
+  'country:22535': { dropYears: [2023] },
+  // Gini by state: 2021 on a 0-100 scale (California 48.7; 0.49 in 2024).
+  'state:8091': { scaleYears: [{ years: [2021], by: 0.01 }] },
+  // Cigarette state sales tax per pack: 2026 in dollars (California $0.90, which with the $2.87
+  // excise makes the page's $3.77 total), 2025 the sales tax rate (8.25%).
+  'state:20384': { dropYears: [2025], fmt: 'moneyWithCurrencyCents' },
+  // FAA air carrier and commuter enplanements were stored under each other's header in
+  // 2019-23 (Georgia "commuters" 48.9M in 2019; air carrier 51.2M in 2024).
+  'state:15616': {
+    swapYears: { with: 15617, years: [2019, 2020, 2021, 2022, 2023] },
+  },
+  // Road quality rank: 2026 counts from the worst roads (New Mexico 1st, Indiana 50th, the
+  // order of the page's 2026 bad-roads score 25495), 2022-23 from the best (California 47th).
+  'state:11272': { dropYears: [2026] },
+  // Household diversity rank: 2025 matches the household diversity rank on the most diverse
+  // states page (Spearman 0.995; Nevada 1st), 2023 matches nothing (-0.16; Nevada 45th).
+  'state:9068': { dropYears: [2023] },
+  // Sweet corn and tomato acres: the 2012 census column holds a count of another kind
+  // (California 142 acres of sweet corn, 22,300 in 2022).
+  'state:25414': { dropYears: [2012] },
+  'state:25427': { dropYears: [2012] },
+  // NASS dairy series hold one month's output from 1990 on (Wisconsin's cheese 315M lbs in
+  // 2024), but whole years before it (1.87 billion lbs in 1987), and milk again in 1924-29 and
+  // 1982 (twelve to fourteen times the neighbouring years).
+  'state:13524': { dropYears: yearRange(1970, 1989) },
+  'state:13569': { dropYears: yearRange(1970, 1989) },
+  'state:13568': { dropYears: [1990] },
+  'state:13535': { dropYears: [1924, 1925, 1926, 1927, 1928, 1929, 1982] },
+  ...Object.fromEntries(
+    NASS_SERIES.map(([id, years]): [string, MetricFix] => [
+      `state:${id}`,
+      { dropYears: years },
+    ])
+  ),
+};
+
+/**
  * Hand corrections for source columns whose header, format or direction is wrong, keyed
  * "<type>:<metric id>":
  * - 20363 is keyed "…PctOfMammalSpeciesAtRisk" but titled as the fish column, 23920 is keyed
@@ -161,6 +306,7 @@ export const METRIC_FIXES: Readonly<Record<string, MetricFix>> = withPolarity({
   'state:25495': { label: 'Poor Roads Score' },
   // A 1-3 grade under a rank format (Australia, the US and China 3).
   'country:16059': { fmt: 'numberWithCommas', pol: 0 },
+  ...YEAR_FIXES,
   ...Object.fromEntries(
     STATE_INTEGRITY_SCORES.map((id): [string, MetricFix] => [
       `state:${id}`,
@@ -176,4 +322,82 @@ function withPolarity(
   const out = { ...fixes };
   for (const [key, pol] of POLARITY) out[key] = { ...out[key], pol };
   return out;
+}
+
+/**
+ * Applies the year fixes (dropYears, scaleYears, swapYears) of one entity type to every copy of
+ * each fixed metric's series. `containers` map metric ids to series: one for each metric as
+ * accumulated over all pages, and one per topic. A swap applies only where a container holds
+ * both metrics. Returns one line per fix for the build log, so no change is silent.
+ */
+export function applyYearFixes(
+  type: string,
+  containers: readonly Map<number, FixableSeries>[],
+  fixes: Readonly<Record<string, MetricFix>> = METRIC_FIXES
+): string[] {
+  const log: string[] = [];
+  for (const [key, fix] of Object.entries(fixes)) {
+    const [t, idText = ''] = key.split(':');
+    if (t !== type) continue;
+    if (
+      fix.dropYears == null &&
+      fix.scaleYears == null &&
+      fix.swapYears == null
+    )
+      continue;
+    const id = Number(idText);
+    let dropped = 0;
+    let scaled = 0;
+    let swapped = 0;
+    for (const c of containers) {
+      const series = c.get(id);
+      if (series == null) continue;
+      for (const year of fix.dropYears ?? []) {
+        dropped += series.get(year)?.size ?? 0;
+        series.delete(year);
+      }
+      for (const { years, by } of fix.scaleYears ?? []) {
+        for (const year of years) {
+          const store = series.get(year);
+          if (store == null) continue;
+          for (const [place, v] of store) {
+            if (typeof v !== 'number') continue;
+            store.set(place, round(v * by));
+            scaled++;
+          }
+        }
+      }
+      const other =
+        fix.swapYears == null ? undefined : c.get(fix.swapYears.with);
+      if (fix.swapYears == null || other == null) continue;
+      for (const year of fix.swapYears.years) {
+        const mine = series.get(year);
+        const theirs = other.get(year);
+        series.delete(year);
+        other.delete(year);
+        if (theirs != null) series.set(year, theirs);
+        if (mine != null) other.set(year, mine);
+        swapped += (mine?.size ?? 0) + (theirs?.size ?? 0);
+      }
+    }
+    const done: string[] = [];
+    if (dropped > 0)
+      done.push(`dropped ${fix.dropYears?.join(', ')} (${dropped} cells)`);
+    if (scaled > 0) {
+      const what = (fix.scaleYears ?? [])
+        .map((s) => `${s.years.join(', ')} by ${s.by}`)
+        .join('; ');
+      done.push(`scaled ${what} (${scaled} cells)`);
+    }
+    if (swapped > 0) {
+      const years = fix.swapYears?.years.join(', ') ?? '';
+      done.push(
+        `swapped ${years} with ${fix.swapYears?.with} (${swapped} cells)`
+      );
+    }
+    log.push(
+      `${key}: ${done.length > 0 ? done.join('; ') : 'matched no cells'}`
+    );
+  }
+  return log;
 }

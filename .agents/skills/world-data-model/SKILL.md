@@ -155,6 +155,13 @@ What the build decides for each metric (`scripts/build-data.ts`, rules in
   collapsed. `METRIC_FIXES` holds hand corrections for wrong headers/formats.
 - A count column that copies another column of the same year (fractions
   included) is dropped for that year (`copiedCountFields`).
+- Years (`scripts/lib/year-scale.ts`): the build log lists every step between
+  consecutive years that changes values more than fivefold (`year-scale-break`)
+  and every rank column whose order turns over (`rank-order-flips`). It only
+  reports: corrections are `METRIC_FIXES` entries (`dropYears`, `scaleYears`,
+  `swapYears`), each checked against the source page and logged as `metric-fix`.
+  A year that jumps against both neighbours is never the default year. NASS crop
+  series drop their Census of Agriculture years.
 - A metric with no values on a topic is left off that topic, and a topic with no
   metric left is not published.
 - Other sources: `scripts/sources/*` download into `.cache/sources/` (run by
