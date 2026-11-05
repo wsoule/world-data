@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import {
-  applyYearFixes,
+  applySeriesFixes,
   type FixableSeries,
   METRIC_FIXES,
 } from '../scripts/lib/metric-fixes';
@@ -96,7 +96,7 @@ describe('rankFlips', () => {
   });
 });
 
-describe('applyYearFixes', () => {
+describe('applySeriesFixes', () => {
   test('drops, rescales and swaps years in every copy of a metric', () => {
     const merged = new Map([
       [1, series({ 2010: { A: 9.3 }, 2015: { A: 91 } })],
@@ -104,7 +104,7 @@ describe('applyYearFixes', () => {
       [3, series({ 2020: { A: 4.01 }, 2022: { A: 17106 } })],
     ]);
     const topic = new Map([[1, series({ 2010: { A: 9.3 } })]]);
-    const log = applyYearFixes('t', [merged, topic], {
+    const log = applySeriesFixes('t', [merged, topic], {
       't:1': { scaleYears: [{ years: [2010], by: 10 }] },
       't:2': { swapYears: { with: 3, years: [2020] }, dropYears: [2022] },
     });

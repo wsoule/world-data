@@ -20,6 +20,11 @@ export interface MetricFix {
   scaleYears?: readonly { years: readonly number[]; by: number }[];
   /** Years in which this metric's cells and metric `with`'s were stored under each other's header. */
   swapYears?: { with: number; years: readonly number[] };
+  /**
+   * Places whose cells are wrong, checked against a twin column or the source (see
+   * scripts/lib/cross-check.ts): left out in every year, or only in the years given.
+   */
+  dropCells?: readonly (string | { id: string; years: readonly number[] })[];
 }
 
 /** A metric's cells by year (or '_'), keyed by place id, as the data build accumulates them. */
@@ -267,6 +272,49 @@ const YEAR_FIXES: Readonly<Record<string, MetricFix>> = {
 };
 
 /**
+ * Single bad cells, found by the build's cross-checks (scripts/lib/cross-check.ts: a cell far
+ * from its twin column where the rest agree, a row copied onto another place's) and checked
+ * against the source page, which carries the same values:
+ */
+const CELL_FIXES: Readonly<Record<string, MetricFix>> = {
+  // Mississippi's median household income on the housing shortage page: $34,203, against the
+  // Census's $56,447; the other 50 places agree within 7%.
+  'state:24419': { dropCells: ['MS'] },
+  // Average temperature: eight states repeat another state's row in all 47 years (Georgia =
+  // Florida, Ohio = North Dakota, New York = New Mexico = New Jersey, Vermont = Utah, Minnesota
+  // = Michigan, Wyoming = Wisconsin, Kentucky = Kansas). The copy is the one far from NOAA's
+  // 1991-2020 normal (Georgia 71.4 °F against 64.2, Ohio 41.0 against 51.7).
+  'state:20530': {
+    dropCells: ['GA', 'OH', 'NY', 'NM', 'VT', 'MN', 'WY', 'KY'],
+  },
+  // Internet users a thousand and ten times too many (Liechtenstein 38,900,000; 38,900 on the
+  // countries-without-internet page).
+  'country:23787': { dropCells: ['LIE', 'BMU'] },
+  // Unintentional gun death rate: the US row holds another value and the US Virgin Islands
+  // the US's (0.19 and 0.51; IHME's 0.51 and 0.07).
+  'country:19990': { dropCells: ['USA', 'VIR'] },
+  // New York's precipitation on the wettest states page, 14.63 in (372 mm); 41.8 in elsewhere.
+  'state:20903': { dropCells: ['NY'] },
+  'state:20904': { dropCells: ['NY'] },
+  // Most-humid-states swaps Alabama's and Alaska's dew points (Alaska 54 °F, Alabama 26.5).
+  'state:20663': { dropCells: ['AL', 'AK'] },
+  // Alaska's land area on the forested states page, 39.0M acres (365.4M on the farmland page).
+  'state:22393': { dropCells: ['AK'] },
+  // Panama's 2025 GDP per person at PPP, $23,052: $41,369 in 2024 and $43,902 at the World Bank.
+  'country:23123': { dropCells: [{ id: 'PAN', years: [2025] }] },
+  // Vision loss among women and men in Bolivia, Bosnia and Barbados: 0.02-0.71%, against
+  // 9.5-13.5% of all people and about the same for both sexes everywhere else.
+  'country:24902': { dropCells: ['BOL', 'BIH', 'BRB'] },
+  'country:24903': { dropCells: ['BOL', 'BIH', 'BRB'] },
+  // Mains voltage: Hong Kong uses 220 V (120 on the mains electricity page) and Indonesia
+  // 230 V (110 on the voltage page).
+  'country:12688': { dropCells: ['HKG'] },
+  'country:23598': { dropCells: ['IDN'] },
+  // Utah has five national parks (one on the camping page).
+  'state:15452': { dropCells: ['UT'] },
+};
+
+/**
  * Hand corrections for source columns whose header, format or direction is wrong, keyed
  * "<type>:<metric id>":
  * - 20363 is keyed "…PctOfMammalSpeciesAtRisk" but titled as the fish column, 23920 is keyed
@@ -307,6 +355,7 @@ export const METRIC_FIXES: Readonly<Record<string, MetricFix>> = withPolarity({
   // A 1-3 grade under a rank format (Australia, the US and China 3).
   'country:16059': { fmt: 'numberWithCommas', pol: 0 },
   ...YEAR_FIXES,
+  ...CELL_FIXES,
   ...Object.fromEntries(
     STATE_INTEGRITY_SCORES.map((id): [string, MetricFix] => [
       `state:${id}`,
@@ -325,12 +374,13 @@ function withPolarity(
 }
 
 /**
- * Applies the year fixes (dropYears, scaleYears, swapYears) of one entity type to every copy of
- * each fixed metric's series. `containers` map metric ids to series: one for each metric as
- * accumulated over all pages, and one per topic. A swap applies only where a container holds
- * both metrics. Returns one line per fix for the build log, so no change is silent.
+ * Applies the series fixes (dropYears, scaleYears, swapYears, dropCells) of one entity type to
+ * every copy of each fixed metric's series. `containers` map metric ids to series: one for each
+ * metric as accumulated over all pages, and one per topic. A swap applies only where a
+ * container holds both metrics. Returns one line per fix for the build log, so no change is
+ * silent.
  */
-export function applyYearFixes(
+export function applySeriesFixes(
   type: string,
   containers: readonly Map<number, FixableSeries>[],
   fixes: Readonly<Record<string, MetricFix>> = METRIC_FIXES
@@ -342,16 +392,26 @@ export function applyYearFixes(
     if (
       fix.dropYears == null &&
       fix.scaleYears == null &&
-      fix.swapYears == null
+      fix.swapYears == null &&
+      fix.dropCells == null
     )
       continue;
     const id = Number(idText);
     let dropped = 0;
     let scaled = 0;
     let swapped = 0;
+    let cells = 0;
     for (const c of containers) {
       const series = c.get(id);
       if (series == null) continue;
+      for (const drop of fix.dropCells ?? []) {
+        const place = typeof drop === 'string' ? drop : drop.id;
+        for (const [year, store] of series) {
+          if (typeof drop !== 'string' && !drop.years.some((y) => y === year))
+            continue;
+          if (store.delete(place)) cells++;
+        }
+      }
       for (const year of fix.dropYears ?? []) {
         dropped += series.get(year)?.size ?? 0;
         series.delete(year);
@@ -381,6 +441,14 @@ export function applyYearFixes(
       }
     }
     const done: string[] = [];
+    if (cells > 0) {
+      const what = (fix.dropCells ?? [])
+        .map((d) =>
+          typeof d === 'string' ? d : `${d.id} ${d.years.join(', ')}`
+        )
+        .join(', ');
+      done.push(`dropped cells of ${what} (${cells} cells)`);
+    }
     if (dropped > 0)
       done.push(`dropped ${fix.dropYears?.join(', ')} (${dropped} cells)`);
     if (scaled > 0) {

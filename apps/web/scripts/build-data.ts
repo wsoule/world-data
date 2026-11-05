@@ -45,6 +45,7 @@ import {
   toText,
 } from './lib/clean';
 import { copiedCountFields, looksLikeRanks } from './lib/columns';
+import { copiedRows, twinOutliers, TWINS } from './lib/cross-check';
 import {
   baseAttributes,
   type BaseAttributes,
@@ -55,7 +56,7 @@ import {
   type RowEntity,
 } from './lib/entities';
 import type { ExternalPage } from './lib/external';
-import { applyYearFixes, METRIC_FIXES } from './lib/metric-fixes';
+import { applySeriesFixes, METRIC_FIXES } from './lib/metric-fixes';
 import {
   lastUpdated,
   type PageLink,
@@ -1003,6 +1004,8 @@ async function writeType(
   const withValues = topicsWithValues(D.topics);
   const metricsOut: Metric[] = [];
   const values: ValuesFile['metrics'] = [];
+  // Default-year numbers by place id, for the twin check below.
+  const defaults = new Map<number, Map<string, number>>();
   for (const m of D.metrics.values()) {
     const kind = kindOf(m);
     if (kind == null) continue;
@@ -1031,6 +1034,20 @@ async function writeType(
     }
     if (pairs.length === 0) continue;
     pairs.sort((a, b) => a[0] - b[0]);
+    if (kind === 'num') {
+      const byPlace = new Map<string, number>();
+      for (const [eid, v] of store)
+        if (typeof v === 'number' && index.has(eid)) byPlace.set(eid, v);
+      defaults.set(m.id, byPlace);
+      // A row copied onto another place's (every year identical) is a source error; the
+      // other sources' metro-wide figures are shared by design.
+      if (m.id < 900_000)
+        for (const group of copiedRows(m.years))
+          check(
+            'copied-rows',
+            `${T.id}:${m.id} ${m.key}: ${group.join(' = ')} in all ${m.years.size} years`
+          );
+    }
 
     // Primary topic: the page whose title best matches the metric (dedicated
     // "…-by-country" pages over listicles), then the one covering the most
@@ -1136,6 +1153,19 @@ async function writeType(
     metricsOut.push(entry);
     if (kind !== 'text')
       values.push([m.id, pairs.map((p) => p[0]), pairs.map((p) => p[1])]);
+  }
+
+  // Cells that disagree with a twin column that otherwise agrees (lib/cross-check.ts).
+  for (const [type, a, b] of TWINS) {
+    if (type !== T.id) continue;
+    const va = defaults.get(a);
+    const vb = defaults.get(b);
+    const report = va == null || vb == null ? null : twinOutliers(va, vb);
+    for (const [place, x, y] of report?.cells ?? [])
+      check(
+        'twin-cell',
+        `${T.id}:${a} ~ ${b} ${place}: ${x} vs ${y} (${Math.round((report?.agree ?? 0) * 100)}% of ${report?.shared} places agree)`
+      );
   }
 
   for (const b of baseMetricDefs(T.id)) {
@@ -1361,11 +1391,11 @@ async function main(): Promise<void> {
   console.log(`${external.length} topics from other sources`);
   const countries = db.get('country-rankings');
   if (countries != null) await mergeCountryIndex(countries);
-  // Hand fixes to whole years (METRIC_FIXES dropYears, scaleYears, swapYears), applied to each
-  // metric as merged over all pages and to every topic's copy of it.
+  // Hand fixes to whole years and single cells (METRIC_FIXES dropYears, scaleYears, swapYears,
+  // dropCells), applied to each metric as merged over all pages and to every topic's copy of it.
   for (const [prefix, D] of db) {
     const merged = new Map([...D.metrics].map(([id, m]) => [id, m.years]));
-    for (const line of applyYearFixes(TYPES[prefix].id, [
+    for (const line of applySeriesFixes(TYPES[prefix].id, [
       merged,
       ...D.topics.map((t) => t.series),
     ]))

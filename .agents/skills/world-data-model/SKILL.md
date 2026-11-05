@@ -162,6 +162,12 @@ What the build decides for each metric (`scripts/build-data.ts`, rules in
   `swapYears`), each checked against the source page and logged as `metric-fix`.
   A year that jumps against both neighbours is never the default year. NASS crop
   series drop their Census of Agriculture years.
+- Cells (`scripts/lib/cross-check.ts`): the build log lists cells more than 25%
+  from a declared twin column (`TWINS`) that otherwise agrees within 7%
+  (`twin-cell`), and places whose rows are identical in 5+ years (`copied-rows`;
+  other sources' metro-wide values are skipped, and EU tariffs, UN assessment
+  floors and the federal minimum wage are identical by rule). A bad cell is
+  dropped with a `METRIC_FIXES` `dropCells` entry.
 - A metric with no values on a topic is left off that topic, and a topic with no
   metric left is not published.
 - Other sources: `scripts/sources/*` download into `.cache/sources/` (run by

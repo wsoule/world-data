@@ -169,7 +169,7 @@ describe('topicAnswers', () => {
       'Alaska has the lowest Average Temperature'
     );
     expect(hot.summary).toStartWith(
-      'Florida and Georgia tie for the highest Average Temperature'
+      'Florida has the highest Average Temperature'
     );
     expect(cold.description).not.toBe(hot.description);
   });
