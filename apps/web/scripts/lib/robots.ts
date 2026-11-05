@@ -40,10 +40,12 @@ export const CATEGORY_QUERY_PREFIXES: readonly string[] = [
  * and the category hubs' place-type variants. Every page links to some of
  * those states (tens of thousands of distinct URLs), and all of them name the
  * bare path as canonical (/compare and /vs are the same empty shell). The bare
- * paths stay crawlable so crawlers can read their "noindex, follow".
+ * paths stay crawlable so crawlers can read their "noindex, follow": that
+ * includes /search itself, which every footer links, so only its query states
+ * ("/search?q=…") are blocked.
  */
 export const DISALLOWED: readonly string[] = [
-  '/search',
+  '/search?',
   '/compare?',
   '/vs?',
   ...CATEGORY_QUERY_PREFIXES,
@@ -52,38 +54,34 @@ export const DISALLOWED: readonly string[] = [
 /**
  * Topic pages with a query string ("?m=…" focuses another metric, "?year=…"
  * another year), which name the bare topic URL as canonical. The pattern needs
- * the "*" wildcard, so it only goes to the groups of crawlers documented to
- * support it: Googlebot, which has no group of its own and reads "*", and
- * Bingbot.
+ * the "*" wildcard, which RFC 9309 standardised and Google, Bing and the AI
+ * crawlers that document their rules support. A crawler that does not reads
+ * it as a literal prefix that no URL starts with, so there it blocks nothing,
+ * and every group can carry it.
  */
 export const WILDCARD_DISALLOWED = ['/topics/*?'] as const;
 
-/** User-agent groups that get WILDCARD_DISALLOWED. */
-const WILDCARD_GROUPS: ReadonlySet<string> = new Set(['*', 'Bingbot']);
-
-/** The rule lines of a user agent's robots.txt group, in file order. */
-export function robotsRules(agent = '*'): string[] {
+/** The rule lines every robots.txt group carries, in file order. */
+export function robotsRules(): string[] {
   return [
     ...DISALLOWED.map((p) => `Disallow: ${p}`),
-    ...(WILDCARD_GROUPS.has(agent)
-      ? WILDCARD_DISALLOWED.map((p) => `Disallow: ${p}`)
-      : []),
+    ...WILDCARD_DISALLOWED.map((p) => `Disallow: ${p}`),
     'Allow: /',
   ];
 }
 
 /**
- * robots.txt: every crawler is welcome everywhere except DISALLOWED (and
- * WILDCARD_DISALLOWED where supported), the named crawlers each get the same
- * rules in their own group (a crawler with a group of its own ignores "*"),
- * and the file ends with the sitemap. Disallow lines come before "Allow: /" so
- * a crawler that takes the first matching rule, rather than the longest one
- * as RFC 9309 says, still skips them.
+ * robots.txt: every crawler is welcome everywhere except DISALLOWED and
+ * WILDCARD_DISALLOWED, the named crawlers each get the same rules in their own
+ * group (a crawler with a group of its own ignores "*"), and the file ends
+ * with the sitemap. Disallow lines come before "Allow: /" so a crawler that
+ * takes the first matching rule, rather than the longest one as RFC 9309
+ * says, still skips them.
  */
 export function robotsTxt(siteUrl: string): string {
   const group = (agent: string): string[] => [
     `User-agent: ${agent}`,
-    ...robotsRules(agent),
+    ...robotsRules(),
     '',
   ];
   return [

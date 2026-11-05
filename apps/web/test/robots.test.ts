@@ -77,7 +77,6 @@ describe('robotsTxt', () => {
   test('keeps every crawler out of search and the tools’ query-string states', () => {
     for (const [agent, rules] of byAgent) {
       for (const path of [
-        '/search',
         '/search?q=gdp',
         '/compare?type=state&m=1,2',
         '/vs?type=country&e=usa,can',
@@ -85,8 +84,10 @@ describe('robotsTxt', () => {
         expect(`${agent} ${path} ${allowed(rules, path)}`).toBe(
           `${agent} ${path} false`
         );
+      // The bare shells stay crawlable, so crawlers can read their "noindex, follow".
       for (const path of [
         '/',
+        '/search',
         '/compare',
         '/vs',
         '/topics/state/coldest-states',
@@ -119,22 +120,28 @@ describe('robotsTxt', () => {
     }
   });
 
-  test('blocks topic query strings only for crawlers with wildcard support', () => {
+  test('blocks topic query strings for every crawler', () => {
     const focus = '/topics/state/coldest-states?m=12610';
-    expect(allowed(byAgent.get('*') ?? [], focus)).toBe(false);
-    expect(allowed(byAgent.get('Bingbot') ?? [], focus)).toBe(false);
-    expect(allowed(byAgent.get('GPTBot') ?? [], focus)).toBe(true);
-    expect(
-      allowed(byAgent.get('*') ?? [], '/topics/state/coldest-states')
-    ).toBe(true);
+    for (const [agent, rules] of byAgent) {
+      expect(`${agent} ${allowed(rules, focus)}`).toBe(`${agent} false`);
+      expect(`${agent} ${allowed(rules, '/topics/state/coldest-states')}`).toBe(
+        `${agent} true`
+      );
+    }
   });
 
   test('works for crawlers that take the first matching rule', () => {
     for (const rules of byAgent.values()) {
       expect(allowedFirstMatch(rules, '/compare?m=1')).toBe(false);
       expect(allowedFirstMatch(rules, '/vs?e=usa')).toBe(false);
+      expect(allowedFirstMatch(rules, '/search?q=gdp')).toBe(false);
+      expect(allowedFirstMatch(rules, '/search')).toBe(true);
       expect(allowedFirstMatch(rules, '/topics/state/x')).toBe(true);
     }
+  });
+
+  test('every group carries the same rules', () => {
+    for (const rules of byAgent.values()) expect(rules).toEqual(robotsRules());
   });
 });
 
