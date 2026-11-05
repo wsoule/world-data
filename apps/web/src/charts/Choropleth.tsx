@@ -4,8 +4,6 @@ import { decorative } from '@tanstack/charts/mark/decorative';
 import { Chart } from '@tanstack/charts/react';
 import { tooltip } from '@tanstack/charts/tooltip';
 import {
-  geoCentroid,
-  geoEqualEarth,
   geoIdentity,
   type GeoIdentityTransform,
   geoPath,
@@ -23,9 +21,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   type GeoKind,
-  isProjected,
+  geoPlaneOf,
   type PlaceFeature,
-  usAtlasAlbers,
   useGeo,
 } from './geo/useGeo';
 import { useNearViewport } from './useNearViewport';
@@ -338,10 +335,12 @@ const fittedProjections = new WeakMap<
 >();
 
 /**
- * Projection fitted to the plot area: the globe for world maps; for US maps, whose shapes come
- * already projected (see `isProjected`), a scale and offset that fit the drawn features.
+ * Projection fitted to the plot area. Every geography's shapes come already projected (see
+ * `isProjected`), so it is a scale and offset (geoIdentity) that fits `fitTo` into the area:
+ * the drawn US features, or for the world the projected sphere (`geoPlaneOf().frame`), so the
+ * world map frames the globe as it did when the browser projected it.
  */
-function projectionFor(kind: GeoKind, fitTo: FeatureCollection) {
+function projectionFor(kind: GeoKind, fitTo: Feature | FeatureCollection) {
   return ({
     chart,
   }: {
@@ -363,28 +362,22 @@ function projectionFor(kind: GeoKind, fitTo: FeatureCollection) {
       [chart.x + inset, chart.y + inset],
       [chart.x + chart.width - inset, chart.y + chart.height - inset],
     ];
-    const projection = isProjected(kind)
-      ? geoIdentity().fitExtent(extent, fitTo)
-      : geoEqualEarth().fitExtent(extent, { type: 'Sphere' });
+    const projection = geoIdentity().fitExtent(extent, fitTo);
     byExtent.set(key, projection);
     return projection;
   };
 }
 
 /**
- * Centroid per feature, computed once, in the coordinates the map's projection takes:
- * longitude/latitude for the world, the plane for already projected US shapes. geoShape
- * otherwise recomputes the centroid of every shape on every render to place its hover point.
+ * Centroid per feature on the plane its shapes are drawn on, computed once: geoShape otherwise
+ * recomputes the centroid of every shape on every render to place its hover point.
  */
 const centroids = new WeakMap<object, readonly [number, number]>();
 const planar = geoPath();
 function centroidOf(f: Feature): readonly [number, number] {
   let c = centroids.get(f);
   if (c == null) {
-    c =
-      (f as PlaceFeature).projected === true
-        ? planar.centroid(f)
-        : geoCentroid(f);
+    c = planar.centroid(f);
     centroids.set(f, c);
   }
   return c;
@@ -426,8 +419,9 @@ function RegionChart({
   join,
 }: ChartPartProps & { join: Map<string, number> }) {
   const { drawable, collection } = useDrawable(features, kind, false);
+  const plane = geoPlaneOf(features);
   const definition = useMemo(() => {
-    const projection = projectionFor(kind, collection);
+    const projection = projectionFor(kind, plane.frame ?? collection);
     const entityIdOf = (f: PlaceFeature): string => {
       const i = f.joinKey ? join.get(f.joinKey) : undefined;
       return i != null ? dataset.entities[i].id : '';
@@ -516,17 +510,16 @@ function PointChart({
   onSelect,
 }: ChartPartProps) {
   const { drawable: base, collection } = useDrawable(features, kind, true);
+  const plane = geoPlaneOf(features);
   const definition = useMemo(() => {
-    const projection = projectionFor(kind, collection);
+    const projection = projectionFor(kind, plane.frame ?? collection);
     const pts: PointFeature[] = [];
     dataset.entities.forEach((e, i) => {
       if (e.lat == null || e.lng == null) return;
       if (valueOf(i) == null) return;
-      // On already projected US shapes, a dot goes where the shapes' projection puts it
-      // (nowhere outside the lower 48, Alaska and Hawaii).
-      const at = isProjected(kind)
-        ? usAtlasAlbers([e.lng, e.lat])
-        : [e.lng, e.lat];
+      // A dot goes where the shapes' projection puts it (on US maps, nowhere outside the
+      // lower 48, Alaska and Hawaii).
+      const at = plane.point(e.lng, e.lat);
       if (at == null) return;
       pts.push({
         type: 'Feature',

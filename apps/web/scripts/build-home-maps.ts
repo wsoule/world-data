@@ -1,16 +1,31 @@
 // Pre-draws the home page's maps. Shapes are projected once into compact SVG paths
 // (public/data/maps/shapes-<geo>.json) and each map stores only a colour band per place
 // (public/data/maps/home.json), so the home page renders eight maps as plain SVG on the server
-// without loading datasets or map libraries.
+// without loading datasets or map libraries. It also projects the world map every other page
+// draws (public/data/maps/world-equalearth.json, see src/charts/geo/worldPlane.ts).
+//
+// Run by scripts/build-data.ts, or alone with `bun scripts/build-home-maps.ts` from apps/web.
 
-import { geoAlbersUsa, geoNaturalEarth1, geoPath } from 'd3-geo';
+import {
+  geoAlbersUsa,
+  geoEqualEarth,
+  geoNaturalEarth1,
+  geoPath,
+  geoStream,
+} from 'd3-geo';
 import type { Feature, FeatureCollection, Geometry } from 'geojson';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { feature } from 'topojson-client';
 import type { GeometryCollection, Topology } from 'topojson-specification';
 
-import { ISO_NUMERIC_TO_A3 } from '../src/charts/geo/isoNumeric';
+import { ISO_NUMERIC_TO_A3, NAME_TO_A3 } from '../src/charts/geo/isoNumeric';
+import {
+  encodeRing,
+  WORLD_PLANE_PATH,
+  type WorldPlaneFeature,
+  type WorldPlaneFile,
+} from '../src/charts/geo/worldPlane';
 import type {
   CombinedMap,
   HomeMap,
@@ -128,6 +143,93 @@ async function shapes(geo: Geo): Promise<MapShapes> {
     if (d !== '') paths[f.properties.id] = d;
   }
   return { geo, width: w, height: h, paths };
+}
+
+/**
+ * Width of the projected world in file units: a unit stays under a pixel on the largest world
+ * map the site draws (about 830 px wide).
+ */
+const WORLD_PLANE_WIDTH = 800;
+
+/**
+ * The world map's shapes (world-atlas countries-50m) projected with geoEqualEarth, the
+ * projection Choropleth drew the world with in the browser, the sphere fitted to
+ * WORLD_PLANE_WIDTH. Each country goes through the projection's own stream, so d3's
+ * antimeridian clipping and adaptive resampling apply exactly as when the browser drew it, and
+ * the browser only scales the result to the plot area with the sphere's bounds (`frame`) in
+ * place of the globe. Points are rounded to whole units and repeats dropped; a country whose
+ * rings all shrink below a unit keeps one unit-sized triangle, so it can still be hovered.
+ */
+async function worldPlane(): Promise<WorldPlaneFile> {
+  const t = await topo<Topology<{ countries: GeometryCollection }>>(
+    'world-atlas/countries-50m.json'
+  );
+  const fc = feature(t, t.objects.countries) as FeatureCollection<
+    Geometry,
+    { name: string }
+  >;
+  const projection = geoEqualEarth().fitWidth(WORLD_PLANE_WIDTH, {
+    type: 'Sphere',
+  });
+  const [[x0, y0], [x1, y1]] = geoPath(projection).bounds({ type: 'Sphere' });
+  const round = (v: number) => Math.round(v * 1000) / 1000;
+  const features: WorldPlaneFeature[] = fc.features.map((f) => {
+    const polygons: number[][][] = [];
+    let rings: number[][] = [];
+    let ring: number[] | null = null;
+    // The first point streamed, for a country too small to keep a ring.
+    const seen: { first?: [number, number] } = {};
+    const sink = projection.stream({
+      point(x: number, y: number) {
+        if (ring == null) return;
+        const px = Math.round(x);
+        const py = Math.round(y);
+        seen.first ??= [px, py];
+        const n = ring.length;
+        if (n >= 2 && ring[n - 2] === px && ring[n - 1] === py) return;
+        ring.push(px, py);
+      },
+      lineStart() {
+        ring = [];
+      },
+      lineEnd() {
+        if (ring != null && ring.length >= 6) rings.push(encodeRing(ring));
+        ring = null;
+      },
+      polygonStart() {
+        rings = [];
+      },
+      polygonEnd() {
+        if (rings.length > 0) polygons.push(rings);
+        rings = [];
+      },
+      sphere() {},
+    });
+    geoStream(f, sink);
+    if (polygons.length === 0 && seen.first != null) {
+      const [px, py] = seen.first;
+      polygons.push([encodeRing([px, py, px + 1, py, px, py + 1])]);
+    }
+    const numeric = f.id == null ? null : String(f.id);
+    return {
+      id:
+        (numeric == null ? undefined : ISO_NUMERIC_TO_A3[numeric]) ??
+        NAME_TO_A3[f.properties.name] ??
+        null,
+      name: f.properties.name,
+      p: polygons,
+    };
+  });
+  const [tx, ty] = projection.translate();
+  return {
+    scale: round(projection.scale()),
+    translate: [round(tx), round(ty)],
+    frame: [
+      [round(x0), round(y0)],
+      [round(x1), round(y1)],
+    ],
+    features,
+  };
 }
 
 interface TypeData {
@@ -324,6 +426,10 @@ export async function buildHomeMaps(dataDir: string): Promise<number> {
       path.join(out, `shapes-${geo}.json`),
       JSON.stringify(await shapes(geo))
     );
+  await writeFile(
+    path.join(dataDir, WORLD_PLANE_PATH),
+    JSON.stringify(await worldPlane())
+  );
 
   const topicInfo = new Map(
     (
@@ -383,3 +489,6 @@ export async function buildHomeMaps(dataDir: string): Promise<number> {
   await writeFile(path.join(out, 'home.json'), JSON.stringify(file));
   return maps.length;
 }
+
+if (import.meta.main)
+  console.log(`${await buildHomeMaps(path.resolve('public/data'))} home maps`);

@@ -1,27 +1,100 @@
 import { queryOptions, useQuery } from '@tanstack/react-query';
-import { geoAlbersUsa } from 'd3-geo';
+import { geoAlbersUsa, geoEqualEarth } from 'd3-geo';
 import type { Feature, FeatureCollection, Geometry } from 'geojson';
 import { feature } from 'topojson-client';
 import type { GeometryCollection, Topology } from 'topojson-specification';
 
-import { ISO_NUMERIC_TO_A3, NAME_TO_A3 } from './isoNumeric';
+import {
+  decodeRing,
+  WORLD_PLANE_PATH,
+  type WorldPlaneFile,
+} from './worldPlane';
+import { getJson } from '~/data/api';
 import { importFresh } from '~/lib/staleChunks';
 
 export type GeoKind = 'world' | 'us-states' | 'us-counties';
 
 /**
- * Whether a geography's features come already projected to the plane: the US maps use us-atlas'
- * "albers" files, drawn through geoAlbersUsa at build time, so the browser only scales them
- * (geoIdentity) instead of clipping and resampling every county on the sphere, which was most
- * of the work of drawing a county map. The world map is still projected in the browser.
+ * Every geography's features come already projected to the plane, so the browser only scales
+ * them (geoIdentity) instead of clipping and resampling every shape on the sphere, which was
+ * most of the work of drawing a map: the US maps use us-atlas' "albers" files, drawn through
+ * geoAlbersUsa, and the world map the countries the data build projects through geoEqualEarth
+ * (worldPlane.ts).
  */
-export const isProjected = (kind: GeoKind): boolean => kind !== 'world';
+export const isProjected = (_kind: GeoKind): boolean => true;
 
 /**
  * The projection us-atlas' albers files were drawn with (a 975×610 viewport), for placing
  * longitude/latitude points such as city dots on those shapes.
  */
 export const usAtlasAlbers = geoAlbersUsa().scale(1300).translate([487.5, 305]);
+
+/** How a projected geography's coordinates relate to the map and to longitude/latitude. */
+export interface GeoPlane {
+  /** What the map fits to its plot area; null fits the drawn shapes themselves */
+  frame: Feature | null;
+  /** Places a longitude/latitude point on the shapes, null where the projection has none */
+  point: (lng: number, lat: number) => [number, number] | null;
+}
+
+const US_PLANE: GeoPlane = {
+  frame: null,
+  point: (lng, lat) => usAtlasAlbers([lng, lat]),
+};
+
+/** The plane of each loaded feature list (the world's comes with its file). */
+const planes = new WeakMap<readonly PlaceFeature[], GeoPlane>();
+
+/**
+ * The plane `features` (as useGeo returned them) are drawn on. The world map fits the bounds of
+ * the projected sphere, as it fitted the globe before, rather than its countries' bounds.
+ */
+export function geoPlaneOf(features: readonly PlaceFeature[]): GeoPlane {
+  return planes.get(features) ?? US_PLANE;
+}
+
+/** The world's features and plane from the projected file. */
+function worldFeatures(file: WorldPlaneFile): PlaceFeature[] {
+  const features = file.features.map((f, i): PlaceFeature => ({
+    type: 'Feature',
+    id: f.id ?? undefined,
+    properties: { name: f.name },
+    geometry: {
+      type: 'MultiPolygon',
+      coordinates: f.p.map((rings) => rings.map(decodeRing)),
+    },
+    joinKey: f.id,
+    key: `${f.id ?? 'x'}-${i}`,
+    projected: true,
+  }));
+  const [[x0, y0], [x1, y1]] = file.frame;
+  const projection = geoEqualEarth()
+    .scale(file.scale)
+    .translate(file.translate);
+  planes.set(features, {
+    frame: {
+      type: 'Feature',
+      properties: {},
+      geometry: {
+        type: 'Polygon',
+        coordinates: [
+          [
+            [x0, y0],
+            [x1, y0],
+            [x1, y1],
+            [x0, y1],
+            [x0, y0],
+          ],
+        ],
+      },
+    },
+    point: (lng, lat) => {
+      const at = projection([lng, lat]);
+      return at == null ? null : [at[0], at[1]];
+    },
+  });
+  return features;
+}
 
 export interface PlaceFeature extends Feature<Geometry, { name: string }> {
   /** Join key matching Entity.id (ISO3 for countries) or Entity.fips (states / counties) */
@@ -33,29 +106,8 @@ export interface PlaceFeature extends Feature<Geometry, { name: string }> {
 }
 
 async function load(kind: GeoKind): Promise<PlaceFeature[]> {
-  if (kind === 'world') {
-    const topo = (
-      await importFresh(() => import('world-atlas/countries-50m.json'))
-    ).default as unknown as Topology<{
-      countries: GeometryCollection<{ name: string }>;
-    }>;
-    const fc = feature(topo, topo.objects.countries) as FeatureCollection<
-      Geometry,
-      { name: string }
-    >;
-    return fc.features.map((f, i) => {
-      const id = f.id != null ? String(f.id) : null;
-      const joinKey =
-        (id == null ? undefined : ISO_NUMERIC_TO_A3[id]) ??
-        NAME_TO_A3[f.properties.name] ??
-        null;
-      return Object.assign(f, {
-        joinKey,
-        key: `${id ?? 'x'}-${i}`,
-        projected: false,
-      });
-    });
-  }
+  if (kind === 'world')
+    return worldFeatures(await getJson<WorldPlaneFile>(WORLD_PLANE_PATH));
   if (kind === 'us-states') {
     const topo = (
       await importFresh(() => import('us-atlas/states-albers-10m.json'))
