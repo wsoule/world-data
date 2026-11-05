@@ -142,9 +142,15 @@ What the build decides for each metric (`scripts/build-data.ts`, rules in
   is 1. Check the source order before adding to either list (worst-\* pages also
   carry best-first sub-ranks). Preferences, years and limits are neutral; taxes
   residents pay are -1, tax collections, shares, brackets and excise taxes are
-  neutral; costs are -1. Otherwise the label decides, then the key (minus
-  bookkeeping such as `_YearFree`), then the topic titles. Source abbreviations
-  ("Agrv", "Vacc.", "STD") are spelled out first.
+  neutral; costs are -1 (not in a score of them: "Healthcare Cost and Quality");
+  production is neutral. A label saying "higher/lower is better" wins over all
+  of these. Otherwise the label decides, then the key's column words (`splitKey`
+  drops the leading words that repeat the topic slug, and bookkeeping such as
+  `_YearFree`). The page's name (those leading words, the topic titles) decides
+  only for a label with no subject of its own ("Total Score", "Hourly"):
+  "Physically Inactive" on healthiest-states is -1. Source abbreviations
+  ("Agrv", "Vacc.", "STD") are spelled out first. Hand polarity fixes go in
+  `POLARITY` (metric-fixes.ts) with the source header they were checked against.
 - Labels: a capitalised word repeated by the source ("Annual Annual") is
   collapsed. `METRIC_FIXES` holds hand corrections for wrong headers/formats.
 - A count column that copies another column of the same year (fractions

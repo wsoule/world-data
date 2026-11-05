@@ -85,20 +85,20 @@ export const CATEGORY_LABELS: Record<string, string> = {
 // Words that usually mean "lower is better" / "higher is better" for a quality-of-life reading.
 // This only seeds the default direction in composite rankings; users can flip any metric.
 const LOWER =
-  /\b(crime|crimes|criminal|murder|homicide|violent|violence|theft|robbery|burglary|assault|rape|kidnap|terror|death|deaths|dead|died|mortality|fatal|fatality|fatalities|killed|suicide|overdose|poverty|poor|unemploy\w*|debt|deficit|inflation|pollution|polluted|emission|emissions|co2|carbon|smog|pm2\.?5|obes\w*|smok\w*|tobacco|alcoholism|drunk\w*|drug|opioid|disease|cancer|diabetes|hiv|aids|malaria|tuberculosis|infection|stress|depress\w*|anxiety|corruption|corrupt|inequality|gini|risk|danger\w*|dangerous|worst|unsafe|incarcerat\w*|prison|prisoners|inmates|eviction|homeless\w*|cost of living|rent burden|tax burden|commute|(?<!(?:global|web|site|website|internet|online) )traffic|congestion|accident|accidents|crash|crashes|injur\w*|abuse|fraud|scam|hate|unhealthy|bankrupt\w*|foreclosure|uninsured|stillbirth|underweight|stunting|malnutrition|hunger|starvation|undernourish\w*|illiteracy|dropout|fragile|fragility|misery|secrecy)\b/i;
+  /\b(crime|crimes|criminal|murders?|homicides?|violent|violence|thefts?|robbery|robberies|burglary|burglaries|assaults?|rapes?|kidnap\w*|terror|death|deaths|dead|died|mortality|fatal|fatality|fatalities|killed|suicides?|overdoses?|poverty|poor|unemploy\w*|debt|deficit|inflation|pollution|polluted|emission|emissions|co2|carbon|smog|pm2\.?5|obes\w*|smok\w*|tobacco|alcoholism|alcoholics?|drunk\w*|drink(?:ers|ing)(?! water)|binge\w*|inactiv\w*|insufficient sleep|drug|opioid|disease|cancer|melanoma|diabetes|hiv|aids|malaria|tuberculosis|infection|stress|depress\w*|anxiety|corruption|corrupt|inequality|gini|risk|danger\w*|dangerous|worst|unsafe|incarcerat\w*|prison|prisoners|inmates|eviction|homeless\w*|cost of living|rent burden|tax burden|commute|(?<!(?:global|web|site|website|internet|online) )traffic|congestion|accident|accidents|crash|crashes|injur\w*|abuse|fraud|scam|hate|unhealthy|bankrupt\w*|foreclosure|uninsured|stillbirth|underweight|stunting|malnutrition|hunger|starvation|undernourish\w*|illiteracy|dropout|fragile|fragility|misery|secrecy|rodents?|cockroach\w*|contaminants?|roughness|toxins?|footprint|unsheltered|armed conflict|bmi|overweight|mismanaged|microplastics?|criminality|discrimination|bias|incidence|incidents?|exposure|vulnerab\w*|suscept\w*|disparit(?:y|ies)|custody rate|larceny|stalking|dui|speeding|bad driving|excessive(?:ly)?|misuse|out-of-pocket|vandalism|litter\w*|insecurity|still ?births?|(?:cocaine|amphetamines?|cannabis|marijuana|heroin|meth(?:amphetamine)?|cigarette|alcohol|opioid|substance|drug) use)\b/i;
 const HIGHER =
-  /\b(gdp|income|wage|wages|salary|salaries|earnings|wealth|wealthiest|richest|happiness|happiest|happy|life expectancy|literacy|literate|education|educated|graduation|attainment|hdi|human development|freedom|free|democracy|peace|peaceful|safety|safest|safe|quality|best|innovation|competitiveness|prosperity|well-being|wellbeing|purchasing power|press freedom|internet speed|broadband|access|insured|vaccination|vaccinated|employment rate|labor force|productivity|patents|healthiest|cleanest|greenest|renewable|forest|biodiversity|tolerance|trust|satisfaction|longevity|iq|pisa|test scores)\b/i;
+  /\b(gdp|income|wage|wages|salary|salaries|earnings|wealth|wealthiest|richest|happiness|happiest|happy|life expectancy|literacy|literate|education|educated|graduation|attainment|hdi|human development|freedom|free|democracy|peace|peaceful|safety|safest|safe|quality|best|innovation|competitiveness|prosperity|well-being|wellbeing|purchasing power|press freedom|internet speed|broadband|access|insured|vaccin\w*|doses|immuni[sz]\w*|employment rate|labor force|productivity|patents|healthiest|cleanest|greenest|renewable|forest|biodiversity|tolerance|trust|satisfaction|longevity|iq|pisa|test scores|sheltered|resilience|participation|representation|inclusion|gni|gnp|net worth|patents?|physicians?|doctors?|nurses|dentists?|pharmacists?|midwi\w*|health ?care (?:exp )?index|health (?:security )?index|healthcare (?:index|score)|medical infrastructure|(?:college|bachelor'?s|graduate|professional|associate'?s|advanced) degrees?|diplomas?|sat (?:\w+ )?scores?|naep|clean|cleanliness|(?:coping|adaptive) capacit\w*|(?:monthly|weekly|hourly|annual|yearly|average|avg|median|mean|starting) pay)\b/i;
 
 // Phrases that invert the meaning of the word they precede ("never smoked", "less than high
 // school", "Absence of Corruption Score").
 const NEGATOR =
-  /\b(less than|without|lack of|lacking|absence of|no access|never|non[- ]?smok\w*)\b|-free\b/i;
+  /\b(less than|without|w\/out|lack of|lacking|absence of|no access|never|non[- ]?smok\w*)\b|-free\b|\banti-(?=\w)/i;
 
 // Columns with no better/worse reading regardless of the words above:
 // calendar years, age and speed limits, thresholds, and what people prefer
 // ("Favorite Season Is Summer", "Preferred Space between Strangers").
 const NEUTRAL =
-  /\b(min(imum)?|max(imum)?|legal|voting|drinking|driving)\s+age\b|\bage requirement\b|\bspeed limits?\b|^year\b|\byear (of|joined|admitted|founded|established|adopted|implemented|assessed|measured|granted)\b|\b(join|founding|independence) year\b|\bnumber of seasons\b|^poverty (wage|guidelines?|thresholds?)\b|\bfavou?rite\b|\bprefer(red|s)?\b|\bfor felony\b/i;
+  /\b(min(imum)?|max(imum)?|legal|voting|drinking|driving)\s+age\b|\bage requirement\b|\bspeed limits?\b|\b(?:dui|bac|blood alcohol|legal) limits?\b|^year\b|\byear (of|joined|admitted|founded|established|adopted|implemented|assessed|measured|granted)\b|\b(join|founding|independence) year\b|\bnumber of seasons\b|^poverty (wage|guidelines?|thresholds?)\b|\bfavou?rite\b|\bprefer(red|s)?\b|\bfor felony\b/i;
 
 // Named indexes whose direction their publisher defines, whatever the words in their names
 // suggest: the Global Peace Index gives the most peaceful country the lowest score (Iceland
@@ -109,14 +109,29 @@ const NEUTRAL =
 // 100 for the cleanest air), the SWAMP Index of state anti-corruption safeguards and the State
 // Integrity Investigation (Alaska 76, Michigan 51) score the better place higher. A change in
 // an index ("EPI 10-Year Change") is not the index and keeps the usual rules.
+//
+// So do the families of scores below, whose names the word lists misread: the Women's Danger
+// Index and its parts are higher where women are less safe (Norway's "WDI Street Safety" is 16,
+// Belgium's 63); every World Justice Project Rule of Law score, V-Dem democracy index and EIU
+// Democracy Index category is higher for the better place ("WJP RoLI Criminal Justice Score"
+// included); and International Living scores every category from the retiree's side, so its
+// "Cost of Living Score (IL)" is highest where living is cheapest (Sri Lanka 98, Ireland 60).
 const NAMED_INDEXES: readonly (readonly [RegExp, -1 | 1])[] = [
   [/\bglobal peace index\b/i, -1],
   [/\b(political rights|civil liberties) (freedom )?rating\b/i, -1],
   [/\bair quality index\b|\baqi\b/i, -1],
+  [/\bwomen'?s danger index\b|\bwdi\b/i, -1],
   [/\bcorruption perceptions? index\b/i, 1],
   [/\bepi\b|\benvironmental performance index\b/i, 1],
   [/\bswamp index\b/i, 1],
   [/\bstate integrity investigation\b/i, 1],
+  [/\bwjp\b|\bworld justice project\b/i, 1],
+  [/\bv-dem\b/i, 1],
+  [
+    /\beiu (democracy index|electoral process|function of g\w*|political (participation|culture)|civil liberties)\b/i,
+    1,
+  ],
+  [/\(il\)|\binternational living\b/i, 1],
 ];
 
 /** Polarity of a named index (see NAMED_INDEXES), or null for any other label. */
@@ -128,9 +143,37 @@ function indexPolarity(label: string): -1 | 1 | null {
 
 // Money or effort spent: less is better for the person paying it.
 const COST =
-  /\bcosts?\b|\bprices?\b|\bfees?\b|\bspent on (groceries|food|rent|housing|transport|utilities|child ?care)\b|\bexpensive\b|\bbelow basic\b|\b(livable|living) wage\b/i;
-// Scores that fold cost into "how good is access", where higher is better.
-const ACCESS = /\bafford|\bavailability\b/i;
+  /\bcosts?\b|\bprices?\b|\bfees?\b|\bspent on (groceries|food|rent|housing|transport|utilities|child ?care)\b|\bexpensive\b|\bbelow basic\b|\b(livable|living)( hourly| annual)? wages?\b|\bcoli\b/i;
+// Scores that fold cost into "how good is access", where higher is better, and scores that
+// rate cost together with something else ("Healthcare Cost and Quality", a 0-100 score where
+// Hawaii has 100): the cost rule does not read those, the other rules do.
+const ACCESS =
+  /\bafford|\bavailability\b|\bquality\b|\bscores?\b|\bratings?\b/i;
+
+// What a place produces or harvests is neither better nor worse for it, whatever the crop:
+// "Tobacco Production" is not a health statistic.
+const PRODUCTION = /\b(production|harvested)\b/i;
+
+// A label that states its own direction: "Overall Score (Higher is Better)".
+const EXPLICIT = /\b(higher|lower)\s+(?:is|=)\s+better\b/i;
+
+// Labels with no subject of their own, only "the score" of the page's own ranking ("Total
+// Score", "Overall Score", "WH 2023 Total Score", "Score (out of 100)") or a period of its
+// measure ("Annual", "Hourly" on a salary page): they take their direction from the page's
+// name, which is all they say. A source abbreviation or a year in front is skipped.
+const SUBJECTLESS =
+  /^(?:(?:overall|total|weighted|final|composite|combined|average|avg|median|mean|annual|yearly|monthly|weekly|daily|hourly|score|index|rating|points|rate)\b\.?\s*)+(?:\([^)]*\)\s*)?$/i;
+
+/** True for a label with no subject of its own (see SUBJECTLESS). */
+function subjectless(label: string): boolean {
+  return SUBJECTLESS.test(
+    label.trim().replace(/^(?:(?:[A-Z]{2,5}|\d{4})\s+)+/, '')
+  );
+}
+
+// Context in a label that names a group, not the measure: "Varicella 2 Doses (No Disease
+// History)" is a vaccination rate among teens without a history of the disease.
+const CONTEXT = /\((?:no )?disease history\)/gi;
 
 // Taxes: rates, amounts and burdens that residents or firms pay are costs.
 const TAX = /\btax(es)?\b|\btaxed\b|\bcapital gains\b/i;
@@ -222,12 +265,22 @@ const BEST_FIRST =
 // Georgia (lack of laws) first, and the gun death rank of the strictest gun
 // laws page puts the highest gun death rates first (Alaska, Alabama and
 // Wyoming in the top five, Connecticut 45th).
+//
+// So do the water scarcity ranking (Bahrain, Cyprus and Kuwait first, Sierra Leone last) and
+// all four food waste ranks, whose page says "a ranking of 1 indicates the highest (least
+// desirable) level of food waste" (California, which wastes the most food, is 1st on Food
+// Wasted).
 const WORST_FIRST_KEYS = new Set([
   'FTECorruptionConvictionsTotal',
   'FTECorruptionConvictionsPerCapita',
   'FTEReporterRatings',
   'FTELackofLaws',
   'GunDeathRankByState',
+  'WaterScarcityRanking',
+  'FoodWasteOverallRank',
+  'FoodWasteFoodWastedRank',
+  'FoodWasteWastedInsteadofRepurposedRank',
+  'FoodWasteMitigationEffortsRank',
 ]);
 
 /** Matches labels that name a rank position ("Fishing Rank", "Men's ODI Ranking"). */
@@ -265,17 +318,43 @@ function wordPolarity(text: string): -1 | 0 | 1 {
 }
 
 /**
+ * A metric key split into the words that only repeat the name of its page and the words that
+ * name the column: "HealthiestStatesPhysicallyInactive" on healthiest-states is page
+ * "Healthiest States", column "Physically Inactive". The page part is the leading key words
+ * found in any of the metric's topic slugs.
+ */
+export function splitKey(
+  key: string,
+  topics: readonly string[]
+): { page: string; column: string } {
+  const words = keyText(key).split(' ');
+  const slugWords = new Set(topics.flatMap((s) => s.toLowerCase().split('-')));
+  let i = 0;
+  while (i < words.length && slugWords.has((words[i] ?? '').toLowerCase())) i++;
+  return {
+    page: words.slice(0, i).join(' '),
+    column: words.slice(i).join(' '),
+  };
+}
+
+/**
  * Guesses whether a higher value reads as better (1), worse (-1) or neither
- * (0). Rank columns read as positions (see rankPolarity); calendar years,
- * limits and preferences are neutral; named indexes read as their publisher
- * defines them (see NAMED_INDEXES); taxes paid, costs and prices are
- * lower-is-better. Otherwise the label is matched against the word lists,
- * then the key (whose leading words often name the page rather than the
- * column), then the topic titles.
+ * (0). A label that says "higher is better" or "lower is better" wins. Rank
+ * columns read as positions (see rankPolarity); calendar years, limits and
+ * preferences are neutral; named indexes read as their publisher defines them
+ * (see NAMED_INDEXES); taxes paid, costs and prices are lower-is-better.
+ * Otherwise the label is matched against the word lists, then the column part
+ * of the key (see splitKey).
+ *
+ * The page's name (the leading words of the key, the topic titles) decides
+ * only for a label that is nothing but the page's score ("Total Score"): a
+ * column of a "Healthiest States" page is not healthier when it is higher
+ * ("Physically Inactive"), nor one of "Most Dangerous Countries for Women"
+ * more dangerous ("Parliamentary Representation of Women").
  *
  * A negator in the label ("% with Less Than High School Diploma") flips a
- * label or topic match, which names the same subject (education). It does
- * not flip a key match: keys name the negated measure itself
+ * label or page match, which names the same subject (education). It does not
+ * flip a key match: keys name the negated measure itself
  * ("PovertyRatePctOnLessThan10USDPerDay", "NaturalDisasterRiskLackOf…").
  */
 export function guessPolarity(
@@ -284,6 +363,8 @@ export function guessPolarity(
   fmt: string | null,
   topics: readonly string[]
 ): -1 | 0 | 1 {
+  const explicit = EXPLICIT.exec(label);
+  if (explicit != null) return explicit[1]?.toLowerCase() === 'higher' ? 1 : -1;
   if (fmt === 'ranking' || RANK_LABEL.test(label))
     return rankPolarity(label, key);
   if (fmt === 'year' || NEUTRAL.test(label)) return 0;
@@ -292,13 +373,20 @@ export function guessPolarity(
   const tax = taxPolarity(label, key);
   if (tax != null) return tax;
   if (COST.test(label) && !ACCESS.test(label)) return -1;
+  if (PRODUCTION.test(label)) return 0;
   if (/\bspeeds?\b/i.test(label)) return 1;
   const negated = NEGATOR.test(label);
   const flip = (p: -1 | 1): -1 | 1 => (negated ? (p === 1 ? -1 : 1) : p);
-  const fromLabel = wordPolarity(expandAbbreviations(label));
+  const fromLabel = wordPolarity(
+    expandAbbreviations(label.replace(CONTEXT, ' '))
+  );
   if (fromLabel !== 0) return flip(fromLabel);
-  const fromKey = wordPolarity(keyText(key));
+  const { page, column } = splitKey(key, topics);
+  const fromKey = wordPolarity(column);
   if (fromKey !== 0) return fromKey;
+  if (!subjectless(label)) return 0;
+  const fromPage = wordPolarity(page);
+  if (fromPage !== 0) return flip(fromPage);
   const t = topics.join(' ').replace(/-/g, ' ');
   if (LOWER.test(t) && !HIGHER.test(t)) return flip(-1);
   if (HIGHER.test(t) && !LOWER.test(t)) return flip(1);

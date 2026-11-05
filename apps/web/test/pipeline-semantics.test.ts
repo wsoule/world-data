@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 
 import { collapseRepeatedWords } from '../scripts/lib/clean';
 import { copiedCountFields, looksLikeRanks } from '../scripts/lib/columns';
-import { guessPolarity, keyText } from '../scripts/lib/reference';
+import { guessPolarity, keyText, splitKey } from '../scripts/lib/reference';
 
 describe('looksLikeRanks', () => {
   const ranks = Array.from({ length: 50 }, (_, i) => i + 1);
@@ -282,5 +282,130 @@ describe('guessPolarity', () => {
 
   test('reads the gun death rank as worst first', () => {
     expect(pol('Gun Death Rank', 'GunDeathRankByState', 'ranking')).toBe(1);
+  });
+
+  test('does not read a column by the name of its page', () => {
+    // The key's leading words repeat the page's slug; the column is what follows.
+    expect(
+      pol('Physically Inactive', 'HealthiestStatesPhysicallyInactive', null, [
+        'healthiest-states',
+      ])
+    ).toBe(-1);
+    expect(
+      pol(
+        'Parliamentary Representation of Women',
+        'WPSWomensParliamentaryRepresentation',
+        null,
+        ['most-dangerous-countries-for-women']
+      )
+    ).toBe(1);
+    expect(
+      pol('Houses w/ Rodents', 'CleanestCitiesinUS_PctWithRodents', null, [
+        'cleanest-cities-in-the-us',
+      ])
+    ).toBe(-1);
+    expect(
+      pol('% Sheltered', 'HomelessPopulationShelteredPctOfTotal', null, [
+        'homeless-population-by-state',
+      ])
+    ).toBe(1);
+    // With no words of its own, a column is neither better nor worse...
+    expect(
+      pol(
+        'Maximum Weekly Benefits',
+        'UnemploymentBenefitsMaximumWeeklyBenefits',
+        null,
+        ['unemployment-benefits-by-state']
+      )
+    ).toBe(0);
+    expect(
+      pol(
+        'Total Air Passengers Carried',
+        'PassengerAirTrafficTotalPassengers',
+        null,
+        ['passenger-air-traffic-by-country']
+      )
+    ).toBe(0);
+    // ...unless it is only the page's own score or a period of its measure.
+    expect(
+      pol('Total Score', 'BestStatesforHikingTotalScore', null, [
+        'best-states-for-hiking',
+      ])
+    ).toBe(1);
+    expect(
+      pol('WH 2023 Total Score', 'GreenestWH2023TotalScore', null, [
+        'greenest-states',
+      ])
+    ).toBe(1);
+    expect(
+      pol('Total Score', 'WaterStressBaselineTotalScore', null, [
+        'water-stress-by-country',
+      ])
+    ).toBe(-1);
+    expect(
+      pol('Hourly', 'BCBASalaryHourly', null, ['bcba-salary-by-state'])
+    ).toBe(1);
+  });
+
+  test('lets a label state its own direction', () => {
+    expect(pol('Vulnerability Score (lower is better)')).toBe(-1);
+    expect(pol('Government Response (higher is better)')).toBe(1);
+    expect(pol('Overall Score (Higher is Better)')).toBe(1);
+  });
+
+  test('reads cost only in labels that are not a score of it', () => {
+    expect(pol('Healthcare Cost and Quality')).toBe(1);
+    expect(pol('Cost of Living Index (Numbeo)')).toBe(-1);
+    expect(pol('Livable Hourly Wage w/ 1 Child')).toBe(-1);
+    expect(pol('Livable Wage w/ No Children (Annual)')).toBe(-1);
+    expect(pol('COLI Overall Index')).toBe(-1);
+  });
+
+  test('reads score families as their publishers define them', () => {
+    expect(pol('WDI Street Safety')).toBe(-1);
+    expect(pol("Women's Danger Index (WDI) Total Score")).toBe(-1);
+    expect(pol('WJP RoLI Criminal Justice Score')).toBe(1);
+    expect(pol('WJP Rule of Law Index Overall Score')).toBe(1);
+    expect(pol('V-Dem LCI Score')).toBe(1);
+    expect(pol('EIU Electoral Process Score')).toBe(1);
+    expect(pol('Cost of Living Score (IL)')).toBe(1);
+  });
+
+  test('reads vaccination, production and negated words', () => {
+    expect(pol('Varicella 2 Doses (Disease History)')).toBe(1);
+    expect(pol('Varicella 2 Doses (No Disease History)')).toBe(1);
+    expect(pol('Tobacco Production')).toBe(0);
+    expect(pol('Tobacco Acres Harvested')).toBe(0);
+    expect(pol('Houses w/out Litter')).toBe(1);
+    expect(pol('GTI Anti-Discrimination Legislation')).toBe(1);
+    expect(pol('Absence of Legal Discrimination (0 to 100)')).toBe(1);
+    expect(pol('DUI Limit')).toBe(0);
+  });
+
+  test('reads the water scarcity and food waste ranks as worst first', () => {
+    expect(
+      pol('Water Scarcity Ranking', 'WaterScarcityRanking', 'ranking')
+    ).toBe(1);
+    expect(pol('Food Wasted Rank', 'FoodWasteFoodWastedRank', 'ranking')).toBe(
+      1
+    );
+  });
+});
+
+describe('splitKey', () => {
+  test("separates the page's name from the column", () => {
+    expect(
+      splitKey('HealthiestStatesPhysicallyInactive', ['healthiest-states'])
+    ).toEqual({ page: 'Healthiest States', column: 'Physically Inactive' });
+    expect(
+      splitKey('WPSWomensEmployment', ['most-dangerous-countries-for-women'])
+    ).toEqual({
+      page: '',
+      column: 'WPSWomens Employment',
+    });
+    expect(splitKey('RoadQualityScore', [])).toEqual({
+      page: '',
+      column: 'Road Quality Score',
+    });
   });
 });
