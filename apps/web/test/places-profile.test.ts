@@ -4,11 +4,14 @@ import { describe, expect, test } from 'bun:test';
 import type { Metric } from '../src/data/types';
 import { rankText } from '../src/features/places/percentile';
 import {
+  agencyOf,
   basisCoverage,
   categoryScores,
   coverageCut,
   dedupeKey,
   diversifyByTopic,
+  inBottomQuarter,
+  inTopQuarter,
   isPolar,
   largestPlacesShare,
   maxNotableTie,
@@ -22,6 +25,7 @@ import {
   similarityBasis,
   similarPlaces,
   sizeDrivenMetrics,
+  sourceNote,
   standingAt,
   strengthsAndWeaknesses,
   tracksPopulation,
@@ -502,5 +506,42 @@ describe('dedupeKey', () => {
   test('ignores label case and whitespace but not values', () => {
     expect(dedupeKey(' Income ', [1.5])).toBe(dedupeKey('income', [1.5]));
     expect(dedupeKey('Income', [1.5])).not.toBe(dedupeKey('Income', [1.6]));
+  });
+});
+
+describe('sourceNote', () => {
+  test('names the agency and year of an external statistic', () => {
+    expect(sourceNote({ id: 900_111, year: 2024 }, 'country')).toBe(
+      'World Bank 2024'
+    );
+    expect(sourceNote({ id: 900_603, year: 2024 }, 'state')).toBe(
+      'Census ACS 2020–2024'
+    );
+    expect(sourceNote({ id: 900_401, year: null }, 'state')).toBe(
+      'NOAA 1991–2020'
+    );
+    expect(sourceNote({ id: 900_501, year: 2025 }, 'county')).toBe('BLS 2025');
+    // Countries' price level is the World Bank's PPP ratio; states' is BEA's.
+    expect(agencyOf(900_001, 'country')).toBe('World Bank');
+    expect(agencyOf(900_001, 'state')).toBe('BEA');
+  });
+
+  test('credits World Population Review only with a known year', () => {
+    expect(sourceNote({ id: 18_642, year: 2024 }, 'country')).toBe(
+      'World Population Review 2024'
+    );
+    expect(sourceNote({ id: 18_642, year: null }, 'country')).toBeNull();
+    expect(sourceNote({ id: -1, year: null }, 'country')).toBeNull();
+  });
+});
+
+describe('inTopQuarter and inBottomQuarter', () => {
+  test('bound "ranks best" and "ranks lowest" to a quarter of the places', () => {
+    expect(inTopQuarter({ rank: 13, n: 50 })).toBe(true);
+    expect(inTopQuarter({ rank: 14, n: 50 })).toBe(false);
+    expect(inTopQuarter({ rank: 1, n: 2 })).toBe(true);
+    expect(inBottomQuarter({ rank: 38, n: 50 })).toBe(true);
+    expect(inBottomQuarter({ rank: 37, n: 50 })).toBe(false);
+    expect(inTopQuarter({ rank: 1028, n: 3093 })).toBe(false);
   });
 });

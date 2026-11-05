@@ -353,7 +353,9 @@ function ProfileHeader({
             <h1 className="truncate text-2xl font-semibold tracking-tight md:text-3xl">
               {entity.name}
             </h1>
-            <p className="text-muted mt-0.5 text-sm">
+            {/* A line, not a paragraph: the summary below is the page's first paragraph, its
+                dated, sourced answer. */}
+            <div className="text-muted mt-0.5 text-sm">
               {dataset.type.singular}
               {where.length > 0 ? ' in ' : ''}
               {where.map((part, k) => (
@@ -374,7 +376,7 @@ function ProfileHeader({
               ))}
               {' · '}
               ranked on {plural(metricCount, 'metric')}
-            </p>
+            </div>
           </div>
         </div>
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">

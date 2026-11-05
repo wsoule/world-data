@@ -2,12 +2,19 @@
 // AI answer engines. Computed in route loaders (on the server while
 // prerendering), so only these small objects are embedded in the HTML.
 
-import { isIndexablePlace, isIndexableTopic, topicCoverage } from './indexing';
+import {
+  canonicalTopicSlug,
+  isIndexablePlace,
+  isIndexableTopic,
+  topicCoverage,
+} from './indexing';
 import { topicAnswers } from './topic-content';
 import type { Dataset } from '~/data/dataset';
+import { EXTERNAL_ID_BASE } from '~/data/external';
 import { isRankColumn } from '~/data/rankOrder';
 import type {
   CategoryInfo,
+  Entity,
   EntityType,
   EntityTypeInfo,
   Metric,
@@ -18,16 +25,25 @@ import { rankText } from '~/features/places/percentile';
 import {
   byKeys,
   coverageCut,
+  inBottomQuarter,
+  inTopQuarter,
   isPolar,
+  type PlaceFact,
+  placeFacts,
   type PlaceMetric,
   placeStandings,
   qualifyingRows,
   rankableMetrics,
   sizeDrivenMetrics,
 } from '~/features/places/profileModel';
-import { leadMetric, openingYear } from '~/features/topic/headline';
+import {
+  contentWords,
+  labelMatch,
+  leadMetric,
+  openingYear,
+} from '~/features/topic/headline';
 import { seriesYears } from '~/features/topic/model';
-import { formatInt, ordinal, typeNoun } from '~/lib/format';
+import { formatInt, formatValue, ordinal, typeNoun } from '~/lib/format';
 import { breadcrumbs, faqPage, publisherRef } from '~/lib/seo';
 import { absoluteUrl, SITE } from '~/site';
 
@@ -467,7 +483,122 @@ const PLACE_TYPE: Record<EntityType, string> = {
   county: 'AdministrativeArea',
 };
 
-/** Summary, FAQ and Place markup for a place report card. */
+/**
+ * True when a metric is what its primary topic is about, so a place summary can quote it as a
+ * place's best or worst: an agency statistic (World Bank, Census, BLS…), or a column whose label
+ * repeats the title of its primary topic when that topic is canonical (not an alias). This keeps
+ * sub-columns out ("Life Expectancy" from the Happy Planet Index's 2021 table is not the life
+ * expectancy answer; the World Bank's is).
+ */
+export function isHeadlineMetric(
+  ds: Pick<Dataset, 'topicTitleOf' | 'type'>,
+  metric: Pick<Metric, 'id' | 'label' | 'topics'>
+): boolean {
+  if (metric.id >= EXTERNAL_ID_BASE) return true;
+  const slug = metric.topics[0];
+  const title = slug == null ? null : ds.topicTitleOf(slug);
+  if (slug == null || title == null) return false;
+  if (canonicalTopicSlug(ds.type.id, slug) !== slug) return false;
+  // At least half of the title's words: "Avg Salary" repeats one of "Correctional Officer
+  // Salary by State", which is about one job's pay, not the state.
+  const need = new Set(contentWords(title)).size;
+  const match = labelMatch(title, metric.label);
+  return match > 0 && match * 2 >= need;
+}
+
+/**
+ * A population in a sentence: "122.4M", "2.96M", "349M", "18,053" — three significant figures
+ * from a million on, spelled out by hand so the server and every browser agree.
+ */
+export function populationText(pop: number): string {
+  if (pop < 1e6) return formatInt(pop);
+  const [value, unit] = pop >= 1e9 ? [pop / 1e9, 'B'] : [pop / 1e6, 'M'];
+  const digits = value < 10 ? 2 : 1;
+  return `${value.toFixed(digits).replace(/\.?0+$/, '')}${unit}`;
+}
+
+/**
+ * The first sentence of a place summary with its first `facts` dated, sourced figures: "Japan
+ * (country in Asia): population 122.4M, 12th of 235; life expectancy 84.0 years (World Bank
+ * 2024); GDP per person (PPP) $51,685 (World Bank 2025)." `where` places it ("country in Asia",
+ * "US city in California"), so same-named places read apart.
+ */
+export function placeLead(
+  name: string,
+  where: string,
+  population: string | null,
+  facts: readonly PlaceFact[]
+): string {
+  const items = [
+    ...(population == null ? [] : [`population ${population}`]),
+    ...facts.map((f) => `${f.label} ${f.value} (${f.source})`),
+  ];
+  return items.length === 0
+    ? `${name} is a ${where}.`
+    : `${name} (${where}): ${items.join('; ')}.`;
+}
+
+/**
+ * A meta description made of whole sentences within META_LENGTH, so clampDescription has nothing
+ * to cut: the first of `leads` (longest first) that fits, then each later sentence's longest form
+ * that still fits. Falls back to the shortest lead, which the clamp then cuts.
+ */
+export function wholeSentences(
+  leads: readonly string[],
+  rest: readonly (readonly string[])[]
+): string {
+  const lead = leads.find((l) => l.length <= META_LENGTH);
+  if (lead == null) return leads[leads.length - 1] ?? '';
+  let text = lead;
+  for (const forms of rest) {
+    const next = forms.find((f) => text.length + 1 + f.length <= META_LENGTH);
+    if (next != null) text = `${text} ${next}`;
+  }
+  return text;
+}
+
+/** "Highest of 215", "10th highest of 215": a place's position by value, no judgement. */
+function highestText(col: ArrayLike<number>, v: number): string {
+  let above = 0;
+  let n = 0;
+  for (let i = 0; i < col.length; i++) {
+    if (!Number.isFinite(col[i])) continue;
+    n++;
+    if (col[i] > v) above++;
+  }
+  return `${above === 0 ? 'highest' : `${ordinal(above + 1)} highest`} of ${formatInt(n)}`;
+}
+
+/**
+ * Codes that identify a place in other datasets, as schema.org PropertyValues: ISO 3166-1
+ * alpha-3 for countries, the USPS code and FIPS code for states, the FIPS code for counties (the
+ * ids entities.json uses). Cities and world cities carry no such code.
+ */
+export function placeIdentifiers(
+  type: EntityType,
+  e: Pick<Entity, 'id' | 'fips'>
+): Record<string, unknown>[] {
+  const code = (propertyID: string, value: string) => ({
+    '@type': 'PropertyValue',
+    propertyID,
+    value,
+  });
+  if (type === 'country') return [code('ISO 3166-1 alpha-3', e.id)];
+  if (type === 'state')
+    return [
+      code('USPS', e.id),
+      ...(e.fips == null ? [] : [code('FIPS', e.fips)]),
+    ];
+  if (type === 'county' && /^\d{5}$/.test(e.id)) return [code('FIPS', e.id)];
+  return [];
+}
+
+/**
+ * Summary, FAQ and Place markup for a place report card. The summary opens with dated, sourced
+ * figures (`placeLead`), then names what the place ranks best and lowest for: only headline
+ * metrics (`isHeadlineMetric`) with a better side and broad coverage, and only standings in the
+ * best or worst quarter, so a mid-table rank is never called its best.
+ */
 export function placeSummary(ds: Dataset, index: number): PageSummary {
   const type = ds.type;
   const e = ds.entities[index];
@@ -485,7 +616,8 @@ export function placeSummary(ds: Dataset, index: number): PageSummary {
       p.metric.n >= minN &&
       !isRankColumn(p.metric) &&
       !/\brank(ing)?\b/i.test(p.metric.label) &&
-      HEADLINE.test(p.metric.label)
+      HEADLINE.test(p.metric.label) &&
+      isHeadlineMetric(ds, p.metric)
   );
   // Raw totals that mostly track population ("# with safe water") say little.
   const sized = sizeDrivenMetrics(
@@ -493,9 +625,27 @@ export function placeSummary(ds: Dataset, index: number): PageSummary {
     candidates.map((p) => p.metric)
   );
   const polar = candidates.filter((p) => !sized.has(p.metric.id));
-  const { best, worst } = summaryExtremes(polar);
-  const describe = (p: PlaceMetric): string =>
-    `${p.metric.label} (${rankText(p.standing)})`;
+  const best = summaryExtremes(
+    polar.filter((p) => inTopQuarter(p.standing))
+  ).best;
+  const worst = summaryExtremes(
+    polar.filter((p) => inBottomQuarter(p.standing))
+  ).worst;
+  // "Avg Salary (Correctional Officer Salary by State, 1st of 51)": a label that needs its
+  // topic to make sense carries it.
+  const describe = (p: PlaceMetric): string => {
+    const label = p.metric.label;
+    const context = ds.metricContext(p.metric.id);
+    // metricFullLabel's rule, and no context the label already says ("Corruption Perception
+    // Index" on Corruption Perceptions Index by Country).
+    const needed =
+      context != null &&
+      ds.metricFullLabel(p.metric.id) !== label &&
+      labelMatch(label, context) < new Set(contentWords(label)).size;
+    return needed
+      ? `${label} (${context}, ${rankText(p.standing)})`
+      : `${label} (${rankText(p.standing)})`;
+  };
 
   const popRank =
     e.pop == null
@@ -509,21 +659,30 @@ export function placeSummary(ds: Dataset, index: number): PageSummary {
       : type.id === 'state' && e.group != null
         ? `the ${e.group}`
         : (e.group ?? null);
-  const where = region != null && region !== '' ? ` in ${region}` : '';
-  const popText =
+  const where = `${singular(type)}${region != null && region !== '' ? ` in ${region}` : ''}`;
+  const population =
     e.pop == null
-      ? ''
-      : ` with a population of ${formatInt(e.pop)}${popRank == null ? '' : ` (${ordinal(popRank)} of ${formatInt(ds.entities.length)})`}`;
-  const lead = `${e.name} is a ${singular(type)}${where}${popText}.`;
-  const strengths =
-    best.length > 0
-      ? ` It ranks best for ${best.map(describe).join(', ')}.`
-      : '';
-  const weaknesses =
-    worst.length > 0
-      ? ` It ranks lowest for ${worst.map(describe).join(', ')}.`
-      : '';
-  const summary = `${lead}${strengths}${weaknesses}`;
+      ? null
+      : `${populationText(e.pop)}${popRank == null ? '' : `, ${ordinal(popRank)} of ${formatInt(ds.entities.length)}`}`;
+  const facts = placeFacts(ds, type.id, index, (m, v) => formatValue(m, v));
+  const leadWith = (k: number) =>
+    placeLead(e.name, where, population, facts.slice(0, k));
+  const lead = leadWith(facts.length);
+  const listed = (rows: readonly PlaceMetric[], sep: string) =>
+    rows.map(describe).join(sep);
+  const strengthsWith = (rows: readonly PlaceMetric[]) =>
+    rows.length === 0 ? '' : `It ranks best for ${listed(rows, ', ')}.`;
+  const weakWith = (rows: readonly PlaceMetric[]) =>
+    rows.length === 0 ? '' : `It ranks lowest for ${listed(rows, ', ')}.`;
+  const summary = [lead, strengthsWith(best), weakWith(worst)]
+    .filter((t) => t !== '')
+    .join(' ');
+  const shorter = <T>(rows: readonly T[]): T[][] =>
+    rows.map((_, k) => rows.slice(0, rows.length - k));
+  const description = wholeSentences(
+    facts.map((_, k) => leadWith(facts.length - k)).concat(leadWith(0)),
+    [shorter(best).map(strengthsWith), shorter(worst).map(weakWith)]
+  );
 
   const faq: QA[] = [];
   if (e.pop != null) {
@@ -532,16 +691,28 @@ export function placeSummary(ds: Dataset, index: number): PageSummary {
       answer: `${e.name} has a population of ${formatInt(e.pop)}${popRank == null ? '' : `, ${ordinal(popRank)} among ${formatInt(ds.entities.length)} ${plural(type)}`}.`,
     });
   }
+  if (facts.length > 0) {
+    faq.push({
+      question: `What are the key statistics for ${e.name}?`,
+      answer: `${facts
+        .map((f) => {
+          const label = `${f.label.charAt(0).toUpperCase()}${f.label.slice(1)}`;
+          const at = highestText(ds.numeric(f.id), ds.numeric(f.id)[index]);
+          return `${label}: ${f.value} (${f.source}), ${at} ${plural(type)}`;
+        })
+        .join('; ')}.`,
+    });
+  }
   if (best.length > 0) {
     faq.push({
       question: `What does ${e.name} rank best at?`,
-      answer: `Among ${plural(type)}, ${e.name} ranks best for ${best.map(describe).join('; ')}.`,
+      answer: `Among ${plural(type)}, ${e.name} ranks best for ${listed(best, '; ')}.`,
     });
   }
   if (worst.length > 0) {
     faq.push({
       question: `Where does ${e.name} rank worst?`,
-      answer: `${e.name} ranks lowest for ${worst.map(describe).join('; ')}.`,
+      answer: `${e.name} ranks lowest for ${listed(worst, '; ')}.`,
     });
   }
   faq.push({
@@ -560,6 +731,8 @@ export function placeSummary(ds: Dataset, index: number): PageSummary {
     url: absoluteUrl(path),
     description: summary,
   };
+  const identifier = placeIdentifiers(type.id, e);
+  if (identifier.length > 0) place.identifier = identifier;
   if (e.lat != null && e.lng != null) {
     place.geo = {
       '@type': 'GeoCoordinates',
@@ -567,8 +740,20 @@ export function placeSummary(ds: Dataset, index: number): PageSummary {
       longitude: e.lng,
     };
   }
-  if (type.id === 'state' || type.id === 'city' || type.id === 'county') {
-    place.containedInPlace = { '@type': 'Country', name: 'United States' };
+  const usa = { '@type': 'Country', name: 'United States' };
+  if ((type.id === 'city' || type.id === 'county') && e.sub != null) {
+    // A US city or county sits in its state, which sits in the country.
+    place.containedInPlace = {
+      '@type': 'State',
+      name: e.sub,
+      containedInPlace: usa,
+    };
+  } else if (
+    type.id === 'state' ||
+    type.id === 'city' ||
+    type.id === 'county'
+  ) {
+    place.containedInPlace = usa;
   } else if (type.id === 'world-city' && e.group != null) {
     place.containedInPlace = { '@type': 'Country', name: e.group };
   }
@@ -579,20 +764,42 @@ export function placeSummary(ds: Dataset, index: number): PageSummary {
   }
   // The rows the profile's "Strengths and weak spots" ranks, population totals left out as
   // the page does by default; too few and the profile is thin (isIndexablePlace).
-  const facts = datasetFacts(ds);
+  const facts2 = datasetFacts(ds);
   const widelyRanked = qualifyingRows(
     all,
-    facts.cut,
-    new Set([...facts.selectedLists, ...facts.sizeDriven])
+    facts2.cut,
+    new Set([...facts2.selectedLists, ...facts2.sizeDriven])
   ).length;
   return {
-    // The place type keeps same-named places apart (Georgia the state and the country).
-    title: `${e.name}: ${singular(ds.type)} rankings and statistics`,
-    description: summary,
+    title: placeTitle(e.name, singular(ds.type)),
+    description,
     summary,
     faq,
     crumbs,
     jsonLd: [place, breadcrumbs(crumbs), faqPage(faq)],
     noindex: !isIndexablePlace(all.length, widelyRanked),
   };
+}
+
+/**
+ * A place page's <title>: its name and type, so same-named places read apart (Georgia the state
+ * and the country), without repeating a type the name already ends with ("Cook County, IL:
+ * county rankings…" would say county twice; a parish, borough, census area or planning region
+ * is a county too). A long name keeps to the 65-character <title> with a shorter framing
+ * ("Saint Vincent and the Grenadines: country rankings").
+ */
+export function placeTitle(name: string, singularType: string): string {
+  const base = name.replace(/,\s*[A-Z]{2}$/, '');
+  const kind = singularType.toLowerCase().replace(/^us /, '');
+  const named = new RegExp(
+    `\\b(${kind}|parish|borough|census area|planning region|municipality)$`,
+    'i'
+  );
+  const forms = named.test(base)
+    ? [`${name}: rankings and statistics`, `${name}: rankings`]
+    : [
+        `${name}: ${singularType} rankings and statistics`,
+        `${name}: ${singularType} rankings`,
+      ];
+  return forms.find((f) => f.length <= TITLE_ROOM) ?? forms[forms.length - 1];
 }

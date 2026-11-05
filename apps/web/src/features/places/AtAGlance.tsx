@@ -1,5 +1,5 @@
 import type { PlaceView } from './pageData';
-import { HeaderStat } from './ProfileSections';
+import { sourceNote } from './profileModel';
 import {
   ACS,
   BLS,
@@ -13,11 +13,13 @@ import {
 import type { EntityType } from '~/data/types';
 import { formatInt, formatValue, ordinal } from '~/lib/format';
 
-/** One tile: a friendly label, the value, and a line of context (rank or detail). */
+/** One tile: a friendly label, the value, a line of context (rank or detail) and its source. */
 interface Glance {
   label: string;
   value: string;
   rank: string;
+  /** Who published the figure and for when ("World Bank 2024"; see `sourceNote`) */
+  source: string | null;
 }
 
 /** The key statistics shown for every place of a type, in reading order. */
@@ -120,7 +122,12 @@ export function glanceStats(
     } else if (id === ACS.commuteMinutes) {
       value = `${s.value.toFixed(0)} minutes`;
     }
-    out.push({ label, value, rank });
+    out.push({
+      label,
+      value,
+      rank,
+      source: sourceNote(metric, view.dataset.type.id),
+    });
   }
   return out;
 }
@@ -129,7 +136,7 @@ export function glanceStats(
  * "At a glance": the same key statistics for every place of a type (income, prices, housing,
  * work, education, safety, climate, the vote), so any two places read the same way. Positions
  * are stated plainly ("12th highest of 51") because a high home value or a warm climate is
- * neither good nor bad.
+ * neither good nor bad, and each tile names its source and year ("World Bank 2024").
  */
 export function AtAGlance({ view }: { view: PlaceView }) {
   const stats = glanceStats(view);
@@ -141,9 +148,25 @@ export function AtAGlance({ view }: { view: PlaceView }) {
       </h2>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
         {stats.map((s) => (
-          <HeaderStat key={s.label} {...s} />
+          <GlanceTile key={s.label} {...s} />
         ))}
       </div>
     </section>
+  );
+}
+
+/** One "At a glance" tile: label, value, position and the figure's source and year. */
+function GlanceTile({ label, value, rank, source }: Glance) {
+  return (
+    <div className="border-app bg-surface min-w-0 rounded-xl border px-3 py-2">
+      <div className="text-muted truncate text-xs">{label}</div>
+      <div className="tabular truncate text-base font-semibold">{value}</div>
+      <div className="text-muted truncate text-[11px]">{rank}</div>
+      {source != null ? (
+        <div className="text-muted truncate text-[11px] opacity-80">
+          {source}
+        </div>
+      ) : null}
+    </div>
   );
 }

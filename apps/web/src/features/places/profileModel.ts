@@ -5,7 +5,8 @@
 import { pearson, percentile, spearman } from '@world-data/stats';
 
 import { isRankColumn, rankOrder } from '~/data/rankOrder';
-import type { Metric } from '~/data/types';
+import type { EntityType, Metric } from '~/data/types';
+import { SITE } from '~/site';
 
 /** The parts of a `Dataset` these helpers read (a Dataset satisfies it structurally). */
 export interface ProfileData {
@@ -817,4 +818,137 @@ export function metricsWithData(data: ProfileData): Int32Array {
     for (let i = 0; i < col.length; i++) if (!Number.isNaN(col[i])) counts[i]++;
   }
   return counts;
+}
+
+/**
+ * The agency that publishes an external statistic (ids from 900,000; src/data/external.ts lists
+ * them, scripts/sources downloads them), in the short form a sentence cites it by, or null for a
+ * statistic compiled by World Population Review. Countries' price level comes from the World
+ * Bank's PPP price level ratio, not from BEA (see `RPP` in external.ts).
+ */
+export function agencyOf(id: number, type: EntityType): string | null {
+  if (id < 900_000 || id >= 1_000_000) return null;
+  const block = Math.floor((id - 900_000) / 100);
+  if (block === 0) return type === 'country' ? 'World Bank' : 'BEA';
+  return (
+    [
+      null,
+      'World Bank',
+      'CDC PLACES',
+      'EPA',
+      'NOAA',
+      'BLS',
+      'Census ACS',
+      'FBI',
+      'county election returns',
+    ][block] ?? null
+  );
+}
+
+/** Census ACS figures are 5-year estimates ending in the metric's year. */
+const ACS_SPAN = 4;
+
+/**
+ * Who published a statistic and for when, as a profile cites it: "World Bank 2024", "Census ACS
+ * 2020–2024" (a 5-year estimate), "NOAA 1991–2020" (climate normals). A statistic compiled by
+ * World Population Review reads "World Population Review 2025", and null without a year, since
+ * its own date is unknown. Only metadata the data build records is used: the metric's id and its
+ * default year.
+ */
+export function sourceNote(
+  metric: Pick<Metric, 'id' | 'year'>,
+  type: EntityType
+): string | null {
+  const agency = agencyOf(metric.id, type);
+  if (agency === 'NOAA') return 'NOAA 1991–2020';
+  if (agency == null)
+    return metric.year == null || metric.id < 0
+      ? null
+      : `${SITE.sourceName} ${metric.year}`;
+  if (metric.year == null) return agency;
+  return agency === 'Census ACS'
+    ? `${agency} ${metric.year - ACS_SPAN}–${metric.year}`
+    : `${agency} ${metric.year}`;
+}
+
+/** One dated, sourced figure of a place: "life expectancy 84.0 years (World Bank 2024)". */
+export interface PlaceFact {
+  id: number;
+  /** Lower-case name for a sentence ("median household income") */
+  label: string;
+  /** The value as printed, with its unit ("84.0 years", "$64,580", "4.2%") */
+  value: string;
+  /** `sourceNote` of the metric */
+  source: string;
+}
+
+/**
+ * The agency statistics a place's summary opens with, per place type, in reading order: the
+ * figures an answer engine is asked for (income, life expectancy, unemployment), each from a
+ * primary source with a known year. World cities have none.
+ */
+export const LEAD_FACTS: Readonly<
+  Record<EntityType, readonly { id: number; label: string; unit?: string }[]>
+> = {
+  country: [
+    { id: 900_111, label: 'life expectancy', unit: ' years' },
+    { id: 900_102, label: 'GDP per person (PPP)' },
+    { id: 900_105, label: 'unemployment' },
+  ],
+  state: [
+    { id: 900_603, label: 'median household income' },
+    { id: 900_501, label: 'unemployment' },
+    { id: 900_606, label: 'poverty rate' },
+  ],
+  county: [
+    { id: 900_603, label: 'median household income' },
+    { id: 900_606, label: 'poverty rate' },
+    { id: 900_501, label: 'unemployment' },
+  ],
+  city: [
+    { id: 900_603, label: 'median household income' },
+    { id: 900_602, label: 'median home value' },
+    { id: 900_606, label: 'poverty rate' },
+  ],
+  'world-city': [],
+};
+
+/**
+ * A place's `LEAD_FACTS` that it has a value for, formatted with `format` (formatValue in the
+ * app), each with its source and year.
+ */
+export function placeFacts(
+  data: Pick<ProfileData, 'numeric'> & {
+    metric(id: number): Metric | undefined;
+  },
+  type: EntityType,
+  index: number,
+  format: (metric: Metric, v: number) => string
+): PlaceFact[] {
+  const out: PlaceFact[] = [];
+  for (const { id, label, unit } of LEAD_FACTS[type]) {
+    const metric = data.metric(id);
+    const v = metric == null ? Number.NaN : data.numeric(id)[index];
+    const source = metric == null ? null : sourceNote(metric, type);
+    if (metric == null || !Number.isFinite(v) || source == null) continue;
+    out.push({ id, label, value: `${format(metric, v)}${unit ?? ''}`, source });
+  }
+  return out;
+}
+
+/** Share of the places ranked from the top within which a place "ranks best" (and the bottom). */
+export const TOP_SHARE = 0.25;
+
+/** True when a standing is in the best quarter of the places ranked ("ranks best for …"). */
+export function inTopQuarter(s: Pick<Standing, 'rank' | 'n'>): boolean {
+  return s.rank <= Math.max(1, Math.ceil(s.n * TOP_SHARE));
+}
+
+/**
+ * True when a standing is in the worst quarter of the places ranked ("ranks lowest for …"): its
+ * competition rank, the best a tie shares, so a large tie reaching the bottom from mid-table
+ * does not count.
+ */
+export function inBottomQuarter(s: Pick<Standing, 'rank' | 'n'>): boolean {
+  return s.rank > s.n - Math.max(1, Math.ceil(s.n * TOP_SHARE));
 }

@@ -20,8 +20,8 @@ import {
   standingAt,
   strengthsAndWeaknesses,
 } from '../src/features/places/profileModel';
-import { faqPage } from '../src/lib/seo';
-import { placeSummary, summaryExtremes } from '../src/seo/content';
+import { clampDescription, faqPage } from '../src/lib/seo';
+import { placeSummary, placeTitle, summaryExtremes } from '../src/seo/content';
 
 const DATA = join(import.meta.dir, '../public/data');
 const read = <T>(path: string): T =>
@@ -179,5 +179,108 @@ describe('placeSummary', () => {
         p.standing.rank + p.standing.tied - 1 >= p.standing.n
     );
     expect(tiedLast).toBeDefined();
+  });
+});
+
+describe('placeSummary leads and markup', () => {
+  const countries = dataset('country');
+  const states = dataset('state');
+  const counties = dataset('county');
+  const at = (ds: Dataset, slug: string) => {
+    const i = ds.entityBySlug.get(slug);
+    if (i == null) throw new Error(`missing ${slug}`);
+    return placeSummary(ds, i);
+  };
+
+  test('opens with dated, sourced figures', () => {
+    const japan = at(countries, 'japan');
+    expect(japan.summary).toMatch(
+      /^Japan \(country in Asia\): population 122\.4M, 12th of 235; life expectancy [\d.]+ years \(World Bank 20\d\d\);/
+    );
+    expect(at(states, 'california').summary).toMatch(
+      /median household income \$[\d,]+ \(Census ACS 2020–2024\)/
+    );
+    expect(at(counties, 'cook-county-il').summary).toMatch(/\(BLS 20\d\d\)/);
+  });
+
+  test('quotes headline metrics only, never a sub-column of another index', () => {
+    const japan = at(countries, 'japan');
+    const text = JSON.stringify(japan.faq);
+    expect(text).not.toContain('Happy Planet');
+  });
+
+  test('calls a standing best or lowest only in the best or worst quarter', () => {
+    for (const ds of [counties, dataset('city'), states]) {
+      ds.entities.forEach((_, i) => {
+        const { summary } = placeSummary(ds, i);
+        const best = /It ranks best for (.*?)\.(?: It ranks lowest|$)/.exec(
+          summary
+        )?.[1];
+        const lowest = /It ranks lowest for (.*)\.$/.exec(summary)?.[1];
+        const ranks = (s: string) =>
+          [
+            ...s.matchAll(/(?:tied )?([\d,]+)(?:st|nd|rd|th) of ([\d,]+)\)/g),
+          ].map((m) => [
+            Number(m[1].replace(/,/g, '')),
+            Number(m[2].replace(/,/g, '')),
+          ]);
+        for (const [rank, n] of ranks(best ?? ''))
+          expect(rank).toBeLessThanOrEqual(Math.ceil(n * 0.25));
+        for (const [rank, n] of ranks(lowest ?? ''))
+          expect(rank).toBeGreaterThan(n - Math.ceil(n * 0.25));
+      });
+    }
+  });
+
+  test('builds meta descriptions from whole sentences', () => {
+    for (const ds of [countries, states, counties]) {
+      let whole = 0;
+      ds.entities.forEach((_, i) => {
+        const { description } = placeSummary(ds, i);
+        if (clampDescription(description) === description) whole++;
+      });
+      expect(whole).toBe(ds.entities.length);
+    }
+  });
+
+  test('gives each place its codes and its state', () => {
+    expect(at(countries, 'japan').jsonLd[0].identifier).toEqual([
+      {
+        '@type': 'PropertyValue',
+        propertyID: 'ISO 3166-1 alpha-3',
+        value: 'JPN',
+      },
+    ]);
+    expect(at(states, 'california').jsonLd[0].identifier).toEqual([
+      { '@type': 'PropertyValue', propertyID: 'USPS', value: 'CA' },
+      { '@type': 'PropertyValue', propertyID: 'FIPS', value: '06' },
+    ]);
+    const la = at(counties, 'los-angeles-county-ca').jsonLd[0];
+    expect(la.identifier).toEqual([
+      { '@type': 'PropertyValue', propertyID: 'FIPS', value: '06037' },
+    ]);
+    expect(la.containedInPlace).toEqual({
+      '@type': 'State',
+      name: 'California',
+      containedInPlace: { '@type': 'Country', name: 'United States' },
+    });
+  });
+
+  test('titles say the place type once', () => {
+    expect(placeTitle('Cook County, IL', 'county')).toBe(
+      'Cook County, IL: rankings and statistics'
+    );
+    expect(placeTitle('Orleans Parish, LA', 'county')).toBe(
+      'Orleans Parish, LA: rankings and statistics'
+    );
+    expect(placeTitle('Georgia', 'state')).toBe(
+      'Georgia: state rankings and statistics'
+    );
+    expect(placeTitle('Oklahoma City, OK', 'US city')).toBe(
+      'Oklahoma City, OK: rankings and statistics'
+    );
+    expect(at(counties, 'cook-county-il').title).toBe(
+      'Cook County, IL: rankings and statistics'
+    );
   });
 });
