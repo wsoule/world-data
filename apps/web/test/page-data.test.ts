@@ -36,7 +36,19 @@ import {
   standingAt,
 } from '../src/features/places/profileModel';
 import { relatedPlaces } from '../src/features/places/relatedPlaces';
-import { headlineOverride } from '../src/features/topic/headline';
+import {
+  storedCorrelationsDataset,
+  topicCorrelations,
+} from '../src/features/topic/correlationsData';
+import { headlineOverride, leadMetric } from '../src/features/topic/headline';
+import {
+  displayTables,
+  focusableMetrics,
+  hasUndated,
+  numericColumn,
+  resolveYear,
+  seriesYears,
+} from '../src/features/topic/model';
 import { buildTopicPageData } from '../src/features/topic/pageData';
 import { topicSummary } from '../src/seo/content';
 
@@ -218,9 +230,48 @@ describe('topic page slices on the committed data', () => {
       const slicedSized = datasetFacts(slice).sizeDriven;
       for (const id of topic.metrics)
         expect(slicedSized.has(id)).toBe(sized.has(id));
+      // The stored correlations card is the live card of the view the page opens on, worked
+      // out the way TopicPage picks it, on the slice: same focus, year and rows.
+      const tables = displayTables(topic, (id) => slice.metric(id) != null);
+      const focusables = focusableMetrics(tables, (id) => slice.metric(id));
+      const leadId = leadMetric(topic, slice)?.id;
+      const focus = focusables.find((m) => m.id === leadId) ?? focusables[0];
+      if (focus == null) {
+        expect(page.correlations).toBeNull();
+        return;
+      }
+      const year = resolveYear(
+        seriesYears(topic, focus.id),
+        undefined,
+        focus.year,
+        hasUndated(topic, focus.id)
+      );
+      expect(page.correlations?.focus).toBe(focus.id);
+      expect(page.correlations?.year).toBe(year);
+      const { ms: _ms, ...live } = topicCorrelations(
+        ds,
+        focus,
+        numericColumn(topic, focus.id, year, ds.entities.length),
+        topic.metrics
+      );
+      expect(page.correlations?.result).toEqual(live);
+      const card = storedCorrelationsDataset(
+        slice,
+        page.correlations ?? never(),
+        page.topics
+      );
+      for (const h of [...live.positive, ...live.negative]) {
+        expect(card.metric(h.id)).toEqual(ds.metric(h.id));
+        expect(card.metricFullLabel(h.id)).toBe(ds.metricFullLabel(h.id));
+        expect(card.metricContext(h.id)).toBe(ds.metricContext(h.id));
+      }
     });
   }
 });
+
+function never(): never {
+  throw new Error('expected stored correlations');
+}
 
 describe('place pages on the committed data', () => {
   test('every type derives its population column from entities.json', () => {

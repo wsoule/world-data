@@ -17,6 +17,7 @@ import type {
   TopicSummary,
   ValuesFile,
 } from './types';
+import type { StoredCorrelations } from '~/features/topic/correlationsData';
 
 /**
  * A topic named on a page: enough to link it and say how many places it ranks, and whether it
@@ -40,6 +41,8 @@ export interface TopicPageData {
   suggested: TopicRef[];
   /** "Related topics" (see `relatedTopics`) */
   related: TopicRef[];
+  /** The correlations card of the view the page opens on (see `defaultCorrelations`) */
+  correlations: StoredCorrelations | null;
 }
 
 /** Synthetic population metric: per-person adjustments divide by it. */

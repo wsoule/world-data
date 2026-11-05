@@ -15,7 +15,15 @@ import {
 } from 'react';
 
 import { CategoricalTopic } from './CategoricalTopic';
-import { CorrelationsCard, correlationsTitle } from './CorrelationsCard';
+import {
+  CorrelationsCard,
+  correlationsTitle,
+  CorrelationsView,
+} from './CorrelationsCard';
+import {
+  type StoredCorrelations,
+  storedCorrelationsDataset,
+} from './correlationsData';
 import { FocusBar } from './FocusBar';
 import { isYearValued, leadMetric, topicListOrder } from './headline';
 import {
@@ -56,7 +64,12 @@ import {
   withAdjustment,
 } from '~/data/adjustments';
 import { entitiesQuery, manifestQuery, topicQuery } from '~/data/api';
-import { type Dataset, isDatasetLoaded, useDataset } from '~/data/dataset';
+import {
+  type Dataset,
+  isDatasetLoaded,
+  type TopicTitle,
+  useDataset,
+} from '~/data/dataset';
 import { isRankColumn, rankOrder, rankOrderNote } from '~/data/rankOrder';
 import { topicDataset } from '~/data/topicPage';
 import {
@@ -296,6 +309,15 @@ function TopicView({ type, slug }: { type: EntityType; slug: string }) {
           onClearSelected={() => setSelected(null)}
           onFocus={setFocus}
           onYear={setYear}
+          correlations={
+            adj == null &&
+            page.correlations != null &&
+            page.correlations.focus === focus.id &&
+            page.correlations.year === year
+              ? page.correlations
+              : null
+          }
+          topicTitles={page.topics}
         />
       ) : (
         <CategoricalTopic
@@ -340,6 +362,10 @@ interface NumericTopicProps {
   onClearSelected: () => void;
   onFocus: (id: number) => void;
   onYear: (year: number | null) => void;
+  /** The correlations card's stored rows when they are for the view shown, else null */
+  correlations: StoredCorrelations | null;
+  /** Topic titles of the page's slice, for the stored card's labels */
+  topicTitles: readonly TopicTitle[];
 }
 
 /**
@@ -375,6 +401,8 @@ function NumericTopic({
   onClearSelected,
   onFocus,
   onYear,
+  correlations,
+  topicTitles,
 }: NumericTopicProps) {
   const narrow = useNarrow();
   const values = useMemo(
@@ -545,16 +573,31 @@ function NumericTopic({
         onSelect={onSelect}
       />
 
-      <Correlations
-        // A new metric, year or adjustment replaces the block (see NearViewport).
-        key={`${focus.id}:${year ?? 'latest'}:${adjust.value ?? ''}`}
-        type={dataset.type.id}
-        adj={adjust.value}
-        focus={focus}
-        values={values}
-        yearLabel={yearLabel}
-        exclude={topic.metrics}
-      />
+      {correlations != null ? (
+        // The view the page opens on: the rows the page's slice stores, the same as the server
+        // HTML, so the card hydrates without the whole place type's data.
+        <CorrelationsView
+          dataset={storedCorrelationsDataset(
+            dataset,
+            correlations,
+            topicTitles
+          )}
+          focus={focus}
+          yearLabel={yearLabel}
+          result={correlations.result}
+        />
+      ) : (
+        <Correlations
+          // A new metric, year or adjustment replaces the block (see NearViewport).
+          key={`${focus.id}:${year ?? 'latest'}:${adjust.value ?? ''}`}
+          type={dataset.type.id}
+          adj={adjust.value}
+          focus={focus}
+          values={values}
+          yearLabel={yearLabel}
+          exclude={topic.metrics}
+        />
+      )}
     </>
   );
 }
@@ -579,6 +622,7 @@ function Correlations(props: CorrelationsProps) {
   return (
     <NearViewport
       ready={isDatasetLoaded(queryClient, props.type)}
+      margin={200}
       fallback={
         <Card title={correlationsTitle(props.focus, props.yearLabel)}>
           <div className="flex min-h-24 items-center justify-center">

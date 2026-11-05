@@ -7,6 +7,7 @@
 
 import { type QueryClient, queryOptions } from '@tanstack/react-query';
 
+import { defaultCorrelations } from './correlationsData';
 import { headlineOverride } from './headline';
 import {
   buildTopicGraph,
@@ -91,14 +92,19 @@ export function buildTopicPageData(
     const hit = slug == null ? undefined : byKey.get(key);
     if (hit != null && !named.has(key)) named.set(key, ref(hit));
   };
+  // The correlations card's rows for the opening view, so the browser renders it without the
+  // whole type's data; the statistics they name need their topics' titles too.
+  const correlations = defaultCorrelations(topic, full);
   for (const m of slice.metrics) name(topic.type, m.topics[0]);
   for (const r of topic.related) name(r.type, r.slug);
   for (const t of [...suggested, ...related]) name(t.type, t.slug);
+  for (const m of correlations?.metrics ?? []) name(topic.type, m.topics[0]);
   return {
     ...slice,
     topics: [...named.values()],
     suggested: suggested.map(ref),
     related: related.map(ref),
+    correlations,
   };
 }
 

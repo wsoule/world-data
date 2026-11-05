@@ -3,21 +3,13 @@ import { strength } from '@world-data/stats';
 import { ArrowDownRight, ArrowUpRight, ScatterChart } from 'lucide-react';
 import { type ReactNode, useMemo } from 'react';
 
-import {
-  type CorrelationHit,
-  type CorrelationResult,
-  findCorrelations,
-} from './correlations';
+import type { CorrelationHit, CorrelationResult } from './correlations';
+import { topicCorrelations } from './correlationsData';
 import { placeNoun } from './model';
 import { EmptyState } from '~/components/feedback';
 import { Card, cx } from '~/components/ui';
 import type { Dataset } from '~/data/dataset';
-import {
-  isRankColumn,
-  rankOrder,
-  rankOrderNote,
-  readsBackwards,
-} from '~/data/rankOrder';
+import { isRankColumn, rankOrder, rankOrderNote } from '~/data/rankOrder';
 import type { Metric } from '~/data/types';
 import { formatInt } from '~/lib/format';
 import { chartColors, useTheme } from '~/lib/theme';
@@ -25,11 +17,6 @@ import { chartColors, useTheme } from '~/lib/theme';
 /** True for rank columns (list positions), in either order. */
 function isRank(metric: Metric | undefined): boolean {
   return metric != null && isRankColumn(metric);
-}
-
-/** True when the metric's raw number runs against its standing: a best-first rank. */
-function backwards(metric: Metric | undefined): boolean {
-  return metric != null && readsBackwards(metric);
 }
 
 /** The card's title, also shown by its stand-in while the card loads. */
@@ -65,27 +52,44 @@ export function CorrelationsCard({
   /** Metric ids to leave out (this topic's own metrics) */
   exclude: readonly number[];
 }) {
-  const result = useMemo<CorrelationResult>(() => {
-    const skip = new Set(exclude);
-    const candidates = dataset.metrics.filter(
-      (m) =>
-        m.kind === 'num' &&
-        m.meta !== true &&
-        !skip.has(m.id) &&
-        dataset.hasValues(m.id)
-    );
-    const focusBackwards = backwards(focus);
-    return findCorrelations(
-      values,
-      candidates,
-      (id) => dataset.numeric(id),
-      6,
-      (id) => dataset.metricFullLabel(id).toLowerCase(),
-      // A best-first rank paired with a metric read the other way: its r is negated.
-      (id) => backwards(dataset.metric(id)) !== focusBackwards
-    );
-  }, [dataset, values, exclude, focus]);
+  const result = useMemo<CorrelationResult>(
+    () => topicCorrelations(dataset, focus, values, exclude),
+    [dataset, values, exclude, focus]
+  );
+  return (
+    <CorrelationsView
+      dataset={dataset}
+      focus={focus}
+      yearLabel={yearLabel}
+      result={result}
+    />
+  );
+}
 
+/**
+ * The card for an already computed `result`: live from CorrelationsCard, or the rows a topic
+ * page's slice stores for its opening view (correlationsData.ts), where `dataset` needs only
+ * the statistics the rows name.
+ */
+export function CorrelationsView({
+  dataset,
+  focus,
+  yearLabel,
+  result,
+}: {
+  dataset: Dataset;
+  focus: Metric;
+  yearLabel: string | null;
+  result: Pick<
+    CorrelationResult,
+    | 'positive'
+    | 'negative'
+    | 'coverage'
+    | 'minOverlap'
+    | 'tested'
+    | 'duplicates'
+  >;
+}) {
   const nounMany = placeNoun(dataset.type.id);
   const nounOne = placeNoun(dataset.type.id, 1);
   const title = correlationsTitle(focus, yearLabel);
