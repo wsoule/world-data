@@ -1,5 +1,6 @@
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query';
 import { Link, useHydrated } from '@tanstack/react-router';
+import { useMemo } from 'react';
 
 import { CombinedMapCard } from './CombinedMap';
 import { SEQ, shapeId } from './mapStyle';
@@ -62,6 +63,44 @@ function MapSvg({ map, shapes }: { map: HomeMap; shapes: MapShapes }) {
   );
 }
 
+/**
+ * A county map: the counties of each colour band joined into one path, so a map is nine
+ * <path>s instead of 3,100 <use>s of 3,100 shared shapes (about 9,000 elements for the two
+ * county maps). Counties never overlap and are drawn without outlines, so the map looks the
+ * same, without the faint seams anti-aliasing left between neighbours of one colour.
+ */
+function BandMapSvg({ map, shapes }: { map: HomeMap; shapes: MapShapes }) {
+  const palette = map.scale === 'party' ? PARTY : SEQ;
+  const groups = useMemo(() => {
+    const byBand = new Map<number, string[]>();
+    for (const [id, d] of Object.entries(shapes.paths)) {
+      const band = map.bands[id] ?? -1;
+      const list = byBand.get(band);
+      if (list == null) byBand.set(band, [d]);
+      else list.push(d);
+    }
+    return [...byBand.entries()]
+      .sort(([a], [b]) => a - b)
+      .map(([band, ds]) => ({ band, d: ds.join('') }));
+  }, [map, shapes]);
+  return (
+    <svg
+      viewBox={`0 0 ${shapes.width} ${shapes.height}`}
+      className="h-auto w-full"
+      role="img"
+      aria-label={`Map of ${map.metric.label}`}
+    >
+      {groups.map((g) => (
+        <path
+          key={g.band}
+          d={g.d}
+          fill={g.band < 0 ? 'var(--surface-2)' : palette[g.band]}
+        />
+      ))}
+    </svg>
+  );
+}
+
 /** Colour key under a map: the band colours with the lowest and highest values (or margins). */
 function Legend({ map }: { map: HomeMap }) {
   const palette = map.scale === 'party' ? PARTY : SEQ;
@@ -108,15 +147,17 @@ function MapCard({
         ) : null}
       </div>
       <div className="mt-3">
-        {shapes != null ? (
-          <MapSvg map={map} shapes={shapes} />
-        ) : (
+        {shapes == null ? (
           // Counties load after the page; keep the map's space so nothing jumps.
           <div
             className="bg-surface-2 w-full animate-pulse rounded-lg"
             style={{ aspectRatio: '320 / 200' }}
             aria-hidden
           />
+        ) : shapes.geo === 'us-counties' ? (
+          <BandMapSvg map={map} shapes={shapes} />
+        ) : (
+          <MapSvg map={map} shapes={shapes} />
         )}
       </div>
       <div className="mt-3">
@@ -168,7 +209,6 @@ export function HomeMaps() {
     <>
       <ShapeDefs shapes={states} />
       <ShapeDefs shapes={world} />
-      {counties != null ? <ShapeDefs shapes={counties} /> : null}
       {file.combined != null ? (
         <CombinedMapCard combined={file.combined} shapes={states} />
       ) : null}
