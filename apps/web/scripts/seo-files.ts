@@ -44,6 +44,7 @@ import type {
   TopicSummary,
   ValuesFile,
 } from '../src/data/types';
+import { POPULAR_TOPICS } from '../src/features/home/presets';
 import { leadMetric, openingYear } from '../src/features/topic/headline';
 import { typeNoun } from '../src/lib/format';
 import {
@@ -326,6 +327,23 @@ async function assertCrawlableLinks(): Promise<number> {
   return pages.length;
 }
 
+/**
+ * The agency of a direct source, the part after the last " - " of its name ("Regional Price
+ * Parities by State and Metro Area - US Bureau of Economic Analysis"), or null without one.
+ */
+function agencyOf(name: string): string | null {
+  const k = name.lastIndexOf(' - ');
+  const agency = k < 0 ? '' : name.slice(k + 3).trim();
+  return agency === '' ? null : agency;
+}
+
+/** "a", "a and b", "a, b and c". */
+function listPhrase(items: readonly string[]): string {
+  return items.length <= 1
+    ? (items[0] ?? '')
+    : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`;
+}
+
 async function main(): Promise<void> {
   const site = SITE;
   const manifest = await readJson<Manifest>('manifest.json');
@@ -344,6 +362,9 @@ async function main(): Promise<void> {
   // thin pages (noindex) and not aliases whose canonical is another topic. Every topic still
   // gets its CSV.
   const listed = new Set<string>();
+  // Agencies whose data Rankodex publishes directly (topics without an original page), with how
+  // many topics each feeds, for the llms.txt summary.
+  const agencies = new Map<string, number>();
 
   for (const t of manifest.types) {
     const type: EntityType = t.id;
@@ -360,6 +381,9 @@ async function main(): Promise<void> {
       const indexable =
         canonicalTopicSlug(type, topic.slug) === topic.slug &&
         isIndexableTopic(topicCoverage(topic, (id) => metrics.get(id)));
+      if (topic.url == null)
+        for (const a of new Set(topic.sources.map((x) => agencyOf(x.name))))
+          if (a != null) agencies.set(a, (agencies.get(a) ?? 0) + 1);
       if (indexable) {
         listed.add(`${type}:${topic.slug}`);
         const fact = topicFact(topic, metrics, entities);
@@ -397,20 +421,21 @@ async function main(): Promise<void> {
     full.push('');
   }
 
-  const popular = topics
-    .filter(
-      (t) =>
-        (t.type === 'country' || t.type === 'state') &&
-        listed.has(`${t.type}:${t.slug}`)
-    )
-    .sort((a, b) => b.metrics.length * b.n - a.metrics.length * a.n)
-    .slice(0, 40);
+  // The home page's "Popular topics", the ones search engines may index.
+  const byKey = new Map(topics.map((t) => [`${t.type}:${t.slug}`, t]));
+  const popular = POPULAR_TOPICS.flatMap((p) => {
+    const t = byKey.get(`${p.type}:${p.slug}`);
+    return t != null && listed.has(`${t.type}:${t.slug}`) ? [t] : [];
+  });
+  const direct = [...agencies]
+    .sort((a, b) => (b[1] !== a[1] ? b[1] - a[1] : a[0].localeCompare(b[0])))
+    .map(([name]) => name);
   const llms = [
     `# ${site.name}`,
     '',
     `> ${site.description}`,
     '',
-    `${site.name} covers ${manifest.types.map((t) => `${t.entities.toLocaleString('en-US')} ${typeNoun(t.label)}`).join(', ')}, across ${manifest.types.reduce((s, t) => s + t.topics, 0).toLocaleString('en-US')} topics. Every topic page states its sources and update date. Figures are compiled from World Population Review and the primary sources it cites.`,
+    `${site.name} covers ${manifest.types.map((t) => `${t.entities.toLocaleString('en-US')} ${typeNoun(t.label)}`).join(', ')}, across ${manifest.types.reduce((s, t) => s + t.topics, 0).toLocaleString('en-US')} topics. Every topic page states its sources and update date. Figures are compiled from World Population Review and the primary sources it cites${direct.length > 0 ? `, and directly from ${listPhrase(direct)}` : ''}.`,
     '',
     '## Start here',
     '',
