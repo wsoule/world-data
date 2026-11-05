@@ -2,6 +2,7 @@ import { createFileRoute, notFound } from '@tanstack/react-router';
 
 import { notFoundHead } from '~/components/feedback';
 import { manifestQuery, topicsIndexQuery } from '~/data/api';
+import { noindexTopicsQuery } from '~/data/noindexTopics';
 import { type EntityType, isEntityType } from '~/data/types';
 import { CategoryPage } from '~/features/categories/CategoryPage';
 import { breadcrumbs, pageHead } from '~/lib/seo';
@@ -30,6 +31,8 @@ export const Route = createFileRoute('/categories/$category')({
     const [manifest] = await Promise.all([
       context.queryClient.ensureQueryData(manifestQuery),
       context.queryClient.ensureQueryData(topicsIndexQuery),
+      // Which topics are noindex, so the hub can lead with the indexable ones.
+      context.queryClient.ensureQueryData(noindexTopicsQuery),
     ]);
     const category = manifest.categories.find((c) => c.id === params.category);
     if (category == null) throw notFound();

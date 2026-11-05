@@ -18,6 +18,7 @@ import type { TopicRef } from '~/data/topicPage';
 import type { TopicFile } from '~/data/types';
 import { formatInt } from '~/lib/format';
 import { shownMetrics } from '~/seo/content';
+import { canonicalTopicSlug } from '~/seo/indexing';
 import { formatDay, sourceTitle } from '~/seo/topic-content';
 import { SITE } from '~/site';
 
@@ -154,9 +155,15 @@ export function TopicHeader({
   const updated = updatedOf(topic, dataset);
   const catLabel = new Map(manifest.categories.map((c) => [c.id, c.label]));
   const typeLabel = new Map(manifest.types.map((t) => [t.id, t.label]));
+  // The source's related pages, minus thin (noindex) ones and aliases of another topic, so
+  // the header links only pages search engines are asked to index.
   const related = topic.related.flatMap((r) => {
     const hit = topics.find((t) => t.type === r.type && t.slug === r.slug);
-    return hit != null ? [hit] : [];
+    return hit != null &&
+      hit.noindex !== true &&
+      canonicalTopicSlug(hit.type, hit.slug) === hit.slug
+      ? [hit]
+      : [];
   });
   const places = topic.entities.length;
   const metricCount = shownMetrics(topic, dataset).length;

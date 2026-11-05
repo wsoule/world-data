@@ -18,8 +18,13 @@ import type {
   ValuesFile,
 } from './types';
 
-/** A topic named on a page: enough to link it and say how many places it ranks. */
-export type TopicRef = Pick<TopicSummary, 'slug' | 'type' | 'title' | 'n'>;
+/**
+ * A topic named on a page: enough to link it and say how many places it ranks, and whether it
+ * is noindex (thin), so the page can leave it out of the links it shows.
+ */
+export type TopicRef = Pick<TopicSummary, 'slug' | 'type' | 'title' | 'n'> & {
+  noindex?: true;
+};
 
 /** <type>/pages/topics/<slug>.json: everything a topic page reads beyond its topic file. */
 export interface TopicPageData {

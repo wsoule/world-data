@@ -190,7 +190,7 @@ describe('topic page slices on the committed data', () => {
     test(`${t.type}/${t.slug} reads the same as the whole type`, () => {
       const ds = full(t.type);
       const topic = read<TopicFile>(`${t.type}/topics/${t.slug}.json`);
-      const page = roundTrip(buildTopicPageData(topic, ds, index));
+      const page = roundTrip(buildTopicPageData(topic, ds, index, new Set()));
       const slice = topicDataset(
         manifest,
         t.type,

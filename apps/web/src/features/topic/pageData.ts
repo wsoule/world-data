@@ -17,6 +17,7 @@ import {
 import { suggestTopics } from './SuggestedTopics';
 import { getJson, topicQuery, topicsIndexQuery } from '~/data/api';
 import { type Dataset, loadDataset } from '~/data/dataset';
+import { noindexTopicsQuery } from '~/data/noindexTopics';
 import {
   type TopicPageData,
   topicPageSlice,
@@ -55,24 +56,27 @@ function topicGraph(
   return graph;
 }
 
-const ref = (t: TopicSummary): TopicRef => ({
-  slug: t.slug,
-  type: t.type,
-  title: t.title,
-  n: t.n,
-});
-
 /**
  * The slice of `full` that the page of `topic` reads, with its "Keep exploring" and "Related
- * topics" lists worked out from every topic of the type (`index`).
+ * topics" lists worked out from every topic (`index`). `noindex` holds the keys of the noindex
+ * topics (`noindexTopicsQuery`): they are never suggested, and the topics the page names carry
+ * the flag.
  */
 export function buildTopicPageData(
   topic: TopicFile,
   full: Dataset,
-  index: readonly TopicSummary[]
+  index: readonly TopicSummary[],
+  noindex: ReadonlySet<string>
 ): TopicPageData {
+  const ref = (t: TopicSummary): TopicRef => ({
+    slug: t.slug,
+    type: t.type,
+    title: t.title,
+    n: t.n,
+    ...(noindex.has(`${t.type}/${t.slug}`) ? { noindex: true as const } : {}),
+  });
   const slice = topicPageSlice(topic, full, headlineOverride(topic)?.metric);
-  const suggested = suggestTopics(topic, index);
+  const suggested = suggestTopics(topic, index, noindex);
   const related = relatedTopics(
     topic,
     topicGraph(full, index),
@@ -104,12 +108,13 @@ async function buildFromFull(
   type: EntityType,
   slug: string
 ): Promise<TopicPageData> {
-  const [full, topic, index] = await Promise.all([
+  const [full, topic, index, noindex] = await Promise.all([
     loadDataset(qc, type),
     qc.ensureQueryData(topicQuery(type, slug)),
     qc.ensureQueryData(topicsIndexQuery),
+    qc.ensureQueryData(noindexTopicsQuery),
   ]);
-  return buildTopicPageData(topic, full, index);
+  return buildTopicPageData(topic, full, index, noindex);
 }
 
 /**

@@ -3,6 +3,7 @@
 //
 //   data/<type>/pages/topics/<slug>.json   features/topic/pageData.ts (TopicPageData)
 //   data/<type>/pages/places/<slug>.json   features/places/pageData.ts (PlacePageData)
+//   data/pages/noindex-topics.json         data/noindexTopics.ts (noindexTopicKeys)
 //
 // The server builds the same objects from the same functions while prerendering, so a page
 // hydrates from exactly what it was rendered from. The files are not in public/data because
@@ -13,6 +14,10 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { Dataset } from '../src/data/dataset';
+import {
+  NOINDEX_TOPICS_PATH,
+  noindexTopicKeys,
+} from '../src/data/noindexTopics';
 import type {
   Entity,
   Manifest,
@@ -63,6 +68,30 @@ export async function writePageData(
     await writeFile(path.join(outDir, file), json);
     report.bytes += json.length;
   };
+  // Every topic file, and which pages are noindex: the suggestions on each page and the order
+  // of category hubs depend on every topic's, as the prerender worked them out.
+  const catalogs = new Map<string, Map<number, Metric>>();
+  for (const info of manifest.types)
+    catalogs.set(
+      info.id,
+      new Map(
+        (await read<Metric[]>(`${info.id}/metrics.json`)).map((m) => [m.id, m])
+      )
+    );
+  const files = new Map<string, TopicFile>();
+  for (const t of index)
+    files.set(
+      `${t.type}/${t.slug}`,
+      await read<TopicFile>(`${t.type}/topics/${t.slug}.json`)
+    );
+  const noindexKeys = noindexTopicKeys(files.values(), (type, id) =>
+    catalogs.get(type)?.get(id)
+  );
+  const noindex: ReadonlySet<string> = new Set(noindexKeys);
+  await mkdir(path.dirname(path.join(outDir, NOINDEX_TOPICS_PATH)), {
+    recursive: true,
+  });
+  await write(NOINDEX_TOPICS_PATH, noindexKeys);
   for (const info of manifest.types) {
     const type = info.id;
     const [entities, metrics, values] = await Promise.all([
@@ -74,11 +103,11 @@ export async function writePageData(
     for (const dir of ['topics', 'places'])
       await mkdir(path.join(outDir, type, 'pages', dir), { recursive: true });
     for (const t of index) {
-      if (t.type !== type) continue;
-      const topic = await read<TopicFile>(`${type}/topics/${t.slug}.json`);
+      const topic = t.type === type ? files.get(`${type}/${t.slug}`) : null;
+      if (topic == null) continue;
       await write(
         topicPagePath(type, t.slug),
-        buildTopicPageData(topic, full, index)
+        buildTopicPageData(topic, full, index, noindex)
       );
       report.topics++;
     }

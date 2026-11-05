@@ -47,6 +47,7 @@ import { Spinner } from '~/components/feedback';
 import { PolarityIcon } from '~/components/MetricPicker';
 import { Badge, cx, Segmented, Select } from '~/components/ui';
 import { manifestQuery, metricsQuery, topicsIndexQuery } from '~/data/api';
+import { noindexTopicsQuery } from '~/data/noindexTopics';
 import {
   type EntityType,
   isEntityType,
@@ -56,6 +57,7 @@ import {
 import { TYPE_PLURAL, TYPE_SHORT } from '~/features/search/results';
 import { normalizeText } from '~/features/search/searchIndex';
 import { plural } from '~/lib/format';
+import { canonicalTopicSlug } from '~/seo/indexing';
 
 const route = getRouteApi('/categories/$category');
 
@@ -216,6 +218,7 @@ export function CategoryPage() {
   }, [hydrated, stateType, urlSearch.type, navigate]);
   const { data: manifest } = useSuspenseQuery(manifestQuery);
   const { data: topics } = useSuspenseQuery(topicsIndexQuery);
+  const { data: noindex } = useSuspenseQuery(noindexTopicsQuery);
   const [text, setText] = useState('');
   const [sorting, setSorting] = useState<SortingState>(QUICK_SORTS.places);
   const [showAll, setShowAll] = useState(false);
@@ -297,10 +300,19 @@ export function CategoryPage() {
   const visible = showAll ? sorted : sorted.slice(0, ROW_LIMIT);
   // Unfiltered, the table is grouped by place type: each type's leading topics as rows, the rest
   // A–Z behind a <details>. Every topic is linked once, and all links are in the server HTML.
+  // The leading rows go to pages search engines may index first: thin (noindex) topics and
+  // aliases of another topic only lead a type when it has too few others.
+  const indexable = (row: (typeof sorted)[number]) =>
+    !noindex.has(`${row.original.type}/${row.original.slug}`) &&
+    canonicalTopicSlug(row.original.type, row.original.slug) ===
+      row.original.slug;
   const groups =
     text.trim() === ''
       ? splitByType(
-          sorted,
+          [
+            ...sorted.filter(indexable),
+            ...sorted.filter((row) => !indexable(row)),
+          ],
           (row) => row.original,
           type == null ? TOP_PER_TYPE.all : TOP_PER_TYPE.one
         )
