@@ -209,6 +209,7 @@ describe('placeSummary leads and markup', () => {
     expect(text).not.toContain('Happy Planet');
   });
 
+  // These two summarise every county, city and state, which takes longer than bun's 5 s default.
   test('calls a standing best or lowest only in the best or worst quarter', () => {
     for (const ds of [counties, dataset('city'), states]) {
       ds.entities.forEach((_, i) => {
@@ -230,7 +231,7 @@ describe('placeSummary leads and markup', () => {
           expect(rank).toBeGreaterThan(n - Math.ceil(n * 0.25));
       });
     }
-  });
+  }, 30_000);
 
   test('builds meta descriptions from whole sentences', () => {
     for (const ds of [countries, states, counties]) {
@@ -241,7 +242,7 @@ describe('placeSummary leads and markup', () => {
       });
       expect(whole).toBe(ds.entities.length);
     }
-  });
+  }, 30_000);
 
   test('gives each place its codes and its state', () => {
     expect(at(countries, 'japan').jsonLd[0].identifier).toEqual([

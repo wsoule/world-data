@@ -64,6 +64,14 @@ tasks:
       cache: false
       runInCI: 'always'
 
+  # Check what AI answer engines and crawlers get from a sample of the live
+  # pages (docs/geo.md). `moonx web:geo-audit -- --dist` audits the local build.
+  geo-audit:
+    command: 'bun scripts/geo-audit.ts'
+    options:
+      cache: false
+      runInCI: 'always'
+
   # Parse the page cache into public/data.
   data-build:
     command: 'bun scripts/build-data.ts'

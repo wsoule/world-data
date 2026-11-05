@@ -625,6 +625,20 @@ export function placeIdentifiers(
   return [];
 }
 
+/** Brackets that hold a unit, cap or source name: "(%)", "(% of Adults 25+)", "(Census)". */
+const ASIDE =
+  /\s*\((?:[^()]*[%$¢][^()]*|capped [^()]*|per [^()]*|minutes|hours|days|years|census|acs|bls|bea|noaa|epa|fbi|world bank|cdc[^()]*)\)/gi;
+
+/**
+ * A label or topic title without its unit and source brackets, for the run of rankings in a
+ * place summary: "Bachelor’s Degree or Higher (% of Adults 25+)" inside "(…, 495th of 3,094)"
+ * would nest brackets three deep. Brackets that change the meaning ("(Male)") stay.
+ */
+function withoutAsides(text: string): string {
+  const bare = text.replace(ASIDE, '').trim();
+  return bare === '' ? text : bare;
+}
+
 /**
  * Summary, FAQ and Place markup for a place report card. The summary opens with dated, sourced
  * figures (`placeLead`), then names what the place ranks best and lowest for: only headline
@@ -669,14 +683,17 @@ export function placeSummary(ds: Dataset, index: number): PageSummary {
     const label = p.metric.label;
     const context = ds.metricContext(p.metric.id);
     // metricFullLabel's rule, and no context the label already says ("Corruption Perception
-    // Index" on Corruption Perceptions Index by Country).
+    // Index" on Corruption Perceptions Index by Country). Government-source labels (Census,
+    // CDC, BLS…) name their measure in full, so their broad topic titles add nothing.
     const needed =
+      p.metric.id < EXTERNAL_ID_BASE &&
       context != null &&
       ds.metricFullLabel(p.metric.id) !== label &&
       labelMatch(label, context) < new Set(contentWords(label)).size;
+    const name = withoutAsides(label);
     return needed
-      ? `${label} (${context}, ${rankText(p.standing)})`
-      : `${label} (${rankText(p.standing)})`;
+      ? `${name} (${withoutAsides(context)}, ${rankText(p.standing)})`
+      : `${name} (${rankText(p.standing)})`;
   };
 
   const popRank =
