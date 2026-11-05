@@ -9,6 +9,7 @@ import {
   spelledNumbers,
 } from '../scripts/lib/columns';
 import { guessPolarity, keyText, splitKey } from '../scripts/lib/reference';
+import { formatValue } from '../src/lib/format';
 
 describe('looksLikeRanks', () => {
   const ranks = Array.from({ length: 50 }, (_, i) => i + 1);
@@ -55,6 +56,14 @@ describe('spelled-out numbers', () => {
     expect(parseYear('788 AD')).toBe(788);
     expect(parseYear('1 January 1973 - 31 January 2020')).toBeNull();
     expect(parseYear('ongoing')).toBeNull();
+  });
+
+  test('prints read latitudes and years the usual way', () => {
+    const latitude = { fmt: 'floatNumber', unit: '°', kind: 'num' } as const;
+    expect(formatValue(latitude, 72)).toBe('72°');
+    expect(formatValue({ fmt: 'year', unit: null, kind: 'num' }, -2500)).toBe(
+      '2500 BC'
+    );
   });
 
   test('reads a column only when nearly all of it reads, by its header', () => {

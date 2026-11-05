@@ -93,7 +93,7 @@ function duplicatesFormat(unit: string, fmt: string | null): boolean {
 /**
  * Appends a metric's unit to a formatted number. Ranks, percentages, feet and
  * scale ranges such as "0-10" get no unit; "$ per gallon" becomes a currency
- * prefix plus " per gallon"; "%" attaches without a space.
+ * prefix plus " per gallon"; "%" and "°" attach without a space.
  */
 function withUnit(
   out: string,
@@ -111,7 +111,7 @@ function withUnit(
   )
     return out;
   if (/^\d+(\.\d+)?\s*[-–]\s*\d+/.test(u)) return out;
-  if (u === '%') return `${out}%`;
+  if (u === '%' || u === '°') return `${out}${u}`;
   if (fmt?.startsWith('money') === true) {
     // "$/gallon" or "usd/ct" after a price that already shows "$".
     const per = /^(?:\$|usd|us\$)\s*\/\s*(.+)$/i.exec(u);
