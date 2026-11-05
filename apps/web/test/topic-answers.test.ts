@@ -461,3 +461,65 @@ describe('topic leads answer the question the title asks', () => {
     );
   });
 });
+
+describe('topic Dataset markup', () => {
+  const loaded = new Map<EntityType, Dataset>();
+  const cached = (type: EntityType): Dataset => {
+    const hit = loaded.get(type) ?? dataset(type);
+    loaded.set(type, hit);
+    return hit;
+  };
+  const ld = (type: EntityType, slug: string) => {
+    const seo = topicSummary(
+      read<TopicFile>(`${type}/topics/${slug}.json`),
+      cached(type),
+      manifest.categories
+    );
+    return {
+      seo,
+      dataset: seo.jsonLd[0],
+      crumbs: seo.jsonLd[1] as { itemListElement: { item: string }[] },
+    };
+  };
+
+  test('an alias names its primary page as the Dataset url and last breadcrumb', () => {
+    for (const [type, aliases] of Object.entries(TOPIC_ALIASES))
+      for (const [alias, primary] of Object.entries(aliases ?? {})) {
+        const { seo, dataset, crumbs } = ld(type as EntityType, alias);
+        if (seo.noindex) continue;
+        const url = `https://rankodex.com/topics/${type}/${primary}`;
+        expect(dataset.url).toBe(url);
+        expect(crumbs.itemListElement.at(-1)?.item).toBe(url);
+      }
+  });
+
+  test('dateModified is the date the page shows: its own, else its newest metric’s', () => {
+    for (const type of ['state', 'country'] as const)
+      for (const file of readdirSync(join(DATA, type, 'topics'))) {
+        if (!file.endsWith('.json')) continue;
+        const topic = read<TopicFile>(`${type}/topics/${file}`);
+        const ds = cached(type);
+        let shown = topic.updated;
+        if (shown == null)
+          for (const id of topic.metrics) {
+            const u = ds.metric(id)?.updated;
+            if (u != null && (shown == null || u > shown)) shown = u;
+          }
+        const { dataset } = ld(type, topic.slug);
+        expect(dataset.dateModified ?? null).toBe(shown?.slice(0, 10) ?? null);
+      }
+  });
+
+  test('an outside headline figure is measured and its publisher credited', () => {
+    const { dataset } = ld('state', 'hottest-states');
+    const variables = dataset.variableMeasured as { name: string }[];
+    expect(variables[0].name).toBe('Average Temperature (°F)');
+    expect(JSON.stringify(dataset.isBasedOn)).toContain(
+      'nClimDiv Climate Division Data - NOAA'
+    );
+    const poorest = ld('state', 'poorest-states').dataset;
+    expect(JSON.stringify(poorest.isBasedOn)).toContain(
+      'American Community Survey 5-Year Estimates'
+    );
+  });
+});

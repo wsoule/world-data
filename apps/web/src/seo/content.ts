@@ -6,6 +6,7 @@ import {
   canonicalTopicSlug,
   isIndexablePlace,
   isIndexableTopic,
+  newestDate,
   topicCoverage,
 } from './indexing';
 import { topicAnswers } from './topic-content';
@@ -19,6 +20,7 @@ import type {
   EntityTypeInfo,
   Metric,
   TopicFile,
+  TopicSource,
 } from '~/data/types';
 import { datasetFacts } from '~/features/places/datasetFacts';
 import { rankText } from '~/features/places/percentile';
@@ -38,6 +40,7 @@ import {
 } from '~/features/places/profileModel';
 import {
   contentWords,
+  headlineOverride,
   labelMatch,
   leadMetric,
   openingYear,
@@ -100,7 +103,8 @@ const TITLE_ROOM = 65 - ` — ${SITE.name}`.length;
  * Framings a topic name can take in its <title>, longest first. Ranked topics are "Ranked,
  * Mapped & Compared" down to "Map" (a title that already says "rank" starts at "Mapped &
  * Compared"), lists of places a "Full List" or "List", and questions are "Answered with Data" or
- * "Answered" when the page's lead answers them, else "Data & Map" or "Data".
+ * "Answered" when the page's lead answers them (then "Data" when neither fits), else "Data & Map"
+ * or "Data".
  */
 function framings(
   title: string,
@@ -109,7 +113,7 @@ function framings(
 ): readonly string[] {
   if (title.endsWith('?'))
     return answered
-      ? [' Answered with Data', ' Answered']
+      ? [' Answered with Data', ' Answered', ' Data']
       : [' Data & Map', ' Data'];
   if (!ranked) return [': Full List', ': List'];
   return /\brank/i.test(title)
@@ -312,18 +316,24 @@ function sourceWork(source: {
  * carries.
  */
 export function datasetCredit(
-  topic: Pick<TopicFile, 'url' | 'sources'>
+  topic: Pick<TopicFile, 'url' | 'sources'>,
+  /** Publishers of outside figures the page leads with (HeadlineOverride.source) */
+  extra: readonly TopicSource[] = []
 ): Record<string, unknown> {
   // The first source listed at each address (a page may cite one twice).
   const byUrl = new Map<string, Record<string, unknown>>();
   for (const s of topic.sources)
     if (!byUrl.has(s.url)) byUrl.set(s.url, sourceWork(s));
   const cited = [...byUrl.values()];
+  const outside = extra
+    .filter((s) => !byUrl.has(s.url))
+    .map((s) => sourceWork(s));
   if (topic.url == null) {
+    const all = [...cited, ...outside];
     return {
       creator: publisherRef(),
       publisher: publisherRef(),
-      ...(cited.length > 0 ? { isBasedOn: cited } : {}),
+      ...(all.length > 0 ? { isBasedOn: all } : {}),
     };
   }
   const source = {
@@ -331,15 +341,16 @@ export function datasetCredit(
     name: SITE.sourceName,
     url: SITE.sourceUrl,
   };
+  const page = {
+    '@type': 'CreativeWork',
+    url: topic.url,
+    creator: source,
+    ...(cited.length > 0 ? { isBasedOn: cited } : {}),
+  };
   return {
     creator: source,
     publisher: publisherRef(),
-    isBasedOn: {
-      '@type': 'CreativeWork',
-      url: topic.url,
-      creator: source,
-      ...(cited.length > 0 ? { isBasedOn: cited } : {}),
-    },
+    isBasedOn: outside.length > 0 ? [page, ...outside] : page,
   };
 }
 
@@ -355,7 +366,13 @@ export function topicSummary(
   categories: readonly CategoryInfo[]
 ): PageSummary {
   const type = ds.type;
-  const path = `/topics/${type.id}/${topic.slug}`;
+  const noindex = !isIndexableTopic(
+    topicCoverage(topic, (id) => ds.metric(id))
+  );
+  // An alias names its primary page, as its canonical tag does (a thin page keeps its own).
+  const path = `/topics/${type.id}/${
+    noindex ? topic.slug : canonicalTopicSlug(type.id, topic.slug)
+  }`;
   const metric = leadMetric(topic, ds);
   const { summary, short, lead, faq, answered } = topicAnswers(
     topic,
@@ -379,7 +396,14 @@ export function topicSummary(
   const years = [...new Set(shown.flatMap((m) => seriesYears(topic, m.id)))]
     .filter((y) => y <= thisYear)
     .sort((a, b) => a - b);
-  const variables = shown.slice(0, 25);
+  // A headline figure from another topic (HEADLINES) is measured too, and its publisher credited.
+  const override = headlineOverride(topic);
+  const outside =
+    metric != null && !shown.some((m) => m.id === metric.id) ? metric : null;
+  const variables = [...(outside == null ? [] : [outside]), ...shown].slice(
+    0,
+    25
+  );
   // The answer comes first, then one closing sentence naming the topic and what the page
   // holds. The meta description quotes the short answer (see topicDescription), so pages over
   // the same table read apart; the Dataset keeps the full summary.
@@ -406,7 +430,10 @@ export function topicSummary(
       ...variables.slice(0, 8).map((m) => m.label),
     ],
     isAccessibleForFree: true,
-    ...datasetCredit(topic),
+    ...datasetCredit(
+      topic,
+      outside != null && override?.source != null ? [override.source] : []
+    ),
     spatialCoverage: { '@type': 'Place', name: SPATIAL[type.id] },
     variableMeasured: variables.map((m) =>
       m.unit == null
@@ -421,7 +448,12 @@ export function topicSummary(
       },
     ],
   };
-  if (topic.updated != null) dataset.dateModified = topic.updated;
+  // The date the page shows as "Updated" (TopicHeader) and the sitemap's lastmod: the topic's
+  // own update date, else its newest metric's.
+  const modified =
+    newestDate([topic.updated]) ??
+    newestDate(topic.metrics.map((id) => ds.metric(id)?.updated));
+  if (modified != null) dataset.dateModified = modified;
   if (years.length > 0) {
     const first = years[0];
     const last = years[years.length - 1];
@@ -436,7 +468,7 @@ export function topicSummary(
     faq,
     crumbs,
     jsonLd: [dataset, breadcrumbs(crumbs), faqPage(faq)],
-    noindex: !isIndexableTopic(topicCoverage(topic, (id) => ds.metric(id))),
+    noindex,
   };
 }
 
