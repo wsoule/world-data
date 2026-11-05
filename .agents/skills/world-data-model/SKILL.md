@@ -173,8 +173,10 @@ What the build decides for each metric (`scripts/build-data.ts`, rules in
   (Census ACS from the keyless Summary File, since the API needs a key),
   `fbi.ts` (crime rates; signed download links) and `bls.ts` (unemployment and
   wages; skipped unless `DATA_CONTACT_EMAIL` is set, as BLS rejects anonymous
-  user agents). A rebuild may reorder `values.json` of untouched types without
-  changing content; restore those files rather than committing the churn.
+  user agents; a rebuild without it drops the BLS topics, so do not commit
+  that). Cached pages are read in sorted order, so a rebuild from the same cache
+  and downloads writes the same files; a topic from another source is dated by
+  its newest downloaded file.
 - Data stories: `scripts/build-stories.ts` runs at the end of the data build and
   writes `public/data/stories` (one JSON per story plus `index.json` with card
   thumbnails). Hand-written stories are defined in `src/content/storyDefs.ts`;

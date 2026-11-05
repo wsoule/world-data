@@ -7,7 +7,7 @@
 // Both files are zipped Excel workbooks.
 
 import { execFileSync } from 'node:child_process';
-import { writeFileSync } from 'node:fs';
+import { statSync, utimesSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { FBI_CRIME } from '../../src/data/external';
@@ -129,6 +129,10 @@ function tableRows(dir: string, zip: string, table: string): Cell[][] {
       maxBuffer: 512 * 1024 * 1024,
     })
   );
+  // The extracted copy keeps the archive's date, so the topic stays dated by the download
+  // (see fetchedOn in sources/index.ts), not by the last build.
+  const { atime, mtime } = statSync(zip);
+  utimesSync(xlsx, atime, mtime);
   return readSheet(xlsx);
 }
 

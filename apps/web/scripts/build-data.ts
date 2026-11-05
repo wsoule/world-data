@@ -1248,7 +1248,11 @@ async function writeType(
 }
 
 async function main(): Promise<void> {
-  const files = (await readdir(CACHE)).filter((f) => f.endsWith('.html.gz'));
+  // Sorted, so pages are always read in the same order: readdir order depends on the file
+  // system, and it decides the order of values.json and which page's value wins a conflict.
+  const files = (await readdir(CACHE))
+    .filter((f) => f.endsWith('.html.gz'))
+    .sort();
   console.log(`reading ${files.length} cached pages from ${CACHE}`);
 
   const db = new Map<Prefix, TypeAcc>();

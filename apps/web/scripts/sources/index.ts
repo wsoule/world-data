@@ -97,7 +97,10 @@ export async function sourcePages(
   const groups = await Promise.all(
     sources.map(async ([name, pages]) => {
       const dir = path.join(root, name);
-      const [list, fetched] = await Promise.all([pages(dir), fetchedOn(dir)]);
+      // Dated before the pages are built: building may write files into the folder (the FBI
+      // archives are extracted there), which must not date the download.
+      const fetched = await fetchedOn(dir);
+      const list = await pages(dir);
       return list.map((p) => ({ ...p, fetched: p.fetched ?? fetched }));
     })
   );
