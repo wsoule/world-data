@@ -84,10 +84,17 @@ const TITLE_ROOM = 65 - ` — ${SITE.name}`.length;
  * Framings a topic name can take in its <title>, longest first. Ranked topics are "Ranked,
  * Mapped & Compared" down to "Map" (a title that already says "rank" starts at "Mapped &
  * Compared"), lists of places a "Full List" or "List", and questions are "Answered with Data" or
- * "Answered".
+ * "Answered" when the page's lead answers them, else "Data & Map" or "Data".
  */
-function framings(title: string, ranked: boolean): readonly string[] {
-  if (title.endsWith('?')) return [' Answered with Data', ' Answered'];
+function framings(
+  title: string,
+  ranked: boolean,
+  answered: boolean
+): readonly string[] {
+  if (title.endsWith('?'))
+    return answered
+      ? [' Answered with Data', ' Answered']
+      : [' Data & Map', ' Data'];
   if (!ranked) return [': Full List', ': List'];
   return /\brank/i.test(title)
     ? [': Mapped & Compared', ': Mapped', ': Map']
@@ -163,12 +170,17 @@ export function shorterTitles(title: string): string[] {
  * the room left (see `framings`), so the tag reads differently from the source's own title while
  * the H1 stays the plain topic name. A name too long for any framing tries its shorter forms
  * (`shorterTitles`) before it is left unframed; one longer than the room on its own is shortened
- * when a shorter form fits.
+ * when a shorter form fits. A question is framed "Answered" only when `answered` (the lead
+ * answers it; see TopicText.answered).
  */
-export function topicPageTitle(title: string, ranked: boolean): string {
+export function topicPageTitle(
+  title: string,
+  ranked: boolean,
+  answered = true
+): string {
   const forms = [title, ...shorterTitles(title)];
   for (const form of forms)
-    for (const frame of framings(form, ranked))
+    for (const frame of framings(form, ranked, answered))
       if (form.length + frame.length <= TITLE_ROOM) return `${form}${frame}`;
   return forms.find((f) => f.length <= TITLE_ROOM) ?? title;
 }
@@ -181,29 +193,37 @@ const META_LENGTH = 158;
  * what a search snippet shows names the topic and two pages over the same table ("Oil
  * Production by Country" and "Oil Producing Countries", or "Single-Party Consent States" and
  * "Two-Party Consent States") never read the same. `answers` are the answer's forms, longest
- * first (the short answer, then its first sentence alone): the longest that leaves the topic's
- * `name` (its title) inside the first META_LENGTH characters is used. When even the shortest
- * leaves no room (a long breakdown of a categorical column), the closing leads.
+ * first (the short answer, then its first sentence alone), and `closings` the closing's
+ * (`topicClosings`, longest first). Whole sentences come first: the longest answer that fits
+ * META_LENGTH with any closing, with the longest closing that fits beside it, so
+ * clampDescription has nothing to cut; else an answer that names the topic (its title, in any
+ * case) on its own. Only when no whole form fits is the description cut: an answer that leaves
+ * the name inside the first META_LENGTH characters, else the closing first.
  */
 export function topicDescription(
   answers: readonly string[],
-  closing: string,
+  closings: string | readonly string[],
   name: string
 ): string {
-  const bare = name.replace(/[?.!]$/, '');
+  const ends = typeof closings === 'string' ? [closings] : closings;
+  const closing = ends[0] ?? '';
+  // "14 countries are 14 Eyes countries" names "14 Eyes Countries" too.
+  const bare = name.replace(/[?.!]$/, '').toLowerCase();
+  for (const answer of answers)
+    for (const end of ends) {
+      const text = `${answer} ${end}`;
+      if (text.length <= META_LENGTH) return text;
+    }
+  for (const answer of answers)
+    if (answer.length <= META_LENGTH && answer.toLowerCase().includes(bare))
+      return answer;
   // clampDescription cuts at a word boundary at most 20 characters before the limit.
-  const fits = (text: string): boolean => {
-    const at = text.indexOf(bare);
-    return (
-      text.length <= META_LENGTH ||
-      (at >= 0 && at + bare.length <= META_LENGTH - 20)
-    );
-  };
   for (const answer of answers) {
     const text = `${answer} ${closing}`;
-    if (fits(text)) return text;
+    const at = text.toLowerCase().indexOf(bare);
+    if (at >= 0 && at + bare.length <= META_LENGTH - 20) return text;
   }
-  return `${closing} ${answers[0] ?? ''}`.trim();
+  return `${ends[ends.length - 1] ?? ''} ${answers[0] ?? ''}`.trim();
 }
 
 /**
@@ -219,12 +239,40 @@ export function topicClosing(
   ranked: boolean,
   type: EntityTypeInfo
 ): string {
+  return topicClosings(title, places, metrics, ranked, type)[0];
+}
+
+/**
+ * `topicClosing` and its shorter forms, longest first, for a description that has room for the
+ * answer and only part of the closing: "Coldest States: 50 US states ranked on 3 metrics, mapped
+ * and compared.", "… ranked on 3 metrics.", "Coldest States: 50 US states, ranked and mapped.",
+ * "Coldest States: the full ranking."
+ */
+export function topicClosings(
+  title: string | null,
+  places: number,
+  metrics: number,
+  ranked: boolean,
+  type: EntityTypeInfo
+): string[] {
   const where = `${formatInt(places)} ${places === 1 ? singular(type) : plural(type)}`;
   const what = `${formatInt(metrics)} ${metrics === 1 ? 'metric' : 'metrics'}`;
-  const name = title == null ? '' : `${title.replace(/[?.!]$/, '')}: `;
-  return ranked
-    ? `${name}${where} ranked on ${what}, mapped and compared.`
-    : `${name}${where} and ${what} in one table.`;
+  const bare = title == null ? null : title.replace(/[?.!]$/, '');
+  const name = bare == null ? '' : `${bare}: `;
+  const forms = ranked
+    ? [
+        `${name}${where} ranked on ${what}, mapped and compared.`,
+        `${name}${where} ranked on ${what}.`,
+        `${name}${where}, ranked and mapped.`,
+      ]
+    : [
+        `${name}${where} and ${what} in one table.`,
+        `${name}${where} in one table.`,
+      ];
+  // The name alone, when the answer leaves room for little else.
+  if (bare != null)
+    forms.push(`${bare}: the full ${ranked ? 'ranking' : 'list'}.`);
+  return forms;
 }
 
 /** A cited source as a schema.org CreativeWork: its name and address. */
@@ -293,7 +341,7 @@ export function topicSummary(
   const type = ds.type;
   const path = `/topics/${type.id}/${topic.slug}`;
   const metric = leadMetric(topic, ds);
-  const { summary, short, lead, faq } = topicAnswers(
+  const { summary, short, lead, faq, answered } = topicAnswers(
     topic,
     ds,
     metric,
@@ -319,14 +367,15 @@ export function topicSummary(
   // The answer comes first, then one closing sentence naming the topic and what the page
   // holds. The meta description quotes the short answer (see topicDescription), so pages over
   // the same table read apart; the Dataset keeps the full summary.
-  const closing = topicClosing(
+  const closings = topicClosings(
     short.startsWith(`${topic.title}:`) ? null : topic.title,
     topic.entities.length,
     shown.length,
     metric != null,
     type
   );
-  const description = topicDescription([short, lead], closing, topic.title);
+  const closing = closings[0];
+  const description = topicDescription([short, lead], closings, topic.title);
 
   const dataset: Record<string, unknown> = {
     '@type': 'Dataset',
@@ -365,7 +414,7 @@ export function topicSummary(
   }
 
   return {
-    title: topicPageTitle(topic.title, metric != null),
+    title: topicPageTitle(topic.title, metric != null, answered),
     description,
     summary,
     faq,

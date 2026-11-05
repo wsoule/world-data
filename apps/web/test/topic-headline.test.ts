@@ -23,12 +23,15 @@ import { rankingOrderLabel } from '../src/features/topic/model';
 import {
   shorterTitles,
   topicClosing,
+  topicClosings,
   topicDescription,
   topicPageTitle,
 } from '../src/seo/content';
 import {
   coverage,
   joinNames,
+  listPhrase,
+  rankEndNote,
   sourceAnswer,
   topicAnswers,
   valueGroups,
@@ -731,6 +734,16 @@ describe('topicPageTitle', () => {
         'Polynesian Countries'
       )
     ).toStartWith(list);
+    // A shorter closing keeps the description to whole sentences.
+    expect(
+      topicDescription(
+        [`${'A has the highest X (1). '.repeat(3)}B has the lowest (0).`],
+        topicClosings('Coldest States', 50, 3, true, TYPE),
+        'Coldest States'
+      )
+    ).toBe(
+      `${'A has the highest X (1). '.repeat(3)}B has the lowest (0). Coldest States: 50 US states ranked on 3 metrics.`
+    );
     // A long categorical breakdown: the closing leads.
     const breakdown =
       'Call Recordings Law: “Single-Party Consent” in 38 of 51 US states; “Two-Party Consent” in 10 and “Mixed Consent” in 3 (Oregon, Connecticut and Hawaii).';
@@ -745,6 +758,15 @@ describe('topicPageTitle', () => {
     );
   });
 
+  test('frames a question "Answered" only when its lead answers it', () => {
+    expect(topicPageTitle('How Many States Did Trump Win?', true, true)).toBe(
+      'How Many States Did Trump Win? Answered with Data'
+    );
+    expect(topicPageTitle('How Many States Did Trump Win?', true, false)).toBe(
+      'How Many States Did Trump Win? Data & Map'
+    );
+  });
+
   test('names the topic in the closing sentence of its description', () => {
     expect(topicClosing('Coldest States', 50, 3, true, TYPE)).toBe(
       'Coldest States: 50 US states ranked on 3 metrics, mapped and compared.'
@@ -755,5 +777,63 @@ describe('topicPageTitle', () => {
     expect(topicClosing(null, 9, 2, false, TYPE)).toBe(
       '9 US states and 2 metrics in one table.'
     );
+    expect(topicClosings('Coldest States', 50, 3, true, TYPE)).toEqual([
+      'Coldest States: 50 US states ranked on 3 metrics, mapped and compared.',
+      'Coldest States: 50 US states ranked on 3 metrics.',
+      'Coldest States: 50 US states, ranked and mapped.',
+      'Coldest States: the full ranking.',
+    ]);
+  });
+});
+
+describe('listPhrase', () => {
+  test('names the kind of place a list title is', () => {
+    expect(listPhrase('G20 Countries')).toBe('are G20 countries');
+    expect(listPhrase('Cotton Belt States')).toBe('are Cotton Belt states');
+  });
+
+  test('leaves out titles that name an end, a negation, a question or a name', () => {
+    expect(listPhrase('Most Visited Countries')).toBeNull();
+    expect(listPhrase('Countries Without KFC')).toBeNull();
+    expect(listPhrase('States Without Ticks')).toBeNull();
+    expect(listPhrase('Euthanasia Legal in What States')).toBeNull();
+    expect(listPhrase('Continental United States')).toBeNull();
+    expect(listPhrase('R34 Legal in States')).toBeNull();
+    expect(listPhrase('Which Countries Use 24 Hour Time?')).toBeNull();
+  });
+});
+
+describe('rankEndNote', () => {
+  test('says best or worst by polarity', () => {
+    expect(rankEndNote(RANK, 'US state')?.clause).toBe('rank 1 is the best');
+    expect(
+      rankEndNote({ ...RANK, label: 'Most Hated Rank', pol: 1 }, 'US state')
+        ?.sentence
+    ).toBe('Rank 1 is the worst US state.');
+  });
+
+  test('never calls rank 1 of a neutral rank the best', () => {
+    const density = metric(40, 'Population Density Rank', {
+      fmt: 'ranking',
+      pol: 0,
+    });
+    expect(rankEndNote(density, 'city')?.clause).toBe(
+      'rank 1 has the highest Population Density'
+    );
+    expect(
+      rankEndNote(
+        { ...density, label: 'Weirdness Rank (Insider Monkey)' },
+        'country'
+      )?.clause
+    ).toBe('rank 1 has the highest Weirdness');
+    // A label that names only the rank says nothing about its end.
+    expect(rankEndNote({ ...density, label: 'Rank' }, 'country')).toBeNull();
+    const t = topic('Population Density by State', [
+      [{ ...density, label: 'Density Rank' }, [1, 2, 3, 4, 5]],
+    ]);
+    const ds = dataset([{ ...density, label: 'Density Rank' }]);
+    const text = topicAnswers(t, ds, ds.metric(40) ?? null, null);
+    expect(text.summary).not.toContain('best');
+    expect(text.summary).toContain('rank 1 has the highest Density');
   });
 });

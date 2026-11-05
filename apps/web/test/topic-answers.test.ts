@@ -22,6 +22,7 @@ import {
 } from '../src/features/topic/model';
 import { ORGANIZATION_ID } from '../src/lib/seo';
 import { datasetCredit, topicSummary } from '../src/seo/content';
+import { TOPIC_ALIASES } from '../src/seo/indexing';
 import { topicAnswers } from '../src/seo/topic-content';
 
 const DATA = join(import.meta.dir, '../public/data');
@@ -145,7 +146,7 @@ describe('topicAnswers', () => {
     const topic = read<TopicFile>('country/topics/14-eyes-countries.json');
     const { summary, faq } = topicAnswers(topic, ds, null, null);
     expect(summary).toStartWith(
-      '14 countries are on the 14 Eyes Countries list: United States, Germany,'
+      '14 countries are 14 Eyes countries: United States, Germany,'
     );
     expect(summary).toContain(
       'Member of 5 Eyes: “No” in 9 of 14 countries and “Yes” in 5 (United States, United Kingdom, Canada, Australia and New Zealand).'
@@ -328,4 +329,135 @@ describe('topicAnswers', () => {
       }
     });
   }
+});
+
+describe('topic leads answer the question the title asks', () => {
+  const loaded = new Map<EntityType, Dataset>();
+  const cached = (type: EntityType): Dataset => {
+    const hit = loaded.get(type) ?? dataset(type);
+    loaded.set(type, hit);
+    return hit;
+  };
+  const page = (type: EntityType, slug: string) =>
+    topicSummary(
+      read<TopicFile>(`${type}/topics/${slug}.json`),
+      cached(type),
+      manifest.categories
+    );
+
+  test('a membership column whose label repeats the title leads', () => {
+    expect(page('country', 'g20-countries').summary).toMatch(
+      /^19 countries are G20 countries: /
+    );
+    expect(page('country', 'g8-countries').summary).toMatch(
+      /^8 countries are G8 countries: /
+    );
+    expect(page('country', 'global-north-countries').summary).toMatch(
+      /^\d+ countries are Global North countries: /
+    );
+  });
+
+  test('a categorical value the title names leads, and its places are listed', () => {
+    const trump = page('state', 'how-many-states-did-trump-win-in-2016');
+    expect(trump.summary).toMatch(
+      /^2016 Winner: “Trump” in 30 of \d+ US states \(.+\); “Clinton” in 19/
+    );
+    expect(trump.title).toContain('Answered');
+    const authoritarian = page(
+      'country',
+      'what-countries-have-authoritarian-government'
+    );
+    expect(authoritarian.summary).toMatch(
+      /^Type of Government: “Authoritarian” in/
+    );
+  });
+
+  test('the income-group pages lead with their own group', () => {
+    const lead = (slug: string) => page('country', slug).summary.split(';')[0];
+    expect(lead('low-income-countries')).toMatch(/“Lower” in \d+ of/);
+    expect(lead('high-income-countries')).toMatch(/“High” in \d+ of/);
+    expect(lead('middle-income-countries')).toMatch(
+      /“(Upper|Lower) Middle” in/
+    );
+    const leads = ['low', 'middle', 'high'].map((g) =>
+      lead(`${g}-income-countries`)
+    );
+    expect(new Set(leads).size).toBe(3);
+  });
+
+  test('a developing-countries title reads from the low end of development', () => {
+    expect(page('country', 'developing-countries').summary).toMatch(
+      /has the lowest Human Development Index/
+    );
+    expect(page('country', 'developed-countries').summary).toMatch(
+      /has the highest Human Development Index/
+    );
+  });
+
+  test('order and value columns read from the end the title means', () => {
+    expect(
+      page('country', 'which-country-celebrates-new-year-first').summary
+    ).toMatch(/^Kiribati has the lowest Order of New Year Arrival \(1\)/);
+    expect(
+      page('country', 'what-country-has-the-highest-currency').summary
+    ).toMatch(/^Kuwait has the lowest Rate for 1 Dollar/);
+    expect(page('country', 'countries-without-clean-water').summary).toMatch(
+      /has the lowest % w\/ Safe Water/
+    );
+  });
+
+  test('a per-place name column lists the names, not their numbers', () => {
+    expect(page('state', 'largest-city-by-state').summary).toMatch(
+      /^Largest City by State: Los Angeles \(California\); Houston \(Texas\)/
+    );
+    expect(page('state', 'highest-paying-jobs-by-state').summary).toMatch(
+      /^Highest Paying Jobs by State: \w/
+    );
+    for (const slug of [
+      'most-dangerous-cities-by-state',
+      'biggest-church-by-state',
+      'richest-families-by-state',
+      'small-towns-by-state',
+    ])
+      expect(page('state', slug).summary).not.toMatch(
+        /has the (highest|lowest)/
+      );
+  });
+
+  test('a list every place shares one value of names its members or that value', () => {
+    expect(page('state', 'cotton-belt-states').summary).toMatch(
+      /^17 US states are Cotton Belt states: /
+    );
+    expect(page('state', 'lsd-legal-states').summary).toMatch(
+      /^LSD Legality: “Illegal” in all 51 US states listed \(/
+    );
+    for (const type of manifest.types.map((t) => t.id))
+      for (const file of readdirSync(join(DATA, type, 'topics'))) {
+        if (!file.endsWith('.json')) continue;
+        const seo = page(type, file.slice(0, -5));
+        expect(seo.description).not.toMatch(/” for all [\d,]+ /);
+      }
+  });
+
+  test('every alias leads with the same metric as its primary', () => {
+    for (const [type, aliases] of Object.entries(TOPIC_ALIASES))
+      for (const [alias, primary] of Object.entries(aliases ?? {})) {
+        const ds = cached(type as EntityType);
+        const a = leadMetric(
+          read<TopicFile>(`${type}/topics/${alias}.json`),
+          ds
+        );
+        const p = leadMetric(
+          read<TopicFile>(`${type}/topics/${primary}.json`),
+          ds
+        );
+        expect(`${type}/${alias}: ${a?.id}`).toBe(`${type}/${alias}: ${p?.id}`);
+      }
+    expect(page('state', 'least-expensive-states').summary).toMatch(
+      /^West Virginia has the lowest COLI Overall Index/
+    );
+    expect(page('state', 'cheapest-states-to-live-in').summary).toMatch(
+      /^West Virginia has the lowest COLI Overall Index/
+    );
+  });
 });
