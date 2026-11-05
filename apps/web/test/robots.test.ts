@@ -1,7 +1,14 @@
 import { describe, expect, test } from 'bun:test';
 
 import { CATEGORY_LABELS } from '../scripts/lib/reference';
-import { NAMED_CRAWLERS, robotsTxt } from '../scripts/lib/robots';
+import {
+  blockedOnlyLinks,
+  type LinkedPage,
+  NAMED_CRAWLERS,
+  robotsAllows,
+  robotsRules,
+  robotsTxt,
+} from '../scripts/lib/robots';
 
 /** The robots.txt groups, as user agent -> its rule lines. */
 function groups(txt: string): Map<string, string[]> {
@@ -128,5 +135,99 @@ describe('robotsTxt', () => {
       expect(allowedFirstMatch(rules, '/vs?e=usa')).toBe(false);
       expect(allowedFirstMatch(rules, '/topics/state/x')).toBe(true);
     }
+  });
+});
+
+describe('robotsAllows', () => {
+  test('agrees with the RFC 9309 reference on the published rules', () => {
+    const rules = robotsRules();
+    for (const path of [
+      '/',
+      '/search',
+      '/search?q=x',
+      '/compare',
+      '/compare?type=state',
+      '/vs?e=usa',
+      '/categories',
+      '/categories?type=state',
+      '/categories/law',
+      '/categories/law?type=state',
+      '/topics/state/coldest-states',
+      '/topics/state/coldest-states?m=1',
+      '/places/state/texas',
+    ])
+      expect(`${path} ${robotsAllows(rules, path)}`).toBe(
+        `${path} ${allowed(rules, path)}`
+      );
+  });
+});
+
+describe('blockedOnlyLinks', () => {
+  const site = 'https://rankodex.com';
+  const page = (
+    path: string,
+    links: string[],
+    indexable = true
+  ): LinkedPage => ({ path, indexable, links });
+  const hubs = [page('/categories/law', []), page('/categories', [])];
+
+  test('flags an indexable page that links a hub only through a blocked variant', () => {
+    const gaps = blockedOnlyLinks(
+      [
+        ...hubs,
+        page('/topics/state/gun-laws', [
+          '/categories/law?type=state',
+          'https://rankodex.com/categories?type=state',
+        ]),
+      ],
+      site
+    );
+    expect(gaps).toEqual([
+      {
+        source: '/topics/state/gun-laws',
+        target: '/categories/law',
+        via: '/categories/law?type=state',
+      },
+      {
+        source: '/topics/state/gun-laws',
+        target: '/categories',
+        via: '/categories?type=state',
+      },
+    ]);
+  });
+
+  test('accepts a blocked variant next to the bare link, and bare links alone', () => {
+    expect(
+      blockedOnlyLinks(
+        [
+          ...hubs,
+          page('/topics/state/a', [
+            '/categories/law?type=state',
+            '/categories/law',
+          ]),
+          page('/topics/state/b', ['https://rankodex.com/categories/law#top']),
+        ],
+        site
+      )
+    ).toEqual([]);
+  });
+
+  test('ignores noindex sources and targets, other hosts and the tools’ states', () => {
+    expect(
+      blockedOnlyLinks(
+        [
+          ...hubs,
+          page('/compare', [], false),
+          page('/search', [], false),
+          page('/404.html', ['/categories/law?type=state'], false),
+          page('/topics/state/a', [
+            '/compare?type=state&m=1',
+            '/search?q=gdp',
+            'https://example.com/categories/law?type=state',
+          ]),
+        ],
+        site
+      )
+    ).toEqual([]);
   });
 });

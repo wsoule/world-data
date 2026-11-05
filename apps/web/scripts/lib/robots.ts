@@ -1,5 +1,6 @@
-// The robots.txt that scripts/seo-files.ts writes. A pure function, so the
-// rules can be tested without a build.
+// The robots.txt that scripts/seo-files.ts writes, and the build check that no
+// indexable page reaches another one only through a URL robots.txt blocks.
+// Pure functions, so the rules can be tested without a build.
 
 import { CATEGORY_LABELS } from './reference';
 
@@ -22,10 +23,11 @@ export const NAMED_CRAWLERS = [
 
 /**
  * Category hubs with a query string: "/categories/law?type=state" opens a hub
- * on one place type, and topic pages link to 68 such variants. Each names the
- * bare hub as canonical, so crawlers get only the bare /categories/<id>. One
- * plain prefix per category (from CATEGORY_LABELS, which the manifest's
- * categories come from) needs no "*" wildcard, so it works for every group.
+ * on one place type. Each names the bare hub as canonical, so crawlers get only
+ * the bare /categories/<id>, and the site's own links name the place type in
+ * history state instead (see blockedOnlyLinks). One plain prefix per category
+ * (from CATEGORY_LABELS, which the manifest's categories come from) needs no
+ * "*" wildcard, so it works for every crawler.
  */
 export const CATEGORY_QUERY_PREFIXES: readonly string[] = [
   '/categories?',
@@ -59,6 +61,17 @@ export const WILDCARD_DISALLOWED = ['/topics/*?'] as const;
 /** User-agent groups that get WILDCARD_DISALLOWED. */
 const WILDCARD_GROUPS: ReadonlySet<string> = new Set(['*', 'Bingbot']);
 
+/** The rule lines of a user agent's robots.txt group, in file order. */
+export function robotsRules(agent = '*'): string[] {
+  return [
+    ...DISALLOWED.map((p) => `Disallow: ${p}`),
+    ...(WILDCARD_GROUPS.has(agent)
+      ? WILDCARD_DISALLOWED.map((p) => `Disallow: ${p}`)
+      : []),
+    'Allow: /',
+  ];
+}
+
 /**
  * robots.txt: every crawler is welcome everywhere except DISALLOWED (and
  * WILDCARD_DISALLOWED where supported), the named crawlers each get the same
@@ -70,11 +83,7 @@ const WILDCARD_GROUPS: ReadonlySet<string> = new Set(['*', 'Bingbot']);
 export function robotsTxt(siteUrl: string): string {
   const group = (agent: string): string[] => [
     `User-agent: ${agent}`,
-    ...DISALLOWED.map((p) => `Disallow: ${p}`),
-    ...(WILDCARD_GROUPS.has(agent)
-      ? WILDCARD_DISALLOWED.map((p) => `Disallow: ${p}`)
-      : []),
-    'Allow: /',
+    ...robotsRules(agent),
     '',
   ];
   return [
@@ -84,4 +93,92 @@ export function robotsTxt(siteUrl: string): string {
     `Sitemap: ${siteUrl}/sitemap.xml`,
     '',
   ].join('\n');
+}
+
+/** A robots.txt path pattern as a regular expression ("*" any run, a final "$" the end). */
+function patternRegExp(pattern: string): RegExp {
+  const source = pattern
+    .split('*')
+    .map((part) => part.replace(/[.+?^${}()|[\]\\]/g, '\\$&'))
+    .join('.*')
+    .replace(/\\\$$/, '$');
+  return new RegExp(`^${source}`);
+}
+
+/**
+ * Whether robots.txt `rules` (lines such as "Disallow: /vs?") let a crawler fetch `path`
+ * (query included), the RFC 9309 way: the longest matching rule wins, Allow on a tie.
+ */
+export function robotsAllows(rules: readonly string[], path: string): boolean {
+  let best: { length: number; allow: boolean } | null = null;
+  for (const rule of rules) {
+    const m = /^(Allow|Disallow):\s*(.+)$/.exec(rule);
+    if (m == null) continue;
+    const pattern = m[2] ?? '';
+    if (!patternRegExp(pattern).test(path)) continue;
+    const allow = m[1] === 'Allow';
+    if (
+      best == null ||
+      pattern.length > best.length ||
+      (pattern.length === best.length && allow)
+    )
+      best = { length: pattern.length, allow };
+  }
+  return best?.allow ?? true;
+}
+
+/** A built page as the crawl check sees it. */
+export interface LinkedPage {
+  /** Site path: "/" or without a trailing slash ("/categories/law") */
+  path: string;
+  /** Not marked noindex */
+  indexable: boolean;
+  /** Every <a href> on the page as written: site-relative, or absolute on `siteUrl` */
+  links: readonly string[];
+}
+
+/** An indexable page that links another indexable page only through a blocked URL. */
+export interface BlockedOnlyLink {
+  source: string;
+  /** The indexable page the blocked URL is a variant of (its path without the query) */
+  target: string;
+  /** The blocked URL the source links instead */
+  via: string;
+}
+
+/**
+ * Pairs of indexable pages where the source links the target only through URLs robots.txt
+ * blocks (such as "/categories/law?type=state" and never "/categories/law"), so crawlers
+ * never follow that link to the target. scripts/seo-files.ts fails the build on any: a link
+ * that carries a reader's view choice names it in history state and links the bare URL, as
+ * topic focus (`topicFocus`) and category place types (`categoryType`) do. Links to other
+ * hosts and to pages that are not indexable are ignored.
+ */
+export function blockedOnlyLinks(
+  pages: readonly LinkedPage[],
+  siteUrl: string,
+  rules: readonly string[] = robotsRules()
+): BlockedOnlyLink[] {
+  const indexable = new Set(
+    pages.filter((p) => p.indexable).map((p) => p.path)
+  );
+  const out: BlockedOnlyLink[] = [];
+  for (const page of pages) {
+    if (!page.indexable) continue;
+    const reached = new Set<string>();
+    const blocked = new Map<string, string>();
+    for (const raw of page.links) {
+      const href = raw.startsWith(siteUrl) ? raw.slice(siteUrl.length) : raw;
+      if (!href.startsWith('/') || href.startsWith('//')) continue;
+      const url = href.split('#')[0] ?? '';
+      const bare = url.split('?')[0] ?? '';
+      const target = bare.length > 1 ? bare.replace(/\/+$/, '') : bare;
+      if (!indexable.has(target)) continue;
+      if (robotsAllows(rules, url)) reached.add(target);
+      else if (!blocked.has(target)) blocked.set(target, url);
+    }
+    for (const [target, via] of blocked)
+      if (!reached.has(target)) out.push({ source: page.path, target, via });
+  }
+  return out;
 }

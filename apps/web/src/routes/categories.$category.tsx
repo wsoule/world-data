@@ -11,6 +11,17 @@ export interface CategorySearch {
   type?: EntityType;
 }
 
+declare module '@tanstack/react-router' {
+  interface HistoryState {
+    /**
+     * Place type a category hub opens on when a link names it in history state instead of
+     * `?type=`, so the link itself is the bare hub URL (robots.txt keeps crawlers off
+     * /categories/<id>?…). Older links with `?type=` still work.
+     */
+    categoryType?: EntityType;
+  }
+}
+
 export const Route = createFileRoute('/categories/$category')({
   validateSearch: (raw: Record<string, unknown>): CategorySearch => ({
     type: isEntityType(raw.type) ? raw.type : undefined,

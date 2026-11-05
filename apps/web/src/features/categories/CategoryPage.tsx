@@ -4,7 +4,12 @@ import {
   useQuery,
   useSuspenseQuery,
 } from '@tanstack/react-query';
-import { getRouteApi, Link, useHydrated } from '@tanstack/react-router';
+import {
+  getRouteApi,
+  Link,
+  useHydrated,
+  useRouterState,
+} from '@tanstack/react-router';
 import {
   createColumnHelper,
   createSortedRowModel,
@@ -25,7 +30,7 @@ import {
   Trophy,
   X,
 } from 'lucide-react';
-import { Fragment, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 
 import { CategoryGlyph, categoryTint } from './categoryIcons';
 import { TYPE_LABELS, TYPE_NOUNS } from './CategoryMixChart';
@@ -42,7 +47,12 @@ import { Spinner } from '~/components/feedback';
 import { PolarityIcon } from '~/components/MetricPicker';
 import { Badge, cx, Segmented, Select } from '~/components/ui';
 import { manifestQuery, metricsQuery, topicsIndexQuery } from '~/data/api';
-import type { EntityType, Metric, TopicSummary } from '~/data/types';
+import {
+  type EntityType,
+  isEntityType,
+  type Metric,
+  type TopicSummary,
+} from '~/data/types';
 import { TYPE_PLURAL, TYPE_SHORT } from '~/features/search/results';
 import { normalizeText } from '~/features/search/searchIndex';
 import { plural } from '~/lib/format';
@@ -178,11 +188,32 @@ function metricData(results: QueryObserverResult<Metric[]>[]) {
 
 export function CategoryPage() {
   const { category } = route.useParams();
-  // Prerendered without ?type, so apply it only after hydration.
+  // Prerendered without ?type, so apply it only after hydration. Links from topic pages and the
+  // categories index name the place type in history state (`categoryType`) rather than ?type,
+  // so they are the bare hub URL crawlers may follow; older ?type links still work.
   const hydrated = useHydrated();
   const urlSearch = route.useSearch();
-  const requestedType = hydrated ? urlSearch.type : undefined;
+  const stateType = useRouterState({
+    select: (s) => s.location.state.categoryType,
+  });
+  const requestedType = hydrated
+    ? (urlSearch.type ?? (isEntityType(stateType) ? stateType : undefined))
+    : undefined;
   const navigate = route.useNavigate();
+  // Once open, the type from history state moves into the URL (?type) like a tab choice, so a
+  // reload or a shared link keeps it.
+  useEffect(() => {
+    if (!hydrated || stateType == null || urlSearch.type != null) return;
+    void navigate({
+      search: (prev) => ({
+        ...prev,
+        type: isEntityType(stateType) ? stateType : undefined,
+      }),
+      state: (prev) => ({ ...prev, categoryType: undefined }),
+      replace: true,
+      resetScroll: false,
+    });
+  }, [hydrated, stateType, urlSearch.type, navigate]);
   const { data: manifest } = useSuspenseQuery(manifestQuery);
   const { data: topics } = useSuspenseQuery(topicsIndexQuery);
   const [text, setText] = useState('');
@@ -300,6 +331,7 @@ export function CategoryPage() {
     setShowAll(false);
     void navigate({
       search: { type: t },
+      state: (prev) => ({ ...prev, categoryType: undefined }),
       replace: true,
       resetScroll: false,
     });
@@ -748,7 +780,9 @@ function MetricRow({
             <Link
               to="/topics/$type/$slug"
               params={{ type, slug: topic }}
-              search={{ m: metric.id }}
+              // The topic opens on this metric through history state, so the link is the
+              // bare topic URL crawlers may follow (robots.txt blocks /topics/*?).
+              state={{ topicFocus: metric.id }}
               className="hover:text-accent-700 dark:hover:text-accent-300 truncate text-sm font-medium"
               title={metric.label}
             >

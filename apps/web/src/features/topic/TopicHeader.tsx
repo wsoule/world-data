@@ -182,7 +182,9 @@ export function TopicHeader({
             key={c}
             to="/categories/$category"
             params={{ category: c }}
-            search={{ type: topic.type }}
+            // The hub opens on this place type through history state, so the link is the
+            // bare hub URL crawlers may follow (robots.txt disallows its ?type= variants).
+            state={{ categoryType: topic.type }}
             className="rounded-full"
           >
             <Badge tone="accent" className="hover:ring-accent-300 hover:ring-1">

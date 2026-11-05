@@ -182,7 +182,9 @@ function CategoryCard({
             <Link
               to="/categories/$category"
               params={{ category: summary.id }}
-              search={{ type: t.type }}
+              // Opens the hub on this place type through history state: the link stays the
+              // bare hub URL, which crawlers may follow.
+              state={{ categoryType: t.type }}
               className="hover:text-app"
             >
               {t.count.toLocaleString('en-US')} {TYPE_NOUNS[t.type]}

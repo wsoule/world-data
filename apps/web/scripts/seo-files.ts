@@ -23,7 +23,14 @@
 // apps/web: 404.html needs the server bundle that build leaves in dist/server.
 
 import { readFileSync } from 'node:fs';
-import { mkdir, open, readFile, rm, writeFile } from 'node:fs/promises';
+import {
+  mkdir,
+  open,
+  readdir,
+  readFile,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -46,7 +53,7 @@ import {
 } from '../src/seo/indexing';
 import { topicAnswers } from '../src/seo/topic-content';
 import { absoluteUrl, SITE, SITE_URL } from '../src/site';
-import { robotsTxt } from './lib/robots';
+import { blockedOnlyLinks, type LinkedPage, robotsTxt } from './lib/robots';
 import {
   belongsInSitemap,
   canonicalSitemap,
@@ -272,6 +279,53 @@ async function assertAssetsExist(pages: readonly string[]): Promise<void> {
   }
 }
 
+/** Every prerendered page under dist/client (not /data or /assets), as a file path. */
+async function builtPages(dir = OUT): Promise<string[]> {
+  const out: string[] = [];
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    const file = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (dir === OUT && (entry.name === 'data' || entry.name === 'assets'))
+        continue;
+      out.push(...(await builtPages(file)));
+    } else if (entry.name.endsWith('.html')) out.push(file);
+  }
+  return out;
+}
+
+/**
+ * Fails the build when an indexable page links another indexable page only through URLs
+ * robots.txt blocks (blockedOnlyLinks in lib/robots.ts), as the topic pages' category badges
+ * once did with "/categories/<id>?type=…": crawlers never follow such a link. Reads every
+ * built page's robots tag and links (a few seconds for the whole site).
+ */
+async function assertCrawlableLinks(): Promise<number> {
+  const pages: LinkedPage[] = [];
+  for (const file of await builtPages()) {
+    const html = await readFile(file, 'utf8');
+    const rel = path.relative(OUT, file).split(path.sep).join('/');
+    const route = rel.endsWith('index.html') ? rel.slice(0, -10) : rel;
+    pages.push({
+      path: `/${route.replace(/\/$/, '')}`,
+      indexable: !pageIndexing(html).noindex,
+      links: [...html.matchAll(/<a\b[^>]*?\bhref="([^"]*)"/g)].map((m) =>
+        (m[1] ?? '').replaceAll('&amp;', '&')
+      ),
+    });
+  }
+  const gaps = blockedOnlyLinks(pages, SITE_URL);
+  if (gaps.length > 0) {
+    const shown = gaps
+      .slice(0, 20)
+      .map((g) => `${g.source} -> ${g.via}`)
+      .join('\n');
+    throw new Error(
+      `${gaps.length} links reach an indexable page only through a URL robots.txt blocks (link the bare URL and carry view choices in history state):\n${shown}`
+    );
+  }
+  return pages.length;
+}
+
 async function main(): Promise<void> {
   const site = SITE;
   const manifest = await readJson<Manifest>('manifest.json');
@@ -415,6 +469,7 @@ async function main(): Promise<void> {
     'compare/index.html',
     'topics/state/median-household-income-by-state/index.html',
   ]);
+  const crawled = await assertCrawlableLinks();
   const sitemap = await tidySitemap();
   await rm(path.join(OUT, 'pages.json'), { force: true });
   await writeFile(path.join(OUT, 'llms.txt'), llms.join('\n'));
@@ -427,7 +482,7 @@ async function main(): Promise<void> {
     .map(([section, n]) => `${n} ${section}`)
     .join(', ');
   console.log(
-    `seo-files: robots.txt, 404.html, sitemap.xml (${sitemap.kept} URLs${dropped === '' ? '' : `; left out as noindex or non-canonical: ${dropped}`}), llms.txt, llms-full.txt (${listed.size} of ${topics.length} topics), site.webmanifest, ${csvCount} CSV files`
+    `seo-files: robots.txt (links of ${crawled} pages checked), 404.html, sitemap.xml (${sitemap.kept} URLs${dropped === '' ? '' : `; left out as noindex or non-canonical: ${dropped}`}), llms.txt, llms-full.txt (${listed.size} of ${topics.length} topics), site.webmanifest, ${csvCount} CSV files`
   );
 }
 
