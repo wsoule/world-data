@@ -25,6 +25,7 @@ import { type ReactNode, Suspense } from 'react';
 
 import { BrandMark } from '~/components/BrandMark';
 import {
+  NavigationProgress,
   NOT_FOUND_DESCRIPTION,
   NOT_FOUND_TITLE,
   PageSpinner,
@@ -106,6 +107,7 @@ function RootDocument({ children }: { children: ReactNode }) {
 function RootLayout() {
   return (
     <div className="flex min-h-screen flex-col">
+      <NavigationProgress />
       <Header />
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 md:px-6 md:py-8">
         <Suspense fallback={<PageSpinner />}>

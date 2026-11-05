@@ -1,6 +1,6 @@
-import { Link } from '@tanstack/react-router';
+import { Link, useHydrated, useRouterState } from '@tanstack/react-router';
 import { Loader2, Search } from 'lucide-react';
-import { type ReactNode, useEffect } from 'react';
+import { type ReactNode, useEffect, useRef } from 'react';
 
 import { openSearch } from '~/features/search/store';
 import { SITE } from '~/site';
@@ -14,11 +14,98 @@ export function Spinner({ label = 'Loading…' }: { label?: string }) {
   );
 }
 
+/**
+ * A page's loading view (the route pending view and the page-level Suspense fallback). It is at
+ * least as tall as the viewport, so the footer stays below the fold while a page loads and does
+ * not jump down when the page arrives: a short spinner let the footer into view, and its move
+ * counted as a layout shift (up to 0.75 on a phone).
+ */
 export function PageSpinner() {
   return (
-    <div className="flex min-h-[40vh] items-center justify-center">
+    <div className="flex min-h-svh items-start justify-center pt-[30vh]">
       <Spinner />
     </div>
+  );
+}
+
+/**
+ * Loading view of the browser-rendered tools (/compare, /vs), and so their static HTML: the
+ * tool's name and what it does as text, then grey blocks where its controls and first panel
+ * will be. It is at least as tall as the viewport like PageSpinner, so the footer never moves
+ * into view when the tool arrives, and its text paints at once, so the first paint has the
+ * page's largest text rather than waiting seconds for the tool.
+ */
+export function PageSkeleton({
+  title,
+  description,
+  controls = 1,
+}: {
+  title: string;
+  description: string;
+  /** Rows of controls between the description and the panel */
+  controls?: number;
+}) {
+  return (
+    <div className="min-h-svh">
+      <div className="mb-6">
+        <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
+          {title}
+        </h1>
+        <p className="text-muted mt-1 max-w-2xl text-sm">{description}</p>
+      </div>
+      <div role="status" className="space-y-4">
+        <span className="sr-only">Loading…</span>
+        {Array.from({ length: controls }, (_, i) => (
+          <div
+            key={i}
+            className="bg-surface-2 h-10 w-full animate-pulse rounded-xl"
+            aria-hidden
+          />
+        ))}
+        <div
+          className="border-app bg-surface h-[70svh] rounded-2xl border"
+          aria-hidden
+        />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A thin bar along the top of the window while the router loads the next page. The router
+ * keeps the current page on screen until the next one has its data (see router.tsx), so this
+ * is what shows that a click registered. It sits over the header (fixed, no layout), appears
+ * after a short delay so quick navigations do not flash it, and creeps towards the end until
+ * the page arrives. Rendered only after hydration, since the server has no navigation state.
+ */
+export function NavigationProgress() {
+  const hydrated = useHydrated();
+  const loading = useRouterState({ select: (s) => s.status === 'pending' });
+  const ref = useRef<HTMLDivElement>(null);
+  const show = hydrated && loading;
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!show || el == null) return;
+    const anim = el.animate(
+      [
+        { opacity: 0, transform: 'scaleX(0)' },
+        { opacity: 1, transform: 'scaleX(0.2)', offset: 0.05 },
+        { opacity: 1, transform: 'scaleX(0.9)' },
+      ],
+      { duration: 10_000, delay: 150, easing: 'ease-out', fill: 'both' }
+    );
+    return () => anim.cancel();
+  }, [show]);
+
+  if (!show) return null;
+  return (
+    <div
+      ref={ref}
+      role="progressbar"
+      aria-label="Loading page"
+      className="bg-accent-500 pointer-events-none fixed inset-x-0 top-0 z-[60] h-0.5 origin-left opacity-0"
+    />
   );
 }
 

@@ -31,6 +31,13 @@ export function getRouter() {
     defaultPreload: 'intent',
     defaultPreloadStaleTime: 0,
     scrollRestoration: true,
+    // A navigation keeps the current page on screen until the next page's loaders finish
+    // (NavigationProgress in the root layout shows the wait), instead of swapping in the
+    // loading view after a second: that view let the footer up into the viewport, and
+    // dropping it again when the page arrived was a large layout shift on slow phones. The
+    // loading view remains the fallback while a page's own data streams in, and the static
+    // shell of the browser-rendered routes.
+    defaultPendingMs: Number.POSITIVE_INFINITY,
     defaultPendingComponent: PageSpinner,
     defaultErrorComponent: RouteError,
     defaultNotFoundComponent: NotFound,

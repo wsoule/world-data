@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 
+import { PageSkeleton } from '~/components/feedback';
 import { type AdjustmentId, adjustmentParam } from '~/data/adjustments';
 import { loadDataset } from '~/data/dataset';
 import { type EntityType, isEntityType } from '~/data/types';
@@ -16,9 +17,14 @@ export interface VersusSearch {
   adj?: AdjustmentId;
 }
 
+const DESCRIPTION =
+  'Put two to four countries, states, cities or counties side by side and see who wins on every shared statistic.';
+
 export const Route = createFileRoute('/vs')({
   // Driven by URL search params, so it renders in the browser only.
   ssr: false,
+  // The static shell and the first render while the type's data loads.
+  pendingComponent: VersusSkeleton,
   validateSearch: (raw: Record<string, unknown>): VersusSearch => ({
     type: isEntityType(raw.type) ? raw.type : 'state',
     e: Array.isArray(raw.e)
@@ -35,11 +41,16 @@ export const Route = createFileRoute('/vs')({
   head: () =>
     pageHead({
       title: 'Head-to-head place comparison',
-      description:
-        'Put two to four countries, states, cities or counties side by side and see who wins on every shared statistic.',
+      description: DESCRIPTION,
       path: '/vs',
       // A client-rendered shell: its static HTML is only "Loading…".
       noindex: true,
     }),
   component: VersusPage,
 });
+
+function VersusSkeleton() {
+  return (
+    <PageSkeleton title="Head-to-head comparison" description={DESCRIPTION} />
+  );
+}
