@@ -3,7 +3,11 @@ import { createFileRoute, notFound } from '@tanstack/react-router';
 import { notFoundHead } from '~/components/feedback';
 import { preloadData, storiesIndexQuery } from '~/data/api';
 import { isEntityType } from '~/data/types';
-import { placePagePath, placePageQuery } from '~/features/places/pageData';
+import {
+  placeCatalogPath,
+  placePagePath,
+  placePageQuery,
+} from '~/features/places/pageData';
 import { PlaceProfilePage } from '~/features/places/PlaceProfilePage';
 import { pageHead } from '~/lib/seo';
 
@@ -39,7 +43,10 @@ export const Route = createFileRoute('/places/$type/$slug')({
               // The dev server builds it in the browser instead (pageData.ts).
               ...(import.meta.env.DEV
                 ? []
-                : [placePagePath(params.type, params.slug)]),
+                : [
+                    placePagePath(params.type, params.slug),
+                    placeCatalogPath(params.type),
+                  ]),
               `${params.type}/entities.json`,
               'manifest.json',
             ])

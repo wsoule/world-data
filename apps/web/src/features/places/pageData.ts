@@ -3,9 +3,12 @@
 // values.json alone is about 1 MB gzip), but what it shows depends on far less: this place's
 // standing on each statistic, a few facts about the type and its most similar places. The server
 // and the bundle script (scripts/page-data.ts) compute those into a `PlacePageData`; the browser
-// fetches that file, so a profile downloads tens of kilobytes instead of its type's full data.
-// The server renders from the same object the browser receives, so both render the same page.
-// The dev server has no such files, so in development the browser builds them itself.
+// fetches it as two files, so a profile downloads tens of kilobytes instead of its type's full
+// data: the catalog entries and topic titles the type's profiles share (`PlaceCatalog`, one file
+// per type, cached across profiles) and the place's own file (`StoredPlacePage`: ids and
+// standings), which `assemblePlacePage` joins back into exactly the object the server rendered
+// from, so both render the same page. The dev server has no such files, so in development the
+// browser builds them itself.
 
 import { type QueryClient, queryOptions } from '@tanstack/react-query';
 
@@ -80,7 +83,75 @@ export interface PlacePageData {
 export const placePagePath = (type: EntityType, slug: string) =>
   `${type}/pages/places/${slug}.json`;
 
+/** Where the bundle script writes a place type's shared catalog, relative to /data. */
+export const placeCatalogPath = (type: EntityType) =>
+  `${type}/pages/catalog.json`;
+
+/**
+ * <type>/pages/catalog.json: the catalog entries (and their topics' titles) of every statistic a
+ * profile of the type can rank, shared by all its profiles.
+ */
+export interface PlaceCatalog {
+  /** Catalog entries of the rankable statistics and population, in catalog order */
+  metrics: Metric[];
+  /** Titles of the topics those statistics come from */
+  topics: TopicTitle[];
+}
+
+/** <type>/pages/places/<slug>.json: a place's data without what its type's catalog holds. */
+export type StoredPlacePage = Omit<PlacePageData, 'metrics' | 'topics'>;
+
 const POPULATION = -1;
+
+/**
+ * A place type's shared catalog: every statistic a profile can rank (`datasetFacts().rankable`)
+ * and population, so it holds the catalog entries and topic titles of any place's page.
+ */
+export function buildPlaceCatalog(full: Dataset): PlaceCatalog {
+  const ids = new Set(datasetFacts(full).rankable.map((m) => m.id));
+  const metrics = full.metrics.filter(
+    (m) => ids.has(m.id) || m.id === POPULATION
+  );
+  const topics = new Map<string, TopicTitle>();
+  for (const m of metrics) {
+    const slug = m.topics[0];
+    const title = slug == null ? null : full.topicTitleOf(slug);
+    if (slug != null && title != null && !topics.has(slug))
+      topics.set(slug, { slug, type: full.type.id, title });
+  }
+  return { metrics, topics: [...topics.values()] };
+}
+
+/** A place's file: its page data without the catalog entries and topic titles. */
+export function storedPlacePage(data: PlacePageData): StoredPlacePage {
+  const { metrics: _metrics, topics: _topics, ...stored } = data;
+  return stored;
+}
+
+/**
+ * Joins a place's file and its type's catalog back into its page data: the catalog entries of
+ * its statistics and population in catalog order, and their topics' titles in the order its
+ * standings name them, as `buildPlacePageData` lists both.
+ */
+export function assemblePlacePage(
+  stored: StoredPlacePage,
+  catalog: PlaceCatalog
+): PlacePageData {
+  const ids = new Set(stored.standings.map((s) => s[0]));
+  const metrics = catalog.metrics.filter(
+    (m) => ids.has(m.id) || m.id === POPULATION
+  );
+  const byId = new Map(metrics.map((m) => [m.id, m]));
+  const titles = new Map(catalog.topics.map((t) => [t.slug, t]));
+  const topics = new Map<string, TopicTitle>();
+  for (const [id] of stored.standings) {
+    const slug = byId.get(id)?.topics[0];
+    const title = slug == null ? undefined : titles.get(slug);
+    if (slug != null && title != null && !topics.has(slug))
+      topics.set(slug, title);
+  }
+  return { ...stored, metrics, topics: [...topics.values()] };
+}
 
 /** Everything a profile shows about the place at `index`, computed from its whole type. */
 export function buildPlacePageData(
@@ -251,9 +322,18 @@ async function buildFromFull(
   return buildPlacePageData(full, index, related);
 }
 
+/** A place type's shared catalog (see `PlaceCatalog`), fetched once per type. */
+export const placeCatalogQuery = (type: EntityType) =>
+  queryOptions({
+    queryKey: ['place-catalog', type],
+    queryFn: () => getJson<PlaceCatalog>(placeCatalogPath(type)),
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
+
 /**
  * A place's data: built from the whole type while server rendering and on the dev server,
- * fetched from the file the bundle script wrote everywhere else.
+ * joined from the files the bundle script wrote everywhere else.
  */
 export const placePageQuery = (
   qc: QueryClient,
@@ -262,10 +342,15 @@ export const placePageQuery = (
 ) =>
   queryOptions({
     queryKey: ['place-page', type, slug],
-    queryFn: () =>
-      import.meta.env.SSR || import.meta.env.DEV
-        ? buildFromFull(qc, type, slug)
-        : getJson<PlacePageData>(placePagePath(type, slug)),
+    queryFn: async () => {
+      if (import.meta.env.SSR || import.meta.env.DEV)
+        return buildFromFull(qc, type, slug);
+      const [stored, catalog] = await Promise.all([
+        getJson<StoredPlacePage>(placePagePath(type, slug)),
+        qc.ensureQueryData(placeCatalogQuery(type)),
+      ]);
+      return assemblePlacePage(stored, catalog);
+    },
     staleTime: Infinity,
     gcTime: Infinity,
   });

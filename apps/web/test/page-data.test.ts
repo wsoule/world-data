@@ -26,10 +26,15 @@ import type {
 import { glanceStats } from '../src/features/places/AtAGlance';
 import { datasetFacts } from '../src/features/places/datasetFacts';
 import {
+  assemblePlacePage,
+  buildPlaceCatalog,
   buildPlacePageData,
+  type PlaceCatalog,
   type PlacePageData,
   placeView,
   populationRow,
+  type StoredPlacePage,
+  storedPlacePage,
 } from '../src/features/places/pageData';
 import {
   placeStandings,
@@ -296,7 +301,14 @@ describe('place pages on the committed data', () => {
       const i = ds.entityBySlug.get(slug);
       if (i == null) throw new Error(`no place ${slug}`);
       const related = relatedPlaces(type, ds.entities[i], entityLists);
-      const data = roundTrip<PlacePageData>(buildPlacePageData(ds, i, related));
+      const built = buildPlacePageData(ds, i, related);
+      // The browser joins the place's own file and its type's catalog back into the object the
+      // server rendered from.
+      const data = assemblePlacePage(
+        roundTrip<StoredPlacePage>(storedPlacePage(built)),
+        roundTrip<PlaceCatalog>(buildPlaceCatalog(ds))
+      );
+      expect(data).toEqual(roundTrip<PlacePageData>(built));
       const view = placeView(manifest, type, entityLists[type], data);
       const rows = placeStandings(ds, i, datasetFacts(ds).rankable);
       expect(view.rows).toEqual(rows);

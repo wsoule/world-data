@@ -2,7 +2,8 @@
 // fetches a few kilobytes per page instead of its place type's whole catalog and values:
 //
 //   data/<type>/pages/topics/<slug>.json   features/topic/pageData.ts (TopicPageData)
-//   data/<type>/pages/places/<slug>.json   features/places/pageData.ts (PlacePageData)
+//   data/<type>/pages/places/<slug>.json   features/places/pageData.ts (StoredPlacePage)
+//   data/<type>/pages/catalog.json         features/places/pageData.ts (PlaceCatalog)
 //   data/pages/noindex-topics.json         data/noindexTopics.ts (noindexTopicKeys)
 //
 // The server builds the same objects from the same functions while prerendering, so a page
@@ -27,8 +28,11 @@ import type {
   ValuesFile,
 } from '../src/data/types';
 import {
+  buildPlaceCatalog,
   buildPlacePageData,
+  placeCatalogPath,
   placePagePath,
+  storedPlacePage,
 } from '../src/features/places/pageData';
 import {
   type EntityLists,
@@ -111,10 +115,14 @@ export async function writePageData(
       );
       report.topics++;
     }
+    // Each place's own file, and the catalog entries and topic titles all of them share.
+    await write(placeCatalogPath(type), buildPlaceCatalog(full));
     for (const [i, e] of entities.entries()) {
       await write(
         placePagePath(type, e.slug),
-        buildPlacePageData(full, i, relatedPlaces(type, e, lists))
+        storedPlacePage(
+          buildPlacePageData(full, i, relatedPlaces(type, e, lists))
+        )
       );
       report.places++;
     }
