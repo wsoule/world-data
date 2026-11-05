@@ -23,16 +23,23 @@ import type {
   StoryPoint,
   StorySummary,
 } from '../src/content/storyTypes';
-import type { EntityType, Metric } from '../src/data/types';
+import type { EntityType, Metric, TopicSummary } from '../src/data/types';
+import { newestDate } from '../src/seo/indexing';
 
 interface TypeData {
   entities: { id: string; name: string; slug: string }[];
   metrics: Map<number, Metric>;
   /** id → values aligned to entities (number, string or undefined) */
   values: Map<number, (number | string | undefined)[]>;
+  /** Topic slug → its update date (topics.json), for metrics without one of their own */
+  topicDates: Map<string, string | null>;
 }
 
-async function readType(dir: string, type: EntityType): Promise<TypeData> {
+async function readType(
+  dir: string,
+  type: EntityType,
+  topics: readonly TopicSummary[]
+): Promise<TypeData> {
   const read = async <T>(f: string) =>
     JSON.parse(await readFile(path.join(dir, type, f), 'utf8')) as T;
   const entities = await read<TypeData['entities']>('entities.json');
@@ -48,7 +55,31 @@ async function readType(dir: string, type: EntityType): Promise<TypeData> {
     idx.forEach((e, k) => (col[e] = vals[k]));
     values.set(id, col);
   }
-  return { entities, metrics, values };
+  const topicDates = new Map(
+    topics.filter((t) => t.type === type).map((t) => [t.slug, t.updated])
+  );
+  return { entities, metrics, values, topicDates };
+}
+
+/**
+ * The date of the newest data a story uses: each metric's update date, else the update (fetch)
+ * date of its primary topic, which is what agency statistics carry. Never the build date, so a
+ * story's date only moves when its data does.
+ */
+function storyDate(
+  d: TypeData,
+  ids: readonly (number | undefined)[]
+): string | null {
+  return newestDate(
+    ids.map((id) => {
+      const m = id == null ? undefined : d.metrics.get(id);
+      if (m == null) return null;
+      const topic = m.topics[0];
+      return (
+        m.updated ?? (topic == null ? null : d.topicDates.get(topic)) ?? null
+      );
+    })
+  );
 }
 
 /** Four significant digits: plenty for a chart, a quarter of the bytes. */
@@ -180,6 +211,7 @@ function compute(
         meanY: g.sy / g.n,
       }))
       .sort((a, b) => b.n - a.n),
+    date: storyDate(d, [def.x, def.y, def.color]),
   };
 }
 
@@ -299,8 +331,12 @@ export async function buildStories(dataDir: string): Promise<number> {
   const types = [...new Set(STORY_DEFS.map((d) => d.type))].concat(
     Object.keys(PAIR_CAP) as EntityType[]
   );
+  const topics = JSON.parse(
+    await readFile(path.join(dataDir, 'topics.json'), 'utf8')
+  ) as TopicSummary[];
   const data = new Map<EntityType, TypeData>();
-  for (const t of new Set(types)) data.set(t, await readType(dataDir, t));
+  for (const t of new Set(types))
+    data.set(t, await readType(dataDir, t, topics));
 
   const stories: StoryData[] = [];
   const taken = new Set<string>();
@@ -338,6 +374,7 @@ export async function buildStories(dataDir: string): Promise<number> {
       yId: s.y.id,
       colorId: s.color?.id ?? null,
       logX: s.logX,
+      date: s.date ?? null,
       // Only flagship stories show a chart on their cards.
       ...(s.kind === 'flagship' ? thumbnail(s) : { thumb: [], line: null }),
     });

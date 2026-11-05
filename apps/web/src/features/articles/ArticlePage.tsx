@@ -8,10 +8,17 @@ import { furtherReading } from './storyPicks';
 import { InfoTip } from '~/components/InfoTip';
 import type { StoryData, StoryPoint } from '~/content/storyTypes';
 import { storiesIndexQuery, storyQuery } from '~/data/api';
+import { ELECTIONS } from '~/data/external';
 import { siteHref } from '~/features/search/goals';
 import { formatValue } from '~/lib/format';
+import { newestDate } from '~/seo/indexing';
+import { formatDay } from '~/seo/topic-content';
 
 const route = getRouteApi('/articles/$slug');
+
+/** True for the presidential election metrics (ELECTIONS in data/external.ts). */
+const isElectionMetric = (id: number): boolean =>
+  Object.values(ELECTIONS).some((e) => e === id);
 
 const TYPE_PLURAL: Record<StoryData['type'], string> = {
   state: 'US states',
@@ -28,6 +35,9 @@ export function ArticlePage() {
   const { data: index } = useSuspenseQuery(storiesIndexQuery);
   const text = storyText(story);
   const further = furtherReading(index, story.slug);
+  const date = newestDate([story.date]);
+  // Only election stories colour their dots by the winning party.
+  const byParty = story.color != null && isElectionMetric(story.color.id);
   const explore = siteHref('/compare', {
     type: story.type,
     view: 'scatter',
@@ -53,6 +63,11 @@ export function ArticlePage() {
         <p className="text-muted mt-3 text-lg leading-relaxed text-pretty">
           {story.dek}
         </p>
+      ) : null}
+      {date != null ? (
+        <div className="text-muted mt-3 text-sm">
+          Data as of <time dateTime={date}>{formatDay(date)}</time>
+        </div>
       ) : null}
 
       <section aria-label="The short answer" className="mt-8">
@@ -124,7 +139,9 @@ export function ArticlePage() {
               Open this comparison in the interactive chart
             </a>{' '}
             <span className="text-muted">
-              to highlight places, change the metrics or colour by party.
+              {byParty
+                ? 'to highlight places, change the metrics or colour by party.'
+                : 'to highlight places or change the metrics.'}
             </span>
           </li>
           {[story.x, story.y].map((m) =>

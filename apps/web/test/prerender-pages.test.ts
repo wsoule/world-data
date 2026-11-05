@@ -61,4 +61,18 @@ describe('prerenderPages', () => {
     // The glossary has no data, so no date.
     expect(byPath.get('/glossary')?.sitemap?.lastmod).toBeUndefined();
   });
+
+  test('dates every article by its data, as the article shows', () => {
+    const stories = JSON.parse(
+      readFileSync(join(DATA, 'stories/index.json'), 'utf8')
+    ) as { slug: string; date?: string | null }[];
+    expect(stories.length).toBeGreaterThan(0);
+    for (const s of stories) {
+      expect(s.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(byPath.get(`/articles/${s.slug}`)?.sitemap?.lastmod).toBe(
+        s.date ?? undefined
+      );
+    }
+    expect(byPath.get('/articles')?.sitemap?.lastmod).toBeDefined();
+  });
 });

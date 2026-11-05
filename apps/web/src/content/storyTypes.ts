@@ -66,6 +66,11 @@ export interface StoryData {
   above: StoryPoint[];
   below: StoryPoint[];
   groups: StoryGroup[];
+  /**
+   * Date of the newest data the story uses (YYYY-MM-DD): its metrics' update dates, else their
+   * topics' fetch dates. Never the build date; missing in data built before it was recorded.
+   */
+  date?: string | null;
 }
 
 /** A story as listed on the index and home page, with a small thumbnail of its chart. */
@@ -90,4 +95,6 @@ export interface StorySummary {
   thumb: [number, number, string | null][];
   /** Regression line endpoints in thumbnail coordinates */
   line: [number, number, number, number] | null;
+  /** `StoryData.date` */
+  date?: string | null;
 }

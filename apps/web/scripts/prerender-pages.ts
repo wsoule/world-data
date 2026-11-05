@@ -58,6 +58,8 @@ interface StoryCard {
   xId: number;
   yId: number;
   colorId: number | null;
+  /** Date of the story's newest data (scripts/build-stories.ts) */
+  date?: string | null;
 }
 
 const readJson = <T>(dataDir: string, file: string): T =>
@@ -171,14 +173,17 @@ export function prerenderPages(dataDir: string): PrerenderPage[] {
       ),
     ])
   );
+  // A story's own data date (its metrics' or their topics' update dates), the same date the
+  // article shows; older story files without one fall back to their metrics' dates.
   const storyDate = new Map(
     stories.map((s) => [
       s.slug,
-      newestDate(
-        [s.xId, s.yId, s.colorId].map((id) =>
-          id == null ? null : metricDate(s.type, id)
-        )
-      ),
+      newestDate([s.date]) ??
+        newestDate(
+          [s.xId, s.yId, s.colorId].map((id) =>
+            id == null ? null : metricDate(s.type, id)
+          )
+        ),
     ])
   );
   const allTopics = newestDate(topicDate.values());

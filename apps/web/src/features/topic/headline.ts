@@ -17,7 +17,7 @@ import {
 } from './model';
 import type { Dataset } from '~/data/dataset';
 import { isRankColumn } from '~/data/rankOrder';
-import type { Metric, TopicFile } from '~/data/types';
+import type { Metric, TopicFile, TopicSource } from '~/data/types';
 import { canonicalTopicSlug } from '~/seo/indexing';
 
 /** One end of a metric's values. */
@@ -290,6 +290,11 @@ export interface HeadlineOverride {
   end?: End;
   /** A sentence appended to the summary, saying where an outside figure comes from */
   note?: string;
+  /**
+   * The publisher of an outside headline figure, as its own topic cites it, for the topic's
+   * Dataset markup (isBasedOn)
+   */
+  source?: TopicSource;
 }
 
 /**
@@ -345,6 +350,18 @@ export interface HeadlineOverride {
  * An alias in TOPIC_ALIASES (src/seo/indexing.ts) reads its primary's entry, so the two lead
  * the same way.
  */
+/** The Census Bureau's ACS, as Housing, Income and Commutes by State cites it. */
+const ACS_SOURCE: TopicSource = {
+  name: 'American Community Survey 5-Year Estimates, 2020–2024 - US Census Bureau',
+  url: 'https://www.census.gov/programs-surveys/acs',
+};
+
+/** NOAA's climate normals, as Climate by State cites them. */
+const NOAA_SOURCE: TopicSource = {
+  name: 'nClimDiv Climate Division Data - NOAA National Centers for Environmental Information',
+  url: 'https://www.ncei.noaa.gov/access/monitoring/climate-at-a-glance/',
+};
+
 /** Where the temperature topics' headline figure comes from. */
 const NOAA_NOTE =
   'The headline figure is NOAA’s 1991–2020 average temperature for each state (nClimDiv climate normals); the table below is the source’s own figures.';
@@ -352,10 +369,12 @@ const NOAA_NOTE =
 export const HEADLINES: Readonly<Record<string, HeadlineOverride>> = {
   'state/median-household-income-by-state': {
     metric: 900603,
+    source: ACS_SOURCE,
     note: 'The headline figure is the US Census Bureau’s American Community Survey 5-year estimate (2020–2024) for all households; the tables below split median income by household size.',
   },
   'state/poorest-states': {
     metric: 900603,
+    source: ACS_SOURCE,
     note: 'The headline figure is the US Census Bureau’s American Community Survey 5-year estimate (2020–2024); the table below is the source’s own 2023 figure, whose value for Mississippi is far below the Census Bureau’s.',
   },
   'county/safest-counties': { metric: 25507 },
@@ -375,9 +394,21 @@ export const HEADLINES: Readonly<Record<string, HeadlineOverride>> = {
   'state/biggest-church-by-state': { metric: 21199 },
   'state/richest-families-by-state': { metric: 16569 },
   'state/small-towns-by-state': { metric: 15027 },
-  'state/hottest-states': { metric: 900401, note: NOAA_NOTE },
-  'state/coldest-states': { metric: 900401, note: NOAA_NOTE },
-  'state/average-temperatures-by-state': { metric: 900401, note: NOAA_NOTE },
+  'state/hottest-states': {
+    metric: 900401,
+    note: NOAA_NOTE,
+    source: NOAA_SOURCE,
+  },
+  'state/coldest-states': {
+    metric: 900401,
+    note: NOAA_NOTE,
+    source: NOAA_SOURCE,
+  },
+  'state/average-temperatures-by-state': {
+    metric: 900401,
+    note: NOAA_NOTE,
+    source: NOAA_SOURCE,
+  },
   'state/least-expensive-states': { metric: 20648 },
   'state/gay-marriage-by-state': { metric: 21276 },
   'country/highest-paid-government-leaders-in-the-world': { metric: 19841 },

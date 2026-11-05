@@ -5,6 +5,7 @@ import { storiesIndexQuery, storyQuery } from '~/data/api';
 import { ArticlePage } from '~/features/articles/ArticlePage';
 import { storyText } from '~/features/articles/prose';
 import { breadcrumbs, pageHead, publisherRef } from '~/lib/seo';
+import { newestDate } from '~/seo/indexing';
 import { absoluteUrl, SITE } from '~/site';
 
 export const Route = createFileRoute('/articles/$slug')({
@@ -22,6 +23,7 @@ export const Route = createFileRoute('/articles/$slug')({
         title: story.title,
         description: `${text.takeaway} ${text.strength}`,
         dek: text.dek,
+        date: newestDate([story.date]),
       },
     };
   },
@@ -38,8 +40,15 @@ export const Route = createFileRoute('/articles/$slug')({
           '@type': 'Article',
           headline: loaderData.seo.title,
           description: loaderData.seo.dek,
-          // No dateModified: stories have no recorded date, and the build date would claim
-          // every story changed on every deploy. The sitemap carries their data date.
+          // The date of the story's newest data (scripts/build-stories.ts), the date the article
+          // shows and the sitemap's lastmod; never the build date, which would claim every story
+          // changed on every deploy.
+          ...(loaderData.seo.date == null
+            ? {}
+            : {
+                datePublished: loaderData.seo.date,
+                dateModified: loaderData.seo.date,
+              }),
           mainEntityOfPage: absoluteUrl(path),
           author: publisherRef(),
           publisher: publisherRef(),
