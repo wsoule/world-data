@@ -419,9 +419,9 @@ function RegionChart({
   join,
 }: ChartPartProps & { join: Map<string, number> }) {
   const { drawable, collection } = useDrawable(features, kind, false);
-  const plane = geoPlaneOf(features);
+  const fitTo = geoPlaneOf(features).frame ?? collection;
   const definition = useMemo(() => {
-    const projection = projectionFor(kind, plane.frame ?? collection);
+    const projection = projectionFor(kind, fitTo);
     const entityIdOf = (f: PlaceFeature): string => {
       const i = f.joinKey ? join.get(f.joinKey) : undefined;
       return i != null ? dataset.entities[i].id : '';
@@ -470,7 +470,7 @@ function RegionChart({
     });
   }, [
     drawable,
-    collection,
+    fitTo,
     kind,
     valueOf,
     model,
@@ -511,8 +511,9 @@ function PointChart({
 }: ChartPartProps) {
   const { drawable: base, collection } = useDrawable(features, kind, true);
   const plane = geoPlaneOf(features);
+  const fitTo = plane.frame ?? collection;
   const definition = useMemo(() => {
-    const projection = projectionFor(kind, plane.frame ?? collection);
+    const projection = projectionFor(kind, fitTo);
     const pts: PointFeature[] = [];
     dataset.entities.forEach((e, i) => {
       if (e.lat == null || e.lng == null) return;
@@ -573,7 +574,7 @@ function PointChart({
         },
       },
     });
-  }, [base, collection, kind, valueOf, model, colors, hl, dataset, latest]);
+  }, [base, fitTo, plane, kind, valueOf, model, colors, hl, dataset, latest]);
 
   return (
     <Chart
