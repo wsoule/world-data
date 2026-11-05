@@ -1,10 +1,13 @@
 import { useState } from 'react';
+import { preconnect } from 'react-dom';
 
 import { cx } from './ui';
 import type { Entity, EntityType } from '~/data/types';
 
 /** Flags flagcdn.com does not have, served from public/flags instead. */
 const LOCAL_FLAGS = new Set(['us-dc']);
+
+const FLAG_CDN = 'https://flagcdn.com';
 
 /** Flag image from flagcdn.com. Countries/world cities use ISO2; US places use the state flag. */
 export function Flag({
@@ -36,6 +39,10 @@ export function Flag({
     type === 'country' || type === 'world-city'
       ? entity.flag
       : `us-${entity.flag}`;
+  // Flags load from another host: a preconnect (React adds it to <head> once per page, also in
+  // the server HTML) sets up that connection while the page loads, before the first flag
+  // scrolls into view.
+  if (!LOCAL_FLAGS.has(code)) preconnect(FLAG_CDN);
   // Prerendered lists repeat this tag hundreds of times, so it stays lean: the inline style
   // alone sizes the box (it applies before the stylesheet loads, so no width/height attributes
   // are needed against layout shift), and the 1px hairline uses the hex form of rgba(0,0,0,0.08).
