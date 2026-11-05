@@ -31,6 +31,7 @@ import type {
   HomeMap,
   HomeMapsFile,
   MapShapes,
+  PopularTopic,
 } from '../src/content/mapTypes';
 import {
   ACS,
@@ -41,7 +42,8 @@ import {
   RPP,
   WORLD_BANK,
 } from '../src/data/external';
-import type { EntityType, Metric } from '../src/data/types';
+import type { EntityType, Metric, TopicSummary } from '../src/data/types';
+import { POPULAR_TOPICS } from '../src/features/home/presets';
 import { FIPS_USPS } from './lib/states';
 
 type Geo = MapShapes['geo'];
@@ -433,12 +435,9 @@ export async function buildHomeMaps(dataDir: string): Promise<number> {
 
   const topicInfo = new Map(
     (
-      JSON.parse(await readFile(path.join(dataDir, 'topics.json'), 'utf8')) as {
-        type: string;
-        slug: string;
-        title: string;
-        metrics: number[];
-      }[]
+      JSON.parse(
+        await readFile(path.join(dataDir, 'topics.json'), 'utf8')
+      ) as TopicSummary[]
     ).map((t) => [`${t.type}/${t.slug}`, t])
   );
   const cache = new Map<EntityType, TypeData>();
@@ -485,7 +484,27 @@ export async function buildHomeMaps(dataDir: string): Promise<number> {
   }
   let states = cache.get('state');
   if (states == null) states = await readType(dataDir, 'state');
-  const file: HomeMapsFile = { maps, combined: combinedMap(states) };
+  // The home page's "Popular topics", as the index lists them (a renamed or dropped topic
+  // drops out of the list).
+  const popular: PopularTopic[] = POPULAR_TOPICS.flatMap((p) => {
+    const t = topicInfo.get(`${p.type}/${p.slug}`);
+    return t == null
+      ? []
+      : [
+          {
+            type: t.type,
+            slug: t.slug,
+            title: t.title,
+            n: t.n,
+            metrics: t.metrics.length,
+          },
+        ];
+  });
+  const file: HomeMapsFile = {
+    maps,
+    combined: combinedMap(states),
+    popular,
+  };
   await writeFile(path.join(out, 'home.json'), JSON.stringify(file));
   return maps.length;
 }

@@ -55,7 +55,20 @@ export interface CombinedMap {
   names: Record<string, string>;
 }
 
+/** A topic in the home page's "Popular topics" list (POPULAR_TOPICS in features/home/presets.ts). */
+export interface PopularTopic {
+  type: EntityType;
+  slug: string;
+  title: string;
+  /** Places it ranks */
+  n: number;
+  /** Statistics it has */
+  metrics: number;
+}
+
 export interface HomeMapsFile {
   maps: HomeMap[];
   combined: CombinedMap | null;
+  /** The popular topics, so the home page need not load the index of every topic */
+  popular: PopularTopic[];
 }

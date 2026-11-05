@@ -5,12 +5,10 @@ import { type ReactNode, useMemo } from 'react';
 
 import { HomeMaps } from './HomeMaps';
 import { PresetCards } from './PresetCards';
-import { POPULAR_TOPICS } from './presets';
 import { TYPE_ICONS } from '~/components/TypeTabs';
 import { Badge, cx } from '~/components/ui';
 import type { StorySummary } from '~/content/storyTypes';
-import { manifestQuery, storiesIndexQuery, topicsIndexQuery } from '~/data/api';
-import type { TopicSummary } from '~/data/types';
+import { homeMapsQuery, manifestQuery, storiesIndexQuery } from '~/data/api';
 import { strengthWord } from '~/features/articles/prose';
 import { StoryThumb } from '~/features/articles/StoryChart';
 import { CategoryGlyph } from '~/features/categories/categoryIcons';
@@ -30,8 +28,10 @@ const HERO_QUERIES = ['median income', 'crime', 'Japan', 'happiest', 'TX'];
 
 export function HomePage() {
   const { data: manifest } = useSuspenseQuery(manifestQuery);
-  const { data: topics } = useSuspenseQuery(topicsIndexQuery);
   const { data: stories } = useSuspenseQuery(storiesIndexQuery);
+  // "Popular topics" come with the home maps file, so the page skips the index of every topic.
+  const { data: homeFile } = useSuspenseQuery(homeMapsQuery);
+  const popular = homeFile.popular;
   const featured = stories.filter((s) => s.featured).slice(0, 6);
 
   const totals = useMemo(
@@ -46,13 +46,6 @@ export function HomePage() {
       ),
     [manifest]
   );
-
-  const popular = useMemo(() => {
-    const byKey = new Map(topics.map((t) => [`${t.type}:${t.slug}`, t]));
-    return POPULAR_TOPICS.map((p) => byKey.get(`${p.type}:${p.slug}`)).filter(
-      (t): t is TopicSummary => t != null
-    );
-  }, [topics]);
 
   return (
     <div className="space-y-16 pb-4">
@@ -211,8 +204,7 @@ export function HomePage() {
                   </span>
                   <span className="text-muted tabular block text-xs">
                     {t.n.toLocaleString('en-US')} {TYPE_PLURAL[t.type]} ·{' '}
-                    {t.metrics.length}{' '}
-                    {t.metrics.length === 1 ? 'metric' : 'metrics'}
+                    {t.metrics} {t.metrics === 1 ? 'metric' : 'metrics'}
                   </span>
                 </span>
                 <Badge>{TYPE_SHORT[t.type]}</Badge>
