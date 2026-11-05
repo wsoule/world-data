@@ -151,6 +151,38 @@ export function RankingCard({
   );
 }
 
+/** One end tile of the distribution card: its label and the place holding that end. */
+export interface ExtremeTile {
+  label: string;
+  entry: RankedEntry | undefined;
+}
+
+/**
+ * The "Highest" and "Lowest" tiles of a distribution: the places with the largest and the
+ * smallest value, whatever order the page lists them in (a low-end title such as "Coldest
+ * States" lists the lowest first, so the list's first entry is not the highest). Ties go to the
+ * place listed first. Polarity only adds the judgement: "(best)" on the highest and "(worst)" on
+ * the lowest when higher is better, the other way round when lower is better, and nothing for a
+ * neutral metric.
+ */
+export function extremeTiles(
+  ranked: readonly RankedEntry[],
+  pol: Metric['pol']
+): [ExtremeTile, ExtremeTile] {
+  let high: RankedEntry | undefined;
+  let low: RankedEntry | undefined;
+  for (const e of ranked) {
+    if (high == null || e.value > high.value) high = e;
+    if (low == null || e.value < low.value) low = e;
+  }
+  const highNote = pol === 1 ? ' (best)' : pol === -1 ? ' (worst)' : '';
+  const lowNote = pol === 1 ? ' (worst)' : pol === -1 ? ' (best)' : '';
+  return [
+    { label: `Highest${highNote}`, entry: high },
+    { label: `Lowest${lowNote}`, entry: low },
+  ];
+}
+
 /**
  * Where the places sit on the focus metric (beeswarm or histogram with median and quartile
  * rules) next to summary tiles. Skewed positive metrics default to a log axis, with a toggle.
@@ -182,20 +214,7 @@ export function DistributionCard({
   const log = (scale ?? (skewed ? 'log' : 'linear')) === 'log';
   const canLog = stats.min > 0 && ranked.length <= 400;
   const full = (v: number) => formatValue(focus, v);
-  const best = ranked[0];
-  const worst = ranked[ranked.length - 1];
-  // Lower-is-better metrics list the lowest value first; label tiles by meaning, not size.
-  const lowFirst = focus.pol === -1;
-  const tiles = [
-    {
-      label: lowFirst ? 'Lowest (best)' : 'Highest',
-      entry: best,
-    },
-    {
-      label: lowFirst ? 'Highest (worst)' : 'Lowest',
-      entry: worst,
-    },
-  ];
+  const tiles = extremeTiles(ranked, focus.pol);
   const noun = placeNoun(dataset.type.id);
 
   const statsGrid = (
