@@ -153,6 +153,10 @@ What the build decides for each metric (`scripts/build-data.ts`, rules in
   `POLARITY` (metric-fixes.ts) with the source header they were checked against.
 - Labels: a capitalised word repeated by the source ("Annual Annual") is
   collapsed. `METRIC_FIXES` holds hand corrections for wrong headers/formats.
+  "Notes" and "Source" columns are `meta`. A text column that spells out numbers
+  is read as numbers when 90% of it reads (`spelledNumbers` in `columns.ts`):
+  latitudes ("20 00 N" → 20, in °) and founding dates ("4 July 1776" → 1776,
+  "2500 BC" → -2500, `fmt: 'year'`).
 - A count column that copies another column of the same year (fractions
   included) is dropped for that year (`copiedCountFields`).
 - Years (`scripts/lib/year-scale.ts`): the build log lists every step between

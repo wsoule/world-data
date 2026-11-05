@@ -74,3 +74,76 @@ export function copiedCountFields(
   }
   return out;
 }
+
+/** Which kind of number a text column spells out, by its header (see textNumberKind). */
+export type TextNumberKind = 'coordinate' | 'year';
+
+/**
+ * Text columns that hold numbers the source writes out, by their header: latitudes and
+ * longitudes as degrees and minutes ("20 00 N"), and the year a country was founded or became
+ * sovereign as a date ("4 July 1776", "2500 BC").
+ */
+export function textNumberKind(header: string): TextNumberKind | null {
+  if (/\b(latitude|longitude)\b/i.test(header)) return 'coordinate';
+  if (
+    /\b(founded|founding|sovereignty acquired|birth date|date of independence|independence date)\b/i.test(
+      header
+    )
+  )
+    return 'year';
+  return null;
+}
+
+/**
+ * Degrees and minutes with a hemisphere ("20 00 N", "21 06 S") as signed decimal degrees, south
+ * and west negative; null for anything else.
+ */
+export function parseCoordinate(text: string): number | null {
+  const m = /^(\d{1,3})\s+(\d{1,2})\s*([NSEW])$/i.exec(text.trim());
+  if (m == null) return null;
+  const deg = Number(m[1]) + Number(m[2]) / 60;
+  const sign = /[SW]/i.test(m[3] ?? '') ? -1 : 1;
+  return (sign * Math.round(deg * 100)) / 100;
+}
+
+/**
+ * The one year a date names ("4 July 1776", "1945-Oct-30", "788 AD", "3 September 301"),
+ * negative before the common era ("2500 BC", "11 February 660 BC"); null when the text names no
+ * year or several ("1 January 1973 - 31 January 2020"). Days and months have one or two digits,
+ * so the year is the one number of three or four.
+ */
+export function parseYear(text: string): number | null {
+  const t = text.trim();
+  const bc = [...t.matchAll(/\b(\d{1,4})\s*(?:BCE?|B\.C\.)(?![A-Za-z])/gi)];
+  if (bc.length === 1) return -Number(bc[0]?.[1]);
+  if (bc.length > 1) return null;
+  if (/^\d{1,4}$/.test(t)) return Number(t);
+  const years = [...t.matchAll(/(?<!\d)(\d{3,4})(?!\d)/g)].map((m) =>
+    Number(m[1])
+  );
+  const year = years.length === 1 ? years[0] : undefined;
+  return year != null && year <= 2100 ? year : null;
+}
+
+/**
+ * The kind of number a column spells out (see textNumberKind), when nearly all of its cells
+ * (90%) are numbers or read as one; null otherwise, so a column of date lists ("01 September,
+ * 1918| 03 August, 1929") stays text rather than mixing years into it.
+ */
+export function spelledNumbers(
+  header: string,
+  cells: readonly unknown[]
+): TextNumberKind | null {
+  const kind = textNumberKind(header);
+  if (kind == null) return null;
+  const read = kind === 'coordinate' ? parseCoordinate : parseYear;
+  let filled = 0;
+  let numbers = 0;
+  for (const c of cells) {
+    if (c == null || c === '') continue;
+    filled++;
+    if (typeof c === 'number' || (typeof c === 'string' && read(c) != null))
+      numbers++;
+  }
+  return filled > 0 && numbers >= filled * 0.9 ? kind : null;
+}

@@ -44,7 +44,14 @@ import {
   toNumber,
   toText,
 } from './lib/clean';
-import { copiedCountFields, looksLikeRanks } from './lib/columns';
+import {
+  copiedCountFields,
+  looksLikeRanks,
+  parseCoordinate,
+  parseYear,
+  spelledNumbers,
+  type TextNumberKind,
+} from './lib/columns';
 import { copiedRows, twinOutliers, TWINS } from './lib/cross-check';
 import {
   baseAttributes,
@@ -189,6 +196,8 @@ interface MetricAcc {
   strings: number;
   distinct: Set<string>;
   textLen: number;
+  /** Set when text cells were read as numbers (see textNumberKind). */
+  parsedAs: TextNumberKind | null;
 }
 
 interface ParsedPage {
@@ -396,8 +405,15 @@ function scaleValue(m: MetricAcc, n: number): number | null {
   return v == null ? null : v * moneyScale(m);
 }
 
-/** Normalizes one cell, updating the metric's numeric/text tallies; null drops it. */
-function cellValue(m: MetricAcc, raw: unknown): Cell | null {
+/**
+ * Normalizes one cell, updating the metric's numeric/text tallies; null drops it. `spelled`
+ * names the kind of number the column writes out as text, if any (see textNumberKind).
+ */
+function cellValue(
+  m: MetricAcc,
+  raw: unknown,
+  spelled: TextNumberKind | null = null
+): Cell | null {
   if (raw == null || raw === '') return null;
   const parsed = TEXT_FORMATS.has(m.fmt) ? undefined : toNumber(raw);
   const n = typeof parsed === 'number' ? scaleValue(m, parsed) : parsed;
@@ -416,6 +432,17 @@ function cellValue(m: MetricAcc, raw: unknown): Cell | null {
   if (scaled != null) {
     m.numeric++;
     return round(scaled);
+  }
+  const read =
+    spelled == null || TEXT_FORMATS.has(m.fmt)
+      ? null
+      : spelled === 'coordinate'
+        ? parseCoordinate(text)
+        : parseYear(text);
+  if (read != null) {
+    m.numeric++;
+    m.parsedAs = spelled;
+    return read;
   }
   m.strings++;
   if (m.distinct.size < 50) m.distinct.add(text);
@@ -483,6 +510,7 @@ function ingestPage(
         strings: 0,
         distinct: new Set(),
         textLen: 0,
+        parsedAs: null,
       };
       T.metrics.set(c.id, m);
     }
@@ -491,6 +519,10 @@ function ingestPage(
       m.key
     );
     m.headers.set(header, (m.headers.get(header) ?? 0) + 1);
+    const spelled = spelledNumbers(
+      header,
+      page.rows.map((r) => r[c.field])
+    );
     if (
       c.lastUpdated != null &&
       (m.updated == null || c.lastUpdated > m.updated)
@@ -511,7 +543,7 @@ function ingestPage(
     page.rows.forEach((r, i) => {
       const eid = rowEntities[i];
       if (eid == null || m == null) return;
-      const v = cellValue(m, r[c.field]);
+      const v = cellValue(m, r[c.field], spelled);
       if (v == null) return;
       topicStore.set(eid, v);
       const prev = store.get(eid);
@@ -619,12 +651,13 @@ async function mergeCountryIndex(T: TypeAcc): Promise<void> {
 
 /**
  * Labels of bookkeeping columns ("Data Year", "Year Measured", "Most Recent
- * Update") rather than comparable data. A label only counts when the column's
+ * Update", "Notes", "Source") rather than comparable data, which datasets do
+ * not list as measured variables. A label only counts when the column's
  * values are actually years or text, so "Orphanhood Due to COVID as of 2022"
  * (a count) stays a real metric.
  */
 const META_LABEL =
-  /\b(data|source|survey|reference|latest|report|measurement|update|count)\s+year\b|\byear (measured|assessed|rate confirmed|of (data|estimate|population count|count))\b|^year$|\bdata date\b|\bas of\b|\bmost recent (update|status update|exit cohort)\b/i;
+  /^(notes?|comments?(\/notes?)?|sources?|data sources?( \(.*\))?)$|\b(data|source|survey|reference|latest|report|measurement|update|count)\s+year\b|\byear (measured|assessed|rate confirmed|of (data|estimate|population count|count))\b|^year$|\bdata date\b|\bas of\b|\bmost recent (update|status update|exit cohort)\b/i;
 
 /** True when every value is a whole number between 1800 and 2100. */
 function looksLikeYears(values: readonly Cell[]): boolean {
@@ -1074,6 +1107,7 @@ async function writeType(
     const fix = METRIC_FIXES[`${T.id}:${m.id}`];
     const unit =
       fix?.unit ??
+      (kind === 'num' && m.parsedAs === 'coordinate' ? '°' : null) ??
       (kind === 'num'
         ? normalizeUnit(
             m.unit != null && m.unit.trim() !== ''
@@ -1094,7 +1128,14 @@ async function writeType(
         m.fmt,
         pairs.flatMap((p) => (typeof p[1] === 'number' ? [p[1]] : []))
       );
-    const sourceFmt = ranks ? 'ranking' : m.fmt;
+    // Years read from dates are published as years ("2500 BC"), coordinates as decimals.
+    const parsedFmt =
+      kind === 'num' && m.parsedAs != null
+        ? m.parsedAs === 'year'
+          ? 'year'
+          : 'floatNumber'
+        : null;
+    const sourceFmt = ranks ? 'ranking' : (m.fmt ?? parsedFmt);
     const fmt = fix?.fmt ?? outputFormat(sourceFmt);
     // Year-scale and rank-order checks (lib/year-scale.ts): reported, never corrected here.
     if (fmt === 'ranking') {

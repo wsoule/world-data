@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-05T01:15:44.269Z",
+  "generatedAt": "2026-11-05T01:21:33.905Z",
   "source": "https://worldpopulationreview.com",
   "types": [
     {
@@ -9,7 +9,7 @@
       "prefix": "country-rankings",
       "entities": 235,
       "metrics": 4951,
-      "numericMetrics": 3254,
+      "numericMetrics": 3259,
       "topics": 1722
     },
     {

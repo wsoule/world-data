@@ -1,7 +1,13 @@
 import { describe, expect, test } from 'bun:test';
 
 import { collapseRepeatedWords } from '../scripts/lib/clean';
-import { copiedCountFields, looksLikeRanks } from '../scripts/lib/columns';
+import {
+  copiedCountFields,
+  looksLikeRanks,
+  parseCoordinate,
+  parseYear,
+  spelledNumbers,
+} from '../scripts/lib/columns';
 import { guessPolarity, keyText, splitKey } from '../scripts/lib/reference';
 
 describe('looksLikeRanks', () => {
@@ -28,6 +34,47 @@ describe('looksLikeRanks', () => {
     expect(looksLikeRanks('Fishing Rank', null, [1.5, 3, 4])).toBe(false);
     expect(looksLikeRanks('Fishing Rank', null, [1, 1, 1, 1, 2])).toBe(false);
     expect(looksLikeRanks('Population', null, ranks)).toBe(false);
+  });
+});
+
+describe('spelled-out numbers', () => {
+  test('reads degrees and minutes as signed decimal degrees', () => {
+    expect(parseCoordinate('20 00 N')).toBe(20);
+    expect(parseCoordinate('21 06 S')).toBe(-21.1);
+    expect(parseCoordinate('77 02 W')).toBe(-77.03);
+    expect(parseCoordinate('North')).toBeNull();
+  });
+
+  test('reads the one year a date names', () => {
+    expect(parseYear('4 July 1776')).toBe(1776);
+    expect(parseYear('2500 BC')).toBe(-2500);
+    expect(parseYear('11 February 660 BC')).toBe(-660);
+    expect(parseYear('1945-Oct-30')).toBe(1945);
+    expect(parseYear('06-27-2024')).toBe(2024);
+    expect(parseYear('3 September 301')).toBe(301);
+    expect(parseYear('788 AD')).toBe(788);
+    expect(parseYear('1 January 1973 - 31 January 2020')).toBeNull();
+    expect(parseYear('ongoing')).toBeNull();
+  });
+
+  test('reads a column only when nearly all of it reads, by its header', () => {
+    expect(spelledNumbers('Latitude by Country', ['20 00 N', '5 00 S'])).toBe(
+      'coordinate'
+    );
+    expect(
+      spelledNumbers('Date Sovereignty Acquired', [
+        '2500 BC',
+        '4 July 1776',
+        882,
+      ])
+    ).toBe('year');
+    expect(
+      spelledNumbers('Founding Date', [
+        '01 September, 1918| 03 August, 1929',
+        '18 August, 1903',
+      ])
+    ).toBeNull();
+    expect(spelledNumbers('Date Issued', ['06-27-2024'])).toBeNull();
   });
 });
 
