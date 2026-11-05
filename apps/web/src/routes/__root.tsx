@@ -39,7 +39,6 @@ import {
 import { SearchPalette } from '~/features/search/SearchPalette';
 import { openSearch } from '~/features/search/store';
 import { TRUST_PAGES } from '~/features/trust/pages';
-import { organization, website } from '~/lib/seo';
 import { setTheme, THEME_BOOT_SCRIPT, useTheme } from '~/lib/theme';
 import { absoluteUrl, SITE } from '~/site';
 import appCss from '~/styles.css?url';
@@ -79,15 +78,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' },
         { rel: 'manifest', href: '/site.webmanifest' },
       ],
-      // The site's Organization and WebSite, on every page: other JSON-LD nodes (Dataset,
-      // Article, the trust pages) name them by @id instead of repeating them.
-      scripts: [organization(), website()].map((node) => ({
-        type: 'application/ld+json',
-        children: JSON.stringify({
-          '@context': 'https://schema.org',
-          ...node,
-        }),
-      })),
+      // The site's Organization and WebSite come from each page's pageHead(): in full on the
+      // home page and /about, as short @id targets wherever another page's JSON-LD names them.
     }),
     shellComponent: RootDocument,
     component: RootLayout,

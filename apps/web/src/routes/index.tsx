@@ -25,7 +25,7 @@ export const Route = createFileRoute('/')({
     pageHead({
       title: SITE.tagline,
       description: SITE.description,
-      // The root route already emits the site's Organization and WebSite.
+      // pageHead() adds the site's full Organization and WebSite nodes here.
       path: '/',
     }),
   component: HomePage,

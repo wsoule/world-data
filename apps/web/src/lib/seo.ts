@@ -72,10 +72,11 @@ export function pageHead(seo: PageSeo): {
   if (seo.noindex === true) {
     meta.push({ name: 'robots', content: 'noindex, follow' });
   }
+  const nodes = seo.jsonLd ?? [];
   return {
     meta,
     links: [{ rel: 'canonical', href: url }],
-    scripts: (seo.jsonLd ?? []).map((obj) => ({
+    scripts: [...nodes, ...siteNodes(seo.path, nodes)].map((obj) => ({
       type: 'application/ld+json',
       children: JSON.stringify({ '@context': 'https://schema.org', ...obj }),
     })),
@@ -116,17 +117,21 @@ export const LOGO_PATH = '/logo.png';
 export const LOGO_SIZE = 512;
 
 /**
- * JSON-LD node ids. The root route emits the Organization and WebSite nodes on every page;
- * everything else (Dataset, Article, the trust pages) can point at them with `{ '@id': … }`, so
+ * JSON-LD node ids. The home page and /about carry the full Organization and WebSite nodes;
+ * everything else (Dataset, Article, the trust pages) points at them with `{ '@id': … }`, so
  * search engines read one organization instead of several unlinked copies.
  */
 export const ORGANIZATION_ID = absoluteUrl('/#organization');
 export const WEBSITE_ID = absoluteUrl('/#website');
 
+/** Pages that describe the site itself, and so carry its full Organization and WebSite nodes. */
+export const SITE_NODE_PATHS: ReadonlySet<string> = new Set(['/', '/about']);
+
 /**
  * The full schema.org Organization behind the site: name, home URL, logo and the public
- * repository as sameAs. The root route emits it once per page; other nodes reference it with
- * publisherRef().
+ * repository as sameAs. Only the home page and /about carry it (Google reads Organization
+ * markup from the home page or an about page; it need not be on every page); other nodes
+ * reference it with publisherRef().
  */
 export function organization(): Record<string, unknown> {
   return {
@@ -144,31 +149,27 @@ export function organization(): Record<string, unknown> {
   };
 }
 
-/** The schema.org WebSite node, with its site search and the Organization as publisher. */
+/**
+ * The schema.org WebSite node, with the bare domain as alternate name and the Organization as
+ * publisher. No SearchAction: Google retired the sitelinks search box it fed.
+ */
 export function website(): Record<string, unknown> {
   return {
     '@type': 'WebSite',
     '@id': WEBSITE_ID,
     name: SITE.name,
+    alternateName: [new URL(absoluteUrl('/')).host],
     url: absoluteUrl('/'),
     description: SITE.description,
     inLanguage: 'en',
     publisher: publisherRef(),
-    potentialAction: {
-      '@type': 'SearchAction',
-      target: {
-        '@type': 'EntryPoint',
-        urlTemplate: `${absoluteUrl('/search')}?q={search_term_string}`,
-      },
-      'query-input': 'required name=search_term_string',
-    },
   };
 }
 
 /**
  * The organization credited as publisher or creator in structured data: the full Organization
- * node with the same @id as the copy the root route emits, so the two merge into one. Inside a
- * node on a rendered page, publisherRef() says the same in less markup.
+ * node with the same @id as the copy on the home page, so the two merge into one. Inside a node
+ * on a rendered page, publisherRef() says the same in less markup.
  */
 export function publisher(): Record<string, unknown> {
   return organization();
@@ -177,4 +178,67 @@ export function publisher(): Record<string, unknown> {
 /** A reference to the site's Organization node by @id, for publisher, creator or author fields. */
 export function publisherRef(): { '@id': string } {
   return { '@id': ORGANIZATION_ID };
+}
+
+/**
+ * The `@id` values a page's JSON-LD references without defining (objects that hold only an
+ * `@id`), minus those some node on the page defines.
+ */
+export function unresolvedIds(
+  nodes: readonly Record<string, unknown>[]
+): Set<string> {
+  const refs = new Set<string>();
+  const defs = new Set<string>();
+  const walk = (value: unknown): void => {
+    if (Array.isArray(value)) {
+      for (const v of value) walk(v);
+      return;
+    }
+    if (value == null || typeof value !== 'object') return;
+    const obj = value as Record<string, unknown>;
+    const id = obj['@id'];
+    if (typeof id === 'string') {
+      if (Object.keys(obj).length === 1) refs.add(id);
+      else defs.add(id);
+    }
+    for (const v of Object.values(obj)) walk(v);
+  };
+  walk(nodes);
+  for (const id of defs) refs.delete(id);
+  return refs;
+}
+
+/**
+ * The site's own nodes a page carries next to its `nodes`. The home page and /about get the
+ * full Organization and WebSite. Any other page gets a short node (type, @id, name and URL) for
+ * each of the two that its nodes reference by @id, so every reference resolves on the page
+ * itself: search engines read each page on its own and do not fetch the home page to look an
+ * @id up. A page with an Article also gets the logo there, for the Article's publisher.
+ */
+function siteNodes(
+  path: string,
+  nodes: readonly Record<string, unknown>[]
+): Record<string, unknown>[] {
+  if (SITE_NODE_PATHS.has(path)) return [organization(), website()];
+  const missing = unresolvedIds(nodes);
+  const out: Record<string, unknown>[] = [];
+  if (missing.has(ORGANIZATION_ID)) {
+    const hasArticle = nodes.some((n) => n['@type'] === 'Article');
+    const { logo } = organization();
+    out.push({
+      '@type': 'Organization',
+      '@id': ORGANIZATION_ID,
+      name: SITE.name,
+      url: absoluteUrl('/'),
+      ...(hasArticle ? { logo } : {}),
+    });
+  }
+  if (missing.has(WEBSITE_ID))
+    out.push({
+      '@type': 'WebSite',
+      '@id': WEBSITE_ID,
+      name: SITE.name,
+      url: absoluteUrl('/'),
+    });
+  return out;
 }
