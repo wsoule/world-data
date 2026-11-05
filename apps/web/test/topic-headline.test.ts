@@ -10,6 +10,8 @@ import type {
 import {
   akin,
   cueEnd,
+  headlineOverride,
+  HEADLINES,
   isYearValued,
   leadMetric,
   pickHeadline,
@@ -159,6 +161,63 @@ describe('titleCue', () => {
     expect(titleCue('Oldest Cities')).toEqual({ kind: 'age', old: true });
     expect(titleCue('Youngest Countries')).toEqual({ kind: 'age', old: false });
   });
+
+  test('reads without, low-income, developing and first', () => {
+    expect(titleCue('Countries Without Clean Water')).toEqual({
+      kind: 'size',
+      end: 'low',
+    });
+    expect(titleCue('Low-Income Countries')).toEqual({
+      kind: 'size',
+      end: 'low',
+    });
+    expect(titleCue('Developing Countries')).toMatchObject({
+      kind: 'judged',
+      good: false,
+      fallback: 'low',
+    });
+    expect(titleCue('Which Country Celebrates the New Year First?')).toEqual({
+      kind: 'size',
+      end: 'low',
+      orderOnly: true,
+    });
+    // A later direction word wins over the order-only "first".
+    expect(titleCue('First Countries with the Highest Tax')).toEqual({
+      kind: 'size',
+      end: 'high',
+    });
+  });
+
+  test('"first" speaks for an order column only', () => {
+    const newYear = {
+      type: 'country' as const,
+      slug: 'n',
+      title: 'Which Country Celebrates the New Year First?',
+    };
+    const order = metric(30, 'Order of New Year Arrival', { fmt: null });
+    expect(topicEnd(newYear, order, order)).toBe('low');
+    const firstWorld = {
+      type: 'country' as const,
+      slug: 'f',
+      title: 'First World Countries',
+    };
+    const hdi = metric(31, 'Human Development Index', { pol: 1 });
+    expect(topicEnd(firstWorld, hdi, hdi)).toBeNull();
+  });
+});
+
+describe('HEADLINES', () => {
+  test("an alias reads its primary page's entry", () => {
+    expect(
+      headlineOverride({ type: 'state', slug: 'cheapest-states-to-live-in' })
+    ).toEqual(HEADLINES['state/least-expensive-states']);
+    expect(
+      headlineOverride({ type: 'state', slug: 'same-sex-marriage-states' })
+    ).toEqual(HEADLINES['state/gay-marriage-by-state']);
+    expect(headlineOverride({ type: 'state', slug: 'no-such-topic' })).toBe(
+      undefined
+    );
+  });
 });
 
 describe('cueEnd', () => {
@@ -295,6 +354,21 @@ describe('pickHeadline and leadMetric', () => {
     const housing = metric(10, 'Housing Index');
     const overall = metric(11, 'Cost of Living Index');
     expect(pickHeadline(t, [housing, overall], () => undefined)?.id).toBe(11);
+  });
+
+  test('a title naming nothing a label repeats leads with an overall index', () => {
+    const t = {
+      type: 'state' as const,
+      slug: 'x',
+      title: 'Least Expensive States',
+    };
+    const grocery = metric(12, 'COLI Grocery Costs Index');
+    const overallRank = metric(13, 'Overall Rank', { fmt: 'ranking' });
+    const overall = metric(14, 'COLI Overall Index');
+    const pick = (ms: Metric[]) => pickHeadline(t, ms, () => undefined)?.id;
+    expect(pick([grocery, overallRank, overall])).toBe(14);
+    // An overall rank is not an index: the first column leads.
+    expect(pick([grocery, overallRank])).toBe(12);
   });
 
   test('leads with the hand-checked headline of a topic', () => {

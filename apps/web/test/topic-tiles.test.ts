@@ -19,9 +19,14 @@ import {
   topicListOrder,
 } from '../src/features/topic/headline';
 import {
+  displayTables,
+  focusableMetrics,
+  hasUndated,
   numericColumn,
   type RankedEntry,
   rankEntries,
+  resolveYear,
+  seriesYears,
 } from '../src/features/topic/model';
 import { extremeTiles } from '../src/features/topic/TopicVisuals';
 
@@ -99,18 +104,28 @@ describe('extremeTiles', () => {
     test(`${type}/${slug}: Highest is at least Lowest`, () => {
       const ds = dataset(type);
       const topic = read<TopicFile>(`${type}/topics/${slug}.json`);
-      const focus = leadMetric(topic, ds);
-      if (focus == null) throw new Error('no lead metric');
-      const values = numericColumn(
-        topic,
-        focus.id,
-        openingYear(topic, focus),
-        ds.entities.length
-      );
+      // The page's default focus: the lead metric, or its first focusable one when the lead is
+      // a figure the topic does not carry (coldest-states leads with NOAA's normals).
+      const lead = leadMetric(topic, ds);
+      const tables = displayTables(topic, (id) => ds.metric(id) != null);
+      const focusables = focusableMetrics(tables, (id) => ds.metric(id));
+      const focus =
+        focusables.find((m) => m.id === lead?.id) ?? focusables[0] ?? null;
+      if (focus == null) throw new Error('no focus metric');
+      const year =
+        focus.id === lead?.id
+          ? openingYear(topic, focus)
+          : resolveYear(
+              seriesYears(topic, focus.id),
+              undefined,
+              focus.year,
+              hasUndated(topic, focus.id)
+            );
+      const values = numericColumn(topic, focus.id, year, ds.entities.length);
       const order = topicListOrder(
         topic,
         focus,
-        focus,
+        lead,
         isYearValued(focus, values)
       );
       const ranked = rankEntries(values, order.direction);

@@ -18,6 +18,7 @@ import {
 import type { Dataset } from '~/data/dataset';
 import { isRankColumn } from '~/data/rankOrder';
 import type { Metric, TopicFile } from '~/data/types';
+import { canonicalTopicSlug } from '~/seo/indexing';
 
 /** One end of a metric's values. */
 export type End = 'high' | 'low';
@@ -29,10 +30,12 @@ export type End = 'high' | 'low';
  * side ("richest" still means the highest of a neutral wealth figure); `age` words (oldest,
  * newest, youngest) mean the earliest or latest of a year and the highest or lowest of anything
  * else. `word` is the adjective after "most" or "least" ("religious"), so a label that negates
- * it ("Pct Non-Religious") can turn the end round.
+ * it ("Pct Non-Religious") can turn the end round. `orderOnly` marks a cue that speaks only for
+ * an order column ("first" means the lowest "Order of New Year Arrival", but says nothing about
+ * the Human Development Index of "First World Countries").
  */
 export type TitleCue =
-  | { kind: 'size'; end: End; word?: string }
+  | { kind: 'size'; end: End; word?: string; orderOnly?: boolean }
   | { kind: 'judged'; good: boolean; fallback: End | null; word?: string }
   | { kind: 'age'; old: boolean };
 
@@ -59,6 +62,7 @@ const SIZE_HIGH = new Set([
   'loudest',
   'drunkest',
   'darkest',
+  'high-income',
 ]);
 
 const SIZE_LOW = new Set([
@@ -76,6 +80,10 @@ const SIZE_LOW = new Set([
   'flattest',
   'thinnest',
   'quietest',
+  // "Low-Income Countries" read from the lowest income; "Countries Without Clean Water" from
+  // the lowest access to it, "States Without Tornadoes" from the fewest.
+  'low-income',
+  'without',
 ]);
 
 /** Better-end words, with the end they mean for a metric without a better side. */
@@ -108,6 +116,8 @@ const BAD: ReadonlyMap<string, End | null> = new Map([
   ['ugliest', null],
   ['scariest', null],
   ['hardest', null],
+  // "Developing Countries" are the less developed end of a development measure.
+  ['developing', 'low'],
 ]);
 
 /**
@@ -168,6 +178,7 @@ const GOOD_ADJ = new Set([
 
 /** The cue of one title word (or the first part of a hyphenated one), if it names a direction. */
 function wordCue(w: string): TitleCue | null {
+  if (w === 'first') return { kind: 'size', end: 'low', orderOnly: true };
   if (SIZE_HIGH.has(w)) return { kind: 'size', end: 'high' };
   if (SIZE_LOW.has(w)) return { kind: 'size', end: 'low' };
   if (w === 'oldest') return { kind: 'age', old: true };
@@ -183,10 +194,12 @@ function wordCue(w: string): TitleCue | null {
  * The first direction word of a title, or null when it names none ("Median Household Income
  * by State"). "most" and "least" read the adjective after them: "most dangerous" is the worse
  * end, "least corrupt" the better one, "most popular" simply the highest. A hyphenated word
- * counts by its first part ("Highest-Paid Jobs").
+ * counts by its first part ("Highest-Paid Jobs"). "first" ("Which Country Celebrates the New
+ * Year First?") is an order-only cue (see `TitleCue`), so a later direction word wins over it.
  */
 export function titleCue(title: string): TitleCue | null {
   const words = title.toLowerCase().match(/[a-z]+(?:-[a-z]+)*/g) ?? [];
+  let orderCue: TitleCue | null = null;
   for (let k = 0; k < words.length; k++) {
     const w = words[k];
     if (w === 'most' || w === 'least') {
@@ -201,10 +214,15 @@ export function titleCue(title: string): TitleCue | null {
     }
     const cue =
       wordCue(w) ?? (w.includes('-') ? wordCue(w.split('-')[0]) : null);
-    if (cue != null) return cue;
+    if (cue == null) continue;
+    if (cue.kind === 'size' && cue.orderOnly === true) orderCue ??= cue;
+    else return cue;
   }
-  return null;
+  return orderCue;
 }
+
+/** Labels of an order or sequence ("Order of New Year Arrival"), which an order-only cue reads. */
+const ORDER_LABEL = /\b(order|arrival|sequence)\b/i;
 
 /** Labels that name a year or a date ("Independence Year", "Date Joined", "Founded"). */
 const YEAR_LABEL =
@@ -301,8 +319,36 @@ export interface HeadlineOverride {
  *   between its highest and lowest points.
  * - richest-person-by-state, safest-cities-by-state and worst-school-districts-by-state name
  *   one person, city or district per state (a text column); their numbers (age, population,
- *   number of districts) do not answer the title, so the summary lists the names instead.
+ *   number of districts) do not answer the title, so the summary lists the names instead. So do
+ *   largest-city-by-state (the population is the city's), highest-paying-jobs-by-state (the
+ *   salary is the job's), most-dangerous-cities-by-state (the "Place in Total Order" is the
+ *   city's place among all cities surveyed), biggest-church-by-state (the attendance is the
+ *   church's), richest-families-by-state (the worth is the family's) and small-towns-by-state.
+ * - hottest-states, coldest-states and average-temperatures-by-state lead with NOAA's 1991–2020
+ *   statewide average temperature (900401, from Climate by State): the source's own Average
+ *   Temperature (20530) copies whole rows between states (Georgia carries Florida's 72.6 °F,
+ *   NOAA has 64.2 °F).
+ * - least-expensive-states (and its alias cheapest-states-to-live-in) leads with the overall
+ *   cost of living index, not the grocery sub-index its first table starts with.
+ * - gay-marriage-by-state leads with same-sex marriages rather than all married couples, like
+ *   its alias same-sex-marriage-states.
+ * - highest-paid-government-leaders-in-the-world (and its alias) leads with the head of
+ *   government's salary, as the primary page does; the head of state column holds royal fortunes.
+ * - worst-cities-in-the-us (and its alias worst-cities-in-america) leads with the USA Today
+ *   ranking, which covers more of the cities than the "Least Desirable" one.
+ * - what-country-has-the-highest-currency ("Which Currency is the Most Valuable?") lists the
+ *   dollar rate of each currency: the most valuable takes the fewest units for a dollar.
+ * - which-country-celebrates-new-year-first: the first country has order 1, the lowest.
+ * - states-people-are-leaving leads with the share of moves that leave the state; its twin
+ *   states-people-are-moving-to (the same table) leads with the moves into it.
+ *
+ * An alias in TOPIC_ALIASES (src/seo/indexing.ts) reads its primary's entry, so the two lead
+ * the same way.
  */
+/** Where the temperature topics' headline figure comes from. */
+const NOAA_NOTE =
+  'The headline figure is NOAA’s 1991–2020 average temperature for each state (nClimDiv climate normals); the table below is the source’s own figures.';
+
 export const HEADLINES: Readonly<Record<string, HeadlineOverride>> = {
   'state/median-household-income-by-state': {
     metric: 900603,
@@ -323,13 +369,35 @@ export const HEADLINES: Readonly<Record<string, HeadlineOverride>> = {
   'state/richest-person-by-state': { metric: 16502 },
   'state/safest-cities-by-state': { metric: 8712 },
   'state/worst-school-districts-by-state': { metric: 16467 },
+  'state/largest-city-by-state': { metric: 24652 },
+  'state/highest-paying-jobs-by-state': { metric: 8075 },
+  'state/most-dangerous-cities-by-state': { metric: 9907 },
+  'state/biggest-church-by-state': { metric: 21199 },
+  'state/richest-families-by-state': { metric: 16569 },
+  'state/small-towns-by-state': { metric: 15027 },
+  'state/hottest-states': { metric: 900401, note: NOAA_NOTE },
+  'state/coldest-states': { metric: 900401, note: NOAA_NOTE },
+  'state/average-temperatures-by-state': { metric: 900401, note: NOAA_NOTE },
+  'state/least-expensive-states': { metric: 20648 },
+  'state/gay-marriage-by-state': { metric: 21276 },
+  'country/highest-paid-government-leaders-in-the-world': { metric: 19841 },
+  'city/worst-cities-in-the-us': { metric: 25139 },
+  'country/what-country-has-the-highest-currency': { end: 'low' },
+  'country/which-country-celebrates-new-year-first': { end: 'low' },
+  'state/states-people-are-leaving': { metric: 22725 },
 };
 
-/** The hand-checked headline of a topic, if any. */
+/**
+ * The hand-checked headline of a topic, if any: its own entry, else its primary page's when it
+ * only retitles one (TOPIC_ALIASES), so an alias and its canonical page lead alike.
+ */
 export function headlineOverride(
   topic: Pick<TopicFile, 'type' | 'slug'>
 ): HeadlineOverride | undefined {
-  return HEADLINES[`${topic.type}/${topic.slug}`];
+  return (
+    HEADLINES[`${topic.type}/${topic.slug}`] ??
+    HEADLINES[`${topic.type}/${canonicalTopicSlug(topic.type, topic.slug)}`]
+  );
 }
 
 /** Words that say nothing about which statistic a title is about. */
@@ -506,10 +574,16 @@ export function topicEnd(
   yearValued = false
 ): End | null {
   const cue = titleCue(topic.title);
-  if (cue == null) return null;
   const isLead = lead != null && lead.id === metric.id;
   const fixed = headlineOverride(topic)?.end;
   if (isLead && fixed != null) return fixed;
+  if (cue == null) return null;
+  if (
+    cue.kind === 'size' &&
+    cue.orderOnly === true &&
+    !ORDER_LABEL.test(metric.label)
+  )
+    return null;
   const applies =
     isLead ||
     (lead != null && akin(lead, metric)) ||
@@ -564,7 +638,7 @@ const RATIO = /\w-to-\w|\bratio\b/i;
  * its label misses words of the title and another label repeats them all ("Cost of Living Index
  * by State" leads with "Cost of Living Index" rather than a housing sub-index). An "Overall"
  * label counts as one more word, so a title naming nothing a label repeats ("Cheapest States to
- * Live In") leads with the overall index. Among full matches, changes between years give way
+ * Live In", "Least Expensive States") leads with the overall index. Among full matches, changes between years give way
  * to levels (unless the title is about change), ratios never displace the first, and a value
  * column beats a rank column.
  */
@@ -581,10 +655,14 @@ export function pickHeadline<M extends Pick<Metric, 'id' | 'label' | 'fmt'>>(
   const first = candidates[0];
   if (first == null) return null;
   const need = new Set(contentWords(topic.title)).size;
+  const overall = (m: M) => /\boverall\b/i.test(m.label);
   const full = (m: M) =>
-    labelMatch(topic.title, m.label) + (/\boverall\b/i.test(m.label) ? 1 : 0) >=
-    need;
-  if (need === 0 || full(first)) return first;
+    labelMatch(topic.title, m.label) + (overall(m) ? 1 : 0) >= need;
+  // A title naming nothing a label repeats ("Least Expensive States") leads with an overall
+  // index (not an overall rank) when there is one, like its twin "Cheapest States to Live In".
+  if (need === 0)
+    return candidates.find((m) => overall(m) && !isRankColumn(m)) ?? first;
+  if (full(first)) return first;
   let pool = candidates.filter((m) => full(m) && !RATIO.test(m.label));
   const narrow = (keep: (m: M) => boolean) => {
     if (pool.some(keep)) pool = pool.filter(keep);

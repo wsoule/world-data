@@ -165,12 +165,17 @@ describe('topicAnswers', () => {
       ds,
       manifest.categories
     );
+    // Both lead with NOAA's normals (HEADLINES): the source's own column copies Florida's
+    // 72.6 °F into Georgia.
     expect(cold.summary).toStartWith(
-      'Alaska has the lowest Average Temperature'
+      'Alaska has the lowest Average Temperature (°F)'
     );
     expect(hot.summary).toStartWith(
-      'Florida has the highest Average Temperature'
+      'Florida has the highest Average Temperature (°F)'
     );
+    expect(hot.summary).toContain('NOAA’s 1991–2020 average temperature');
+    for (const page of [cold, hot])
+      expect(page.description).not.toContain('Georgia');
     expect(cold.description).not.toBe(hot.description);
   });
 

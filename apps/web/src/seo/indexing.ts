@@ -94,10 +94,12 @@ export function isIndexablePlace(
  *   point at it: corruption-perceptions-index-by-country takes least-corrupt-countries,
  *   most-corrupt-countries and countries-where-bribery-is-legal.
  * - Without a neutral title, pages that ask about opposite ends (coldest / hottest, most / least,
- *   safest / most dangerous) or different values (high / middle / low income, free / slave
- *   states, 12- / 24-hour time) answer different questions and keep their own canonical; their
- *   leads and default order differ (SEPARATE_DUPLICATES). Pages asking the same question
- *   (cheapest / least expensive) point at one of them.
+ *   safest / most dangerous), different values (high / middle / low income, free / slave
+ *   states, 12- / 24-hour time) or different columns of the table (rare-earth production /
+ *   reserves, vegetarians / vegans) answer different questions and keep their own canonical;
+ *   their leads and default order differ (SEPARATE_DUPLICATES). Pages asking the same question
+ *   (cheapest / least expensive) point at one of them, and lead the same way: an alias reads its
+ *   primary's HEADLINES entry (src/features/topic/headline.ts).
  * - Among several candidates for primary, the generic "<subject>-by-<type>" slug, then the page
  *   the data build ranks first for most of the group's metrics (`Metric.topics[0]`, which
  *   prefers titles that match the metric labels), then the shorter slug.
@@ -138,8 +140,6 @@ export const TOPIC_ALIASES: Readonly<
     'number-of-jews-in-the-world': 'jewish-population-by-country',
     'muslim-majority-countries': 'muslim-population-by-country',
     'oil-producing-countries': 'oil-production-by-country',
-    'rare-earth-production-by-country': 'rare-earth-reserves-by-country',
-    'vegetarianism-by-country': 'veganism-by-country',
   },
   state: {
     'abortion-bans-by-state': 'abortion-laws-by-state',
@@ -194,6 +194,12 @@ export const SEPARATE_DUPLICATES: readonly (readonly string[])[] = [
     'country/safest-countries-in-north-america',
   ],
   ['country/most-peaceful-countries', 'country/most-violent-countries'],
+  // Production and reserves, vegetarians and vegans: different statistics of one table.
+  [
+    'country/rare-earth-production-by-country',
+    'country/rare-earth-reserves-by-country',
+  ],
+  ['country/vegetarianism-by-country', 'country/veganism-by-country'],
 ];
 
 /** TOPIC_ALIASES keyed "<type>/<slug>", so a lookup with any URL segment is safe. */
