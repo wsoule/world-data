@@ -72,6 +72,15 @@ tasks:
       cache: false
       runInCI: 'always'
 
+  # Ask the docs/geo.md questions through AI search APIs and log whether the
+  # answers cite rankodex.com (.cache/geo/citations.csv). Engines without a key
+  # in the environment are skipped.
+  geo-citations:
+    command: 'bun scripts/geo-citations.ts'
+    options:
+      cache: false
+      runInCI: 'always'
+
   # Parse the page cache into public/data.
   data-build:
     command: 'bun scripts/build-data.ts'

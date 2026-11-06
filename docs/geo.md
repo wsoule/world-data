@@ -29,11 +29,35 @@ every crawler there should show allowed requests and no blocks.
 
 ## 2. Are we being cited? (every two weeks)
 
-Ask each question below in ChatGPT (search on), Perplexity, Google (look at the
-AI Overview), Copilot and Claude (web search on), in a private window. Record in
-a sheet, per engine: cited (a link to rankodex.com), mentioned without a link,
-or absent, and which page was cited. The target page is the one that answers
-best; a different Rankodex page still counts.
+### Automatically
+
+```bash
+export PERPLEXITY_API_KEY=…   # any of the three; engines without a key are skipped
+export OPENAI_API_KEY=…
+export ANTHROPIC_API_KEY=…
+moonx web:geo-citations                 # all 20 questions
+moonx web:geo-citations -- --only 1,4   # some of them
+moonx web:geo-citations -- --dry-run    # list questions and engines, call nothing
+```
+
+It asks every question below through Perplexity's Sonar API, OpenAI's Responses
+API with web search and Anthropic's Messages API with web search, and appends a
+row per answer to `apps/web/.cache/geo/citations.csv` (gitignored): whether it
+cited rankodex.com, whether it cited the target page, which Rankodex pages, and
+the top domains it cited instead. Models default to `sonar`, `gpt-5-mini` and
+`claude-sonnet-5-5`; override with `PERPLEXITY_MODEL`, `OPENAI_MODEL` and
+`ANTHROPIC_MODEL`. A run costs a few cents per engine. API answers track the
+consumer apps closely but not exactly, so read the trend across runs.
+
+### By hand
+
+Google's AI Overviews and Copilot have no API for this, and the consumer apps
+can differ from their APIs. Ask each question below in Google (look at the AI
+Overview), Copilot, ChatGPT (search on), Perplexity and Claude (web search on),
+in a private window. Record in a sheet, per engine: cited (a link to
+rankodex.com), mentioned without a link, or absent, and which page was cited.
+The target page is the one that answers best; a different Rankodex page still
+counts.
 
 Citations take weeks to start after indexing. Compare runs over months, not day
 to day.
