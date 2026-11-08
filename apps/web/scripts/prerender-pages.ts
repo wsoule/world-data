@@ -30,6 +30,7 @@ import type {
   TopicSummary,
   ValuesFile,
 } from '../src/data/types';
+import { pairPath, PAIRS_PATH, type PairsFile } from '../src/features/vs/pairs';
 import {
   canonicalTopicSlug,
   isIndexableTopic,
@@ -124,6 +125,7 @@ export function prerenderPages(dataDir: string): PrerenderPage[] {
   const manifest = readJson<Manifest>(dataDir, 'manifest.json');
   const topics = readJson<TopicSummary[]>(dataDir, 'topics.json');
   const stories = readJson<StoryCard[]>(dataDir, 'stories/index.json');
+  const pairs = readJson<PairsFile>(dataDir, PAIRS_PATH);
 
   const metrics = new Map<EntityType, Map<number, Metric>>();
   for (const t of manifest.types) {
@@ -265,6 +267,27 @@ export function prerenderPages(dataDir: string): PrerenderPage[] {
         ),
       });
     });
+    // Matchup pages (src/features/vs/pairs.ts) and their hub, dated by the newer of the two
+    // places' data. Thin matchups say noindex, and seo-files.ts drops those from the sitemap.
+    const list = pairs[type] ?? [];
+    if (list.length === 0) continue;
+    pages.push({
+      path: `/vs/${type}`,
+      sitemap: withLastmod({ priority: 0.6 }, typeDate.get(type) ?? null),
+    });
+    const slugIndex = new Map(entities.map((e, i) => [e.slug, i]));
+    for (const [a, b] of list) {
+      const ia = slugIndex.get(a);
+      const ib = slugIndex.get(b);
+      if (ia == null || ib == null) continue;
+      pages.push({
+        path: pairPath(type, a, b),
+        sitemap: withLastmod(
+          { priority: type === 'country' || type === 'state' ? 0.6 : 0.5 },
+          newestDate([dates[ia], dates[ib]])
+        ),
+      });
+    }
   }
   return pages;
 }

@@ -501,6 +501,27 @@ function Footer() {
           >
             Head to head
           </Link>
+          <Link
+            to="/vs/$type"
+            params={{ type: 'state' }}
+            className="hover:text-app"
+          >
+            State vs state
+          </Link>
+          <Link
+            to="/vs/$type"
+            params={{ type: 'country' }}
+            className="hover:text-app"
+          >
+            Country vs country
+          </Link>
+          <Link
+            to="/vs/$type"
+            params={{ type: 'city' }}
+            className="hover:text-app"
+          >
+            City vs city
+          </Link>
           <span className="text-muted/80 text-xs">
             Dataset built{' '}
             {new Date(data.generatedAt).toLocaleDateString('en-US', {

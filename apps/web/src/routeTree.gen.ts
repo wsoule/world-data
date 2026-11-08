@@ -27,6 +27,8 @@ import { Route as CategoriesCategoryRouteImport } from './routes/categories.$cat
 import { Route as PlacesTypeIndexRouteImport } from './routes/places.$type.index'
 import { Route as PlacesTypeSlugRouteImport } from './routes/places.$type.$slug'
 import { Route as TopicsTypeSlugRouteImport } from './routes/topics.$type.$slug'
+import { Route as VsTypeIndexRouteImport } from './routes/vs_.$type.index'
+import { Route as VsTypePairRouteImport } from './routes/vs_.$type.$pair'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -118,6 +120,16 @@ const TopicsTypeSlugRoute = TopicsTypeSlugRouteImport.update({
   path: '/topics/$type/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const VsTypeIndexRoute = VsTypeIndexRouteImport.update({
+  id: '/vs_/$type/',
+  path: '/vs/$type/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VsTypePairRoute = VsTypePairRouteImport.update({
+  id: '/vs_/$type/$pair',
+  path: '/vs/$type/$pair',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -137,7 +149,9 @@ export interface FileRoutesByFullPath {
   '/categories/': typeof CategoriesIndexRoute
   '/places/$type/$slug': typeof PlacesTypeSlugRoute
   '/topics/$type/$slug': typeof TopicsTypeSlugRoute
+  '/vs/$type/$pair': typeof VsTypePairRoute
   '/places/$type/': typeof PlacesTypeIndexRoute
+  '/vs/$type/': typeof VsTypeIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -157,7 +171,9 @@ export interface FileRoutesByTo {
   '/categories': typeof CategoriesIndexRoute
   '/places/$type/$slug': typeof PlacesTypeSlugRoute
   '/topics/$type/$slug': typeof TopicsTypeSlugRoute
+  '/vs/$type/$pair': typeof VsTypePairRoute
   '/places/$type': typeof PlacesTypeIndexRoute
+  '/vs/$type': typeof VsTypeIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -178,7 +194,9 @@ export interface FileRoutesById {
   '/categories/': typeof CategoriesIndexRoute
   '/places/$type/$slug': typeof PlacesTypeSlugRoute
   '/topics/$type/$slug': typeof TopicsTypeSlugRoute
+  '/vs_/$type/$pair': typeof VsTypePairRoute
   '/places/$type/': typeof PlacesTypeIndexRoute
+  '/vs_/$type/': typeof VsTypeIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -200,7 +218,9 @@ export interface FileRouteTypes {
     | '/categories/'
     | '/places/$type/$slug'
     | '/topics/$type/$slug'
+    | '/vs/$type/$pair'
     | '/places/$type/'
+    | '/vs/$type/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -220,7 +240,9 @@ export interface FileRouteTypes {
     | '/categories'
     | '/places/$type/$slug'
     | '/topics/$type/$slug'
+    | '/vs/$type/$pair'
     | '/places/$type'
+    | '/vs/$type'
   id:
     | '__root__'
     | '/'
@@ -240,7 +262,9 @@ export interface FileRouteTypes {
     | '/categories/'
     | '/places/$type/$slug'
     | '/topics/$type/$slug'
+    | '/vs_/$type/$pair'
     | '/places/$type/'
+    | '/vs_/$type/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -261,7 +285,9 @@ export interface RootRouteChildren {
   CategoriesIndexRoute: typeof CategoriesIndexRoute
   PlacesTypeSlugRoute: typeof PlacesTypeSlugRoute
   TopicsTypeSlugRoute: typeof TopicsTypeSlugRoute
+  VsTypePairRoute: typeof VsTypePairRoute
   PlacesTypeIndexRoute: typeof PlacesTypeIndexRoute
+  VsTypeIndexRoute: typeof VsTypeIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -392,6 +418,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TopicsTypeSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/vs_/$type/': {
+      id: '/vs_/$type/'
+      path: '/vs/$type'
+      fullPath: '/vs/$type/'
+      preLoaderRoute: typeof VsTypeIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/vs_/$type/$pair': {
+      id: '/vs_/$type/$pair'
+      path: '/vs/$type/$pair'
+      fullPath: '/vs/$type/$pair'
+      preLoaderRoute: typeof VsTypePairRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -413,7 +453,9 @@ const rootRouteChildren: RootRouteChildren = {
   CategoriesIndexRoute: CategoriesIndexRoute,
   PlacesTypeSlugRoute: PlacesTypeSlugRoute,
   TopicsTypeSlugRoute: TopicsTypeSlugRoute,
+  VsTypePairRoute: VsTypePairRoute,
   PlacesTypeIndexRoute: PlacesTypeIndexRoute,
+  VsTypeIndexRoute: VsTypeIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

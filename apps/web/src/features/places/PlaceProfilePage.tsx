@@ -36,6 +36,7 @@ import { Card } from '~/components/ui';
 import { entitiesQuery, manifestQuery } from '~/data/api';
 import type { Dataset } from '~/data/dataset';
 import { type EntityType, isEntityType } from '~/data/types';
+import { pairSlug } from '~/features/vs/pairs';
 import {
   formatInt,
   formatValue,
@@ -65,6 +66,8 @@ interface ProfileContent {
   faq: readonly QA[];
   /** Parent place and the places inside this one */
   related: RelatedPlaces;
+  /** Slugs of the places this one has a matchup page with (features/vs/pairs.ts) */
+  matchups: readonly string[];
 }
 
 export function PlaceProfilePage(content: ProfileContent) {
@@ -100,6 +103,7 @@ function Profile({
   summary,
   faq,
   related,
+  matchups,
 }: { view: PlaceView } & ProfileContent) {
   const { dataset, index, facts, rows } = view;
   const entity = dataset.entities[index];
@@ -282,6 +286,8 @@ function Profile({
       {related.children.map((group) => (
         <RelatedPlaceList key={group.type} group={group} />
       ))}
+
+      <Matchups dataset={dataset} entity={entity} matchups={matchups} />
 
       <PlaceStories view={view} />
 
@@ -480,6 +486,45 @@ function Locator({ dataset, index }: { dataset: Dataset; index: number }) {
           })
         }
       />
+    </Card>
+  );
+}
+
+/** Links to the prerendered head-to-head pages pairing this place with another. */
+function Matchups({
+  dataset,
+  entity,
+  matchups,
+}: {
+  dataset: Dataset;
+  entity: Dataset['entities'][number];
+  matchups: readonly string[];
+}) {
+  const type = dataset.type.id;
+  const others = matchups.flatMap((slug) => {
+    const i = dataset.entityBySlug.get(slug);
+    return i == null ? [] : [dataset.entities[i]];
+  });
+  if (others.length === 0) return null;
+  return (
+    <Card
+      title={`Compare ${entity.name} head to head`}
+      subtitle="Who ranks better on every statistic both places have."
+    >
+      <ul className="flex flex-wrap gap-2 text-sm">
+        {others.map((o) => (
+          <li key={o.slug}>
+            <Link
+              to="/vs/$type/$pair"
+              params={{ type, pair: pairSlug(entity.slug, o.slug) }}
+              className="border-app hover:border-accent-400 hover:text-accent-600 dark:hover:text-accent-300 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1"
+            >
+              <Flag entity={o} type={type} size={14} />
+              vs {o.name}
+            </Link>
+          </li>
+        ))}
+      </ul>
     </Card>
   );
 }

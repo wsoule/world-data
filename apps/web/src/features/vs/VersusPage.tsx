@@ -1,7 +1,14 @@
 import { getRouteApi, Link } from '@tanstack/react-router';
 import { ArrowRight, Scale, X } from 'lucide-react';
-import { type ReactNode, useCallback, useMemo, useState } from 'react';
+import {
+  Fragment,
+  type ReactNode,
+  useCallback,
+  useMemo,
+  useState,
+} from 'react';
 
+import { PAIR_RULES } from './pairs';
 import { MAX_PLACES, placePalette } from './palette';
 import { VersusChart } from './VersusChart';
 import {
@@ -283,9 +290,27 @@ function Suggestions({ type }: { type: EntityType }) {
           </Link>
         ))}
       </div>
+      <p className="text-muted mt-4 text-sm">
+        Or browse ready-made matchups:{' '}
+        {MATCHUP_HUBS.map((t, k) => (
+          <Fragment key={t}>
+            {k > 0 ? ' · ' : ''}
+            <Link
+              to="/vs/$type"
+              params={{ type: t }}
+              className="text-accent-600 dark:text-accent-300 hover:underline"
+            >
+              {TYPE_LABEL[t]}
+            </Link>
+          </Fragment>
+        ))}
+      </p>
     </section>
   );
 }
+
+/** Place types with prerendered matchup pages (PAIR_RULES), for the hub links. */
+const MATCHUP_HUBS = Object.keys(PAIR_RULES) as EntityType[];
 
 /** Everything below the picker once at least two places are chosen. */
 function Comparison({

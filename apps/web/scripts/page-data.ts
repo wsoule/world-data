@@ -4,6 +4,7 @@
 //   data/<type>/pages/topics/<slug>.json   features/topic/pageData.ts (TopicPageData)
 //   data/<type>/pages/places/<slug>.json   features/places/pageData.ts (StoredPlacePage)
 //   data/<type>/pages/catalog.json         features/places/pageData.ts (PlaceCatalog)
+//   data/<type>/pages/vs/<pair>.json       features/vs/pairPage.ts (PairPageData)
 //   data/pages/noindex-topics.json         data/noindexTopics.ts (noindexTopicKeys)
 //
 // The server builds the same objects from the same functions while prerendering, so a page
@@ -42,11 +43,14 @@ import {
   buildTopicPageData,
   topicPagePath,
 } from '../src/features/topic/pageData';
+import { buildPairPageData, pairPagePath } from '../src/features/vs/pairData';
+import { PAIRS_PATH, type PairsFile, pairSlug } from '../src/features/vs/pairs';
 
 /** Counts of the files written. */
 export interface PageDataReport {
   topics: number;
   places: number;
+  pairs: number;
   bytes: number;
 }
 
@@ -62,11 +66,12 @@ export async function writePageData(
     JSON.parse(await readFile(path.join(dataDir, file), 'utf8')) as T;
   const manifest = await read<Manifest>('manifest.json');
   const index = await read<TopicSummary[]>('topics.json');
+  const pairs = await read<PairsFile>(PAIRS_PATH);
   // Every type's place list, for the parent and child links of each profile.
   const lists: EntityLists = {};
   for (const info of manifest.types)
     lists[info.id] = await read<Entity[]>(`${info.id}/entities.json`);
-  const report: PageDataReport = { topics: 0, places: 0, bytes: 0 };
+  const report: PageDataReport = { topics: 0, places: 0, pairs: 0, bytes: 0 };
   const write = async (file: string, data: unknown) => {
     const json = JSON.stringify(data);
     await writeFile(path.join(outDir, file), json);
@@ -104,7 +109,7 @@ export async function writePageData(
       read<ValuesFile>(`${type}/values.json`),
     ]);
     const full = new Dataset(info, entities, metrics, values, index);
-    for (const dir of ['topics', 'places'])
+    for (const dir of ['topics', 'places', 'vs'])
       await mkdir(path.join(outDir, type, 'pages', dir), { recursive: true });
     for (const t of index) {
       const topic = t.type === type ? files.get(`${type}/${t.slug}`) : null;
@@ -126,9 +131,17 @@ export async function writePageData(
       );
       report.places++;
     }
+    for (const [a, b] of pairs[type] ?? []) {
+      if (!full.entityBySlug.has(a) || !full.entityBySlug.has(b)) continue;
+      await write(
+        pairPagePath(type, pairSlug(a, b)),
+        buildPairPageData(full, manifest, pairs, a, b)
+      );
+      report.pairs++;
+    }
   }
   console.log(
-    `page-data: ${report.topics} topic and ${report.places} place files (${Math.round(report.bytes / 1024)} KB)`
+    `page-data: ${report.topics} topic, ${report.places} place and ${report.pairs} matchup files (${Math.round(report.bytes / 1024)} KB)`
   );
   return report;
 }

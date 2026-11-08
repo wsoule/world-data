@@ -33,6 +33,7 @@ import type {
 } from '../src/data/types';
 import { toSearchCatalog } from '../src/features/search/searchCatalog';
 import { buildHomeMaps } from './build-home-maps';
+import { buildPairs } from './build-pairs';
 import { buildStories } from './build-stories';
 import { parseInlineData, parseIslands } from './lib/astro';
 import {
@@ -1477,6 +1478,7 @@ async function main(): Promise<void> {
 
   console.log(`${await buildStories(OUT)} data stories`);
   console.log(`${await buildHomeMaps(OUT)} home maps`);
+  console.log(`${await buildPairs(OUT)} matchup pairs`);
 
   for (const [kind, list] of checks) {
     console.log(`\n${kind}: ${list.length}`);
