@@ -9,7 +9,13 @@ import {
   useTable,
 } from '@tanstack/react-table';
 import { ArrowDown, ArrowUp, ChevronsUpDown, Search } from 'lucide-react';
-import { useDeferredValue, useMemo, useRef, useState } from 'react';
+import {
+  type CSSProperties,
+  useDeferredValue,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import type { SharedMetric } from './versusModel';
 import { Flag } from '~/components/Flag';
@@ -34,6 +40,11 @@ const helper = createColumnHelper<typeof features, SharedMetric>();
 
 const ROW_HEIGHT = 54;
 const DEFAULT_SORT: SortingState = [{ id: 'gap', desc: true }];
+/**
+ * Columns left out below the `sm` breakpoint so every place's value fits on a phone without
+ * scrolling sideways; the winner's value is already bold in its colour.
+ */
+const DESKTOP_ONLY: ReadonlySet<string> = new Set(['winner', 'gap']);
 
 /**
  * Every metric the compared places share: each place's value and rank, the winner (none for
@@ -237,16 +248,21 @@ export function VersusTable({
           tabIndex={0}
         >
           <table
-            className="w-full table-fixed border-separate border-spacing-0 text-sm"
-            style={{ minWidth: `${11.5 + places.length * 9 + 14.5}rem` }}
+            className="w-full min-w-(--vs-min) table-fixed border-separate border-spacing-0 text-sm sm:min-w-(--vs-min-sm)"
+            style={
+              {
+                '--vs-min': `${8.5 + places.length * 6.5}rem`,
+                '--vs-min-sm': `${11.5 + places.length * 9 + 14.5}rem`,
+              } as CSSProperties
+            }
           >
             <colgroup>
-              <col className="w-[11.5rem] sm:w-auto" />
+              <col className="sm:w-auto" />
               {places.map((p) => (
-                <col key={p.id} className="w-[9rem]" />
+                <col key={p.id} className="w-[6.5rem] sm:w-[9rem]" />
               ))}
-              <col className="w-[10rem]" />
-              <col className="w-[4.5rem]" />
+              <col className="w-0 sm:w-[10rem]" />
+              <col className="w-0 sm:w-[4.5rem]" />
             </colgroup>
             <thead>
               {table.getHeaderGroups().map((group) => (
@@ -283,7 +299,9 @@ export function VersusTable({
                       <td
                         key={cell.id}
                         className={cx(
-                          'border-app border-b px-3 py-1.5',
+                          'border-app border-b px-2 py-1.5 sm:px-3',
+                          DESKTOP_ONLY.has(cell.column.id) &&
+                            'hidden sm:table-cell',
                           cell.column.id === 'metric' &&
                             'bg-surface group-hover/row:bg-surface-2 sticky left-0 z-[1]',
                           cell.column.id === 'gap' && 'text-right'
@@ -364,7 +382,8 @@ function HeaderCell({
             : 'none'
       }
       className={cx(
-        'border-app bg-surface-2 text-muted sticky top-0 z-[2] border-b px-3 py-2 text-xs font-medium',
+        'border-app bg-surface-2 text-muted sticky top-0 z-[2] border-b px-2 py-2 text-xs font-medium sm:px-3',
+        DESKTOP_ONLY.has(id) && 'hidden sm:table-cell',
         id === 'metric' && 'left-0 z-[3]',
         left ? 'text-left' : 'text-right'
       )}

@@ -240,7 +240,7 @@ function HitList({
                       A rank: {rankOrderNote(order)}
                     </span>
                   ) : null}
-                  <div className="mt-1 flex items-center gap-2">
+                  <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
                     <div
                       className="bg-surface-2 h-1.5 w-24 shrink-0 overflow-hidden rounded-full sm:w-32"
                       role="img"
