@@ -23,16 +23,27 @@ export default defineConfig(({ command }) => ({
         autoSubfolderIndex: true,
         failOnError: true,
         concurrency: 8,
-        // The preview server shares this process, so a slow page can hold the
-        // event loop long enough for a keep-alive socket to be reset under the
-        // next request (fetch failed: ECONNRESET). Retry rather than fail the
-        // whole build; a page that really errors still fails after these.
-        retryCount: 3,
-        retryDelay: 1000,
+        // No retryCount: TanStack's retry re-queues a path it has already
+        // seen, so a "retried" page is silently skipped instead of rendered.
       },
       sitemap: { enabled: true, host: siteUrl },
     }),
     react(),
+    // The prerenderer fetches every page from a `vite preview` server running
+    // in this same process. A slow page can hold the event loop until a
+    // keep-alive socket is closed just as the next request reuses it, failing
+    // the build with "fetch failed: ECONNRESET". Closing each connection after
+    // its response means no socket is ever reused. Production is served by
+    // Caddy, so this only affects `vite preview`.
+    {
+      name: 'preview-close-connections',
+      configurePreviewServer(server) {
+        server.middlewares.use((_req, res, next) => {
+          res.setHeader('Connection', 'close');
+          next();
+        });
+      },
+    },
   ],
   resolve: {
     alias: { '~': fileURLToPath(new URL('./src', import.meta.url)) },
