@@ -51,7 +51,7 @@ RUN if [ -z "$VITE_SITE_URL" ] && [ -n "$RAILWAY_PUBLIC_DOMAIN" ]; then \
       export VITE_SITE_URL="https://$RAILWAY_PUBLIC_DOMAIN"; \
     fi \
     && echo "Site URL: ${VITE_SITE_URL:-default}" \
-    && node -p '"Node heap limit: " + (require("v8").getHeapStatistics().heap_size_limit >> 20) + " MB, memory: " + (require("os").totalmem() >> 20) + " MB"' \
+    && node -p 'const mb = (n) => Math.round(n / 2 ** 20); "Node heap limit: " + mb(require("v8").getHeapStatistics().heap_size_limit) + " MB, memory: " + mb(require("os").totalmem()) + " MB"' \
     && cd apps/web \
     && status=0 && ./node_modules/.bin/vite build > /tmp/vite-build.log 2>&1 || status=$? \
     ; grep -v -e 'Crawling: ' -e '^\[prerender\] - ' /tmp/vite-build.log | tail -n 80 \
