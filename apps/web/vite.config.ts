@@ -45,6 +45,12 @@ export default defineConfig(({ command }) => ({
       },
     },
   ],
+  // The prerenderer fetches from this preview server's resolved URL. With
+  // "localhost" that has two addresses, and Node gives ::1 only 250ms before
+  // falling back to 127.0.0.1, where nothing listens; while a slow page holds
+  // the event loop, that timer fires first and the build fails with
+  // ETIMEDOUT ::1 / ECONNREFUSED 127.0.0.1. One IPv4 address avoids the race.
+  preview: { host: '127.0.0.1' },
   resolve: {
     alias: { '~': fileURLToPath(new URL('./src', import.meta.url)) },
   },
