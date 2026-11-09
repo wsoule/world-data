@@ -39,6 +39,10 @@ COPY apps/web apps/web
 
 # stats:build, then web:build (vite build prerenders every page and writes
 # sitemap.xml; seo-files.ts adds robots.txt, llms.txt, 404.html and CSVs).
+# vite build logs a line per prerendered page (~11k), more than Railway keeps,
+# so the error that ends a failed build gets dropped. Its output goes to a
+# file instead: the tail is printed either way, with the exit code (137 means
+# the process was killed, usually for running out of memory).
 ARG VITE_SITE_URL
 ARG VITE_CF_ANALYTICS_TOKEN
 ARG RAILWAY_PUBLIC_DOMAIN
@@ -47,7 +51,12 @@ RUN if [ -z "$VITE_SITE_URL" ] && [ -n "$RAILWAY_PUBLIC_DOMAIN" ]; then \
       export VITE_SITE_URL="https://$RAILWAY_PUBLIC_DOMAIN"; \
     fi \
     && echo "Site URL: ${VITE_SITE_URL:-default}" \
-    && cd apps/web && pnpm exec vite build && bun scripts/seo-files.ts
+    && node -p '"Node heap limit: " + (require("v8").getHeapStatistics().heap_size_limit >> 20) + " MB, memory: " + (require("os").totalmem() >> 20) + " MB"' \
+    && cd apps/web \
+    && status=0 && ./node_modules/.bin/vite build > /tmp/vite-build.log 2>&1 || status=$? \
+    ; grep -v -e 'Crawling: ' -e '^\[prerender\] - ' /tmp/vite-build.log | tail -n 80 \
+    && echo "vite build exited with $status" && [ "$status" -eq 0 ] \
+    && bun scripts/seo-files.ts
 
 # Precompress text files once so Caddy serves the .gz copies instead of
 # compressing every response.
