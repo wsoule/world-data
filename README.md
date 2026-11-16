@@ -146,6 +146,15 @@ deprecated). It deploys the repository's default branch, so merge this work into
    injection, which would count every view twice). Set its 32-character token as
    the `VITE_CF_ANALYTICS_TOKEN` variable and redeploy. The beacon is
    cookieless, and the privacy page describes it only when the token is set.
+8. Optional: to sell data, API access, white-label embeds and reports, create a
+   Stripe Payment Link for each and set `VITE_STRIPE_DATASET_URL`,
+   `VITE_STRIPE_API_URL`, `VITE_STRIPE_EMBED_URL` and `VITE_STRIPE_REPORT_URL`
+   (each `https://buy.stripe.com/…`). For the "Thinking of moving?" box on US
+   place and head-to-head pages, set `VITE_AFFILIATE_HOMES_URL`,
+   `VITE_AFFILIATE_MOVERS_URL` and `VITE_AFFILIATE_INSURANCE_URL` to your
+   partner links. All are build-time variables: redeploy after changing them.
+   Unset, the business pages offer email inquiries to hello@rankodex.com and no
+   partner box shows (`apps/web/src/commerce.ts`).
 
 The CLI equivalent of steps 1-3 is `railway init`, `railway up` (which uploads
 this checkout, without GitHub autodeploys) and `railway domain`; set the

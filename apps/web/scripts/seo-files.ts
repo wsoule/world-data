@@ -470,6 +470,8 @@ async function main(): Promise<void> {
     '## Data access',
     '',
     `- Each topic table is downloadable as CSV: ${SITE_URL}/data/<type>/topics/<slug>.csv (types: ${manifest.types.map((t) => t.id).join(', ')}).`,
+    `- Bulk data, the JSON API and commercial access: ${SITE_URL}/downloads`,
+    `- Licensing for AI training, retrieval and commercial products: ${SITE_URL}/licensing`,
     `- Sitemap: ${SITE_URL}/sitemap.xml`,
     '',
   ];

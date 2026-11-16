@@ -48,6 +48,7 @@ export const DISALLOWED: readonly string[] = [
   '/search?',
   '/compare?',
   '/vs?',
+  '/widget?',
   ...CATEGORY_QUERY_PREFIXES,
 ];
 

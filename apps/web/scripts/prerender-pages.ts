@@ -221,12 +221,15 @@ export function prerenderPages(dataDir: string): PrerenderPage[] {
     })),
     // The glossary explains terms, not data, so it has no data date.
     { path: '/glossary', sitemap: { priority: 0.5, changefreq: 'monthly' } },
-    // About, Methodology, Sources, Contact, Privacy and Terms (scripts/static-pages.ts).
+    // The trust and business pages: About … Terms, Data and API, Embed, Reports, Licensing
+    // (scripts/static-pages.ts).
     ...staticPages(),
     // Browser-only app routes: prerendered as shells, kept out of the sitemap.
     { path: '/compare', sitemap: { exclude: true } },
     { path: '/vs', sitemap: { exclude: true } },
     { path: '/search', sitemap: { exclude: true } },
+    // The embeddable ranking, read from its query string inside other sites' iframes.
+    { path: '/widget', sitemap: { exclude: true } },
   ];
   for (const c of manifest.categories) {
     pages.push({

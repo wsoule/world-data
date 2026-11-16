@@ -26,6 +26,7 @@ import {
   StrengthList,
 } from './ProfileSections';
 import type { RelatedPlaces } from './relatedPlaces';
+import { RelocationPartners } from './RelocationPartners';
 import { Choropleth } from '~/charts/Choropleth';
 import { EntityPicker } from '~/components/EntityPicker';
 import { EmptyState } from '~/components/feedback';
@@ -288,6 +289,8 @@ function Profile({
       ))}
 
       <Matchups dataset={dataset} entity={entity} matchups={matchups} />
+
+      <RelocationPartners type={type} placeNames={[entity.name]} />
 
       <PlaceStories view={view} />
 

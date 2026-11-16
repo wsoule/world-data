@@ -13,13 +13,18 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as CompareRouteImport } from './routes/compare'
 import { Route as ContactRouteImport } from './routes/contact'
+import { Route as DownloadsRouteImport } from './routes/downloads'
+import { Route as EmbedRouteImport } from './routes/embed'
 import { Route as GlossaryRouteImport } from './routes/glossary'
+import { Route as LicensingRouteImport } from './routes/licensing'
 import { Route as MethodologyRouteImport } from './routes/methodology'
 import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as SourcesRouteImport } from './routes/sources'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as VsRouteImport } from './routes/vs'
+import { Route as WidgetRouteImport } from './routes/widget'
 import { Route as ArticlesIndexRouteImport } from './routes/articles.index'
 import { Route as ArticlesSlugRouteImport } from './routes/articles.$slug'
 import { Route as CategoriesIndexRouteImport } from './routes/categories.index'
@@ -50,9 +55,24 @@ const ContactRoute = ContactRouteImport.update({
   path: '/contact',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DownloadsRoute = DownloadsRouteImport.update({
+  id: '/downloads',
+  path: '/downloads',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmbedRoute = EmbedRouteImport.update({
+  id: '/embed',
+  path: '/embed',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const GlossaryRoute = GlossaryRouteImport.update({
   id: '/glossary',
   path: '/glossary',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LicensingRoute = LicensingRouteImport.update({
+  id: '/licensing',
+  path: '/licensing',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MethodologyRoute = MethodologyRouteImport.update({
@@ -63,6 +83,11 @@ const MethodologyRoute = MethodologyRouteImport.update({
 const PrivacyRoute = PrivacyRouteImport.update({
   id: '/privacy',
   path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReportsRoute = ReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SearchRoute = SearchRouteImport.update({
@@ -83,6 +108,11 @@ const TermsRoute = TermsRouteImport.update({
 const VsRoute = VsRouteImport.update({
   id: '/vs',
   path: '/vs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WidgetRoute = WidgetRouteImport.update({
+  id: '/widget',
+  path: '/widget',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ArticlesIndexRoute = ArticlesIndexRouteImport.update({
@@ -136,13 +166,18 @@ export interface FileRoutesByFullPath {
   '/about': typeof AboutRoute
   '/compare': typeof CompareRoute
   '/contact': typeof ContactRoute
+  '/downloads': typeof DownloadsRoute
+  '/embed': typeof EmbedRoute
   '/glossary': typeof GlossaryRoute
+  '/licensing': typeof LicensingRoute
   '/methodology': typeof MethodologyRoute
   '/privacy': typeof PrivacyRoute
+  '/reports': typeof ReportsRoute
   '/search': typeof SearchRoute
   '/sources': typeof SourcesRoute
   '/terms': typeof TermsRoute
   '/vs': typeof VsRoute
+  '/widget': typeof WidgetRoute
   '/articles/$slug': typeof ArticlesSlugRoute
   '/categories/$category': typeof CategoriesCategoryRoute
   '/articles/': typeof ArticlesIndexRoute
@@ -158,13 +193,18 @@ export interface FileRoutesByTo {
   '/about': typeof AboutRoute
   '/compare': typeof CompareRoute
   '/contact': typeof ContactRoute
+  '/downloads': typeof DownloadsRoute
+  '/embed': typeof EmbedRoute
   '/glossary': typeof GlossaryRoute
+  '/licensing': typeof LicensingRoute
   '/methodology': typeof MethodologyRoute
   '/privacy': typeof PrivacyRoute
+  '/reports': typeof ReportsRoute
   '/search': typeof SearchRoute
   '/sources': typeof SourcesRoute
   '/terms': typeof TermsRoute
   '/vs': typeof VsRoute
+  '/widget': typeof WidgetRoute
   '/articles/$slug': typeof ArticlesSlugRoute
   '/categories/$category': typeof CategoriesCategoryRoute
   '/articles': typeof ArticlesIndexRoute
@@ -181,13 +221,18 @@ export interface FileRoutesById {
   '/about': typeof AboutRoute
   '/compare': typeof CompareRoute
   '/contact': typeof ContactRoute
+  '/downloads': typeof DownloadsRoute
+  '/embed': typeof EmbedRoute
   '/glossary': typeof GlossaryRoute
+  '/licensing': typeof LicensingRoute
   '/methodology': typeof MethodologyRoute
   '/privacy': typeof PrivacyRoute
+  '/reports': typeof ReportsRoute
   '/search': typeof SearchRoute
   '/sources': typeof SourcesRoute
   '/terms': typeof TermsRoute
   '/vs': typeof VsRoute
+  '/widget': typeof WidgetRoute
   '/articles/$slug': typeof ArticlesSlugRoute
   '/categories/$category': typeof CategoriesCategoryRoute
   '/articles/': typeof ArticlesIndexRoute
@@ -205,13 +250,18 @@ export interface FileRouteTypes {
     | '/about'
     | '/compare'
     | '/contact'
+    | '/downloads'
+    | '/embed'
     | '/glossary'
+    | '/licensing'
     | '/methodology'
     | '/privacy'
+    | '/reports'
     | '/search'
     | '/sources'
     | '/terms'
     | '/vs'
+    | '/widget'
     | '/articles/$slug'
     | '/categories/$category'
     | '/articles/'
@@ -227,13 +277,18 @@ export interface FileRouteTypes {
     | '/about'
     | '/compare'
     | '/contact'
+    | '/downloads'
+    | '/embed'
     | '/glossary'
+    | '/licensing'
     | '/methodology'
     | '/privacy'
+    | '/reports'
     | '/search'
     | '/sources'
     | '/terms'
     | '/vs'
+    | '/widget'
     | '/articles/$slug'
     | '/categories/$category'
     | '/articles'
@@ -249,13 +304,18 @@ export interface FileRouteTypes {
     | '/about'
     | '/compare'
     | '/contact'
+    | '/downloads'
+    | '/embed'
     | '/glossary'
+    | '/licensing'
     | '/methodology'
     | '/privacy'
+    | '/reports'
     | '/search'
     | '/sources'
     | '/terms'
     | '/vs'
+    | '/widget'
     | '/articles/$slug'
     | '/categories/$category'
     | '/articles/'
@@ -272,13 +332,18 @@ export interface RootRouteChildren {
   AboutRoute: typeof AboutRoute
   CompareRoute: typeof CompareRoute
   ContactRoute: typeof ContactRoute
+  DownloadsRoute: typeof DownloadsRoute
+  EmbedRoute: typeof EmbedRoute
   GlossaryRoute: typeof GlossaryRoute
+  LicensingRoute: typeof LicensingRoute
   MethodologyRoute: typeof MethodologyRoute
   PrivacyRoute: typeof PrivacyRoute
+  ReportsRoute: typeof ReportsRoute
   SearchRoute: typeof SearchRoute
   SourcesRoute: typeof SourcesRoute
   TermsRoute: typeof TermsRoute
   VsRoute: typeof VsRoute
+  WidgetRoute: typeof WidgetRoute
   ArticlesSlugRoute: typeof ArticlesSlugRoute
   CategoriesCategoryRoute: typeof CategoriesCategoryRoute
   ArticlesIndexRoute: typeof ArticlesIndexRoute
@@ -320,11 +385,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ContactRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/downloads': {
+      id: '/downloads'
+      path: '/downloads'
+      fullPath: '/downloads'
+      preLoaderRoute: typeof DownloadsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/embed': {
+      id: '/embed'
+      path: '/embed'
+      fullPath: '/embed'
+      preLoaderRoute: typeof EmbedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/glossary': {
       id: '/glossary'
       path: '/glossary'
       fullPath: '/glossary'
       preLoaderRoute: typeof GlossaryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/licensing': {
+      id: '/licensing'
+      path: '/licensing'
+      fullPath: '/licensing'
+      preLoaderRoute: typeof LicensingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/methodology': {
@@ -339,6 +425,13 @@ declare module '@tanstack/react-router' {
       path: '/privacy'
       fullPath: '/privacy'
       preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reports': {
+      id: '/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof ReportsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/search': {
@@ -367,6 +460,13 @@ declare module '@tanstack/react-router' {
       path: '/vs'
       fullPath: '/vs'
       preLoaderRoute: typeof VsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/widget': {
+      id: '/widget'
+      path: '/widget'
+      fullPath: '/widget'
+      preLoaderRoute: typeof WidgetRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/articles/': {
@@ -440,13 +540,18 @@ const rootRouteChildren: RootRouteChildren = {
   AboutRoute: AboutRoute,
   CompareRoute: CompareRoute,
   ContactRoute: ContactRoute,
+  DownloadsRoute: DownloadsRoute,
+  EmbedRoute: EmbedRoute,
   GlossaryRoute: GlossaryRoute,
+  LicensingRoute: LicensingRoute,
   MethodologyRoute: MethodologyRoute,
   PrivacyRoute: PrivacyRoute,
+  ReportsRoute: ReportsRoute,
   SearchRoute: SearchRoute,
   SourcesRoute: SourcesRoute,
   TermsRoute: TermsRoute,
   VsRoute: VsRoute,
+  WidgetRoute: WidgetRoute,
   ArticlesSlugRoute: ArticlesSlugRoute,
   CategoriesCategoryRoute: CategoriesCategoryRoute,
   ArticlesIndexRoute: ArticlesIndexRoute,

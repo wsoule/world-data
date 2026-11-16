@@ -82,6 +82,7 @@ import {
 import { usePrefetchStories } from '~/features/articles/StoryLinks';
 import { mayHaveStories } from '~/features/articles/storyPicks';
 import { datasetFacts } from '~/features/places/datasetFacts';
+import { EmbedSnippet } from '~/features/widget/EmbedSnippet';
 import { finiteExtent } from '~/lib/axis';
 import { labelFormat } from '~/lib/format';
 import type { TopicSearch } from '~/routes/topics.$type.$slug';
@@ -560,6 +561,12 @@ function NumericTopic({
               {second}
             </div>
           ) : null}
+
+          <EmbedSnippet
+            type={dataset.type.id}
+            slug={topic.slug}
+            metric={focus.id}
+          />
         </>
       )}
 

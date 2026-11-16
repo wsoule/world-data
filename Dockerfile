@@ -10,6 +10,9 @@
 # unset, Railway's generated domain is used if there is one, and otherwise
 # https://rankodex.com (src/site-url.ts). VITE_CF_ANALYTICS_TOKEN, also a
 # build-time variable, turns on the Cloudflare Web Analytics beacon (src/site.ts).
+# VITE_STRIPE_*_URL (Stripe Payment Links) and VITE_AFFILIATE_*_URL (partner
+# links) turn on the checkout buttons and relocation partners (src/commerce.ts);
+# unset, the business pages fall back to email inquiries and no partner shows.
 #
 # Base images are the official Docker Hub images pulled through Google's
 # mirror, because Docker Hub rate-limits shared build machines (429s).
@@ -45,6 +48,13 @@ COPY apps/web apps/web
 # the process was killed, usually for running out of memory).
 ARG VITE_SITE_URL
 ARG VITE_CF_ANALYTICS_TOKEN
+ARG VITE_STRIPE_DATASET_URL
+ARG VITE_STRIPE_API_URL
+ARG VITE_STRIPE_EMBED_URL
+ARG VITE_STRIPE_REPORT_URL
+ARG VITE_AFFILIATE_HOMES_URL
+ARG VITE_AFFILIATE_MOVERS_URL
+ARG VITE_AFFILIATE_INSURANCE_URL
 ARG RAILWAY_PUBLIC_DOMAIN
 RUN cd packages/stats && pnpm exec tsdown --clean
 RUN if [ -z "$VITE_SITE_URL" ] && [ -n "$RAILWAY_PUBLIC_DOMAIN" ]; then \

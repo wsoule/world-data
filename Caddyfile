@@ -30,11 +30,21 @@
 	@trailing path_regexp trailing ^(/[A-Za-z0-9._~-][A-Za-z0-9._~/-]*?)/+$
 	redir @trailing {re.trailing.1}{?query} 308
 
+	# Only the same site may frame pages, except the embeddable ranking
+	# (/widget, served from /widget/index.html), which any site may put in
+	# an iframe. Both rules use the same exact paths, so no other URL
+	# (/widgetx, /widget/anything) is ever frameable.
+	@widget path /widget /widget/index.html
+	@not_widget not path /widget /widget/index.html
+	header @not_widget {
+		X-Frame-Options SAMEORIGIN
+		Content-Security-Policy "frame-ancestors 'self'"
+	}
+	header @widget Content-Security-Policy "frame-ancestors *"
+
 	header {
 		X-Content-Type-Options nosniff
 		Referrer-Policy strict-origin-when-cross-origin
-		X-Frame-Options SAMEORIGIN
-		Content-Security-Policy "frame-ancestors 'self'"
 		# Browsers only honour this over HTTPS, which Railway's edge provides.
 		Strict-Transport-Security "max-age=31536000"
 		# Pages revalidate on every visit; set only where nothing below did.

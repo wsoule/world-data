@@ -8,6 +8,7 @@ import { Flag } from '~/components/Flag';
 import { QuickAnswers } from '~/components/QuickAnswers';
 import { Card, cx } from '~/components/ui';
 import type { EntityType } from '~/data/types';
+import { RelocationPartners } from '~/features/places/RelocationPartners';
 import { formatInt, plural } from '~/lib/format';
 import { useTheme } from '~/lib/theme';
 
@@ -48,6 +49,10 @@ export function PairPage({ data }: { data: PairPageData }) {
         />
       ) : null}
       <InteractiveLink data={data} />
+      <RelocationPartners
+        type={type}
+        placeNames={[places[0].name, places[1].name]}
+      />
       <QuickAnswers items={data.seo.faq} />
       {data.related.length > 0 ? (
         <Card

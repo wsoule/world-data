@@ -107,6 +107,19 @@ function RootDocument({ children }: { children: ReactNode }) {
 }
 
 function RootLayout() {
+  // The embeddable ranking (/widget) runs inside other sites' iframes: no header, footer or
+  // search palette, just the page. The path is fixed per prerendered file, so the server render
+  // and the first client render agree.
+  const bare = useRouterState({
+    select: (s) => s.location.pathname === '/widget',
+  });
+  if (bare) {
+    return (
+      <Suspense fallback={<PageSpinner />}>
+        <Outlet />
+      </Suspense>
+    );
+  }
   return (
     <div className="flex min-h-screen flex-col">
       <NavigationProgress />
@@ -390,7 +403,7 @@ function Footer() {
   );
   return (
     <footer className="border-app mt-8 border-t">
-      <div className="mx-auto grid max-w-7xl grid-cols-2 gap-x-6 gap-y-8 px-4 py-8 text-sm md:grid-cols-[1.4fr_1fr_1fr_1fr] md:px-6">
+      <div className="mx-auto grid max-w-7xl grid-cols-2 gap-x-6 gap-y-8 px-4 py-8 text-sm md:grid-cols-[1.4fr_1fr_1fr_1fr_1fr] md:px-6">
         <div className="col-span-2 md:col-span-1">
           <div className="flex items-center gap-2 font-semibold">
             <BrandMark className="size-5" />
@@ -533,7 +546,19 @@ function Footer() {
           </span>
         </FooterColumn>
         <FooterColumn title={SITE.name}>
-          {TRUST_PAGES.map((p) => (
+          {TRUST_PAGES.filter((p) => p.group === 'about').map((p) => (
+            <Link
+              key={p.id}
+              to={p.path}
+              activeOptions={EXACT_PATH}
+              className="hover:text-app"
+            >
+              {p.label}
+            </Link>
+          ))}
+        </FooterColumn>
+        <FooterColumn title="Work with us">
+          {TRUST_PAGES.filter((p) => p.group === 'business').map((p) => (
             <Link
               key={p.id}
               to={p.path}

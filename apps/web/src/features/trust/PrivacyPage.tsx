@@ -165,6 +165,13 @@ export function PrivacyPage() {
           follow a link, your browser tells the other site at most that you came
           from {SITE.name}’s address, not which page you were on.
         </p>
+        <p>
+          Some US place pages show partner links for homes, movers or insurance.
+          They are marked as partner links, and {SITE.name} may earn a
+          commission if you sign up; the partner, not {SITE.name}, handles
+          anything you share there. Paid data and reports are bought through
+          Stripe’s checkout pages, under Stripe’s privacy policy.
+        </p>
       </TrustSection>
 
       <TrustSection section={SECTIONS.changes}>
